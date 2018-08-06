@@ -8,5 +8,10 @@ setup(
     author = 'KuramitsuLab',
     description = 'Nez Parser for Python',
     install_requires = ['setuptools'],
-	packages = ["pegpy"]
+	packages = ["pegpy"],
+	entry_points = {
+		'console_scripts': [
+			'nez = pegpy.nez:hello',
+		]
+	}
 )
