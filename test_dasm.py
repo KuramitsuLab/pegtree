@@ -27,7 +27,7 @@ def math2(peg = None):
     peg.AddSub = TreeAs('', Range('+-'))
     peg.MulDiv = TreeAs('', Range('*/%'))
     peg.example('Expression,Int', '123', "[#Int '123']")
-    peg.example('Expression', '1+2*3', "[#Infix [#Infix [#Int '3'] [# '*'] [#Int '2']] [# '+'] [#Int '1']]")
+    peg.example('Expression', '1+2*3', "[#Infix [#Int '1'] [# '+'] [#Infix [#Int '2'] [# '*'] [#Int '3']]]")
     return peg
 
 peg2 = math2(PEG("math"))
