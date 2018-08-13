@@ -5,7 +5,7 @@ class ParsingExpression(object):
     def __repr__(self):
         return self.__str__()
     def __or__(self,right):
-        return Ore(self, pe(right))
+        return Alt(self, pe(right))
     def __and__(self,right):
         return seq(self,pe(right))
     def __xor__(self,right):
