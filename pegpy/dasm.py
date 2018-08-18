@@ -14,6 +14,7 @@ def dasm_setup():
 
     Seq.dasm = lambda pe: parsefunc.emit_Seq(pe,emit)
     Ore.dasm = lambda pe: parsefunc.emit_Or(pe,emit)
+    Alt.dasm = lambda pe: parsefunc.emit_Or(pe, emit)
     Not.dasm = lambda pe: parsefunc.emit_Not(pe, emit)
     And.dasm = lambda pe: parsefunc.emit_And(pe, emit)
     Many.dasm = lambda pe: parsefunc.emit_Many(pe, emit)
