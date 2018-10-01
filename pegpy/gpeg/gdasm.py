@@ -8,7 +8,7 @@ def gdasm_setup():
     def emit(pe): return pe.gdasm()
 
     Empty.gdasm = lambda self: gparsefunc.true
-    Any.gdasm = lambda self: gparsefunc.mresult(gparsefunc.any)
+    Any.gdasm = lambda self: gparsefunc.mresult(gparsefunc.jany)
     Char.gdasm = gparsefunc.emit_GByte
     Range.gdasm = gparsefunc.emit_GByteRange
 

@@ -21,6 +21,23 @@ def union(old, new, mtree):
     for pos in set(new) - set(old):
         result[pos] = new[pos]
     return result
+
+
+#for Japanese
+def jany(px):
+    if px.pos < px.length:
+        header = px.inputs[px.pos]
+        if header < 0xc0:
+            px.pos += 1
+        elif header >= 0xc0 and header <= 0xdf:
+            px.pos += 2
+        elif header >= 0xe0 and header <= 0xef:
+            px.pos += 3
+        else :
+            px.pos += 4
+        px.headpos = max(px.pos, px.headpos)
+        return True
+    return False
     
 
 #GChar
