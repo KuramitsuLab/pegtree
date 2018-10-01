@@ -44,3 +44,16 @@ def TestGrammar(peg = None):
 
 peg2 = TestGrammar()
 peg2.testAll(gdasm)
+
+def NLGrammar(peg = None):
+    if peg == None: peg = PEG('nl')
+    peg.iroha = pe('いろは')
+    peg.iroSeq = pe('い') & pe('ろ')
+
+    peg.example('iroha', 'いろは', "[# 'いろは']")
+    peg.example('iroSeq', 'いろは', "[# 'いろ']")
+
+    return peg
+
+peg2 = NLGrammar()
+peg2.testAll(gdasm)
