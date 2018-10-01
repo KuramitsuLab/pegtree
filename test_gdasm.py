@@ -49,9 +49,11 @@ def NLGrammar(peg = None):
     if peg == None: peg = PEG('nl')
     peg.iroha = pe('いろは')
     peg.iroSeq = pe('い') & pe('ろ')
+    peg.irohaSeq = pe('い') & pe('ろ') & pe('は')
 
     peg.example('iroha', 'いろは', "[# 'いろは']")
     peg.example('iroSeq', 'いろは', "[# 'いろ']")
+    peg.example('irohaSeq', 'いろは', "[# 'いろは']")
 
     return peg
 

@@ -35,8 +35,8 @@ def emit_GChar(pe):
 #GByte
 
 def emit_GByte(pe):
-    if len(pe.a)>1:
-        b = bytes(pe.a, 'utf-8')
+    b = bytes(pe.a, 'utf-8')
+    if len(b)>1:
         return mresult(multi(b, len(b)))
     c = ord(pe.a)
     key = str(c)

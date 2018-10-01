@@ -61,6 +61,7 @@ def gdasm(peg: PEG, name = None):
         f = gparsefunc.emit_Ref(peg, name, "_DAsm_", lambda pe: pe.gdasm())
     def parse(s, pos = 0):
         px = GDAsmContext(s, pos)
+        s = bytes(s, 'utf-8')
         if not f(px):
             return ParseTree("err", s, px.pos, len(s), None)
         if len(px.result) == 0:
