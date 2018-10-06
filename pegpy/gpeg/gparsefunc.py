@@ -2,6 +2,16 @@ from pegpy.parsefunc import *
 
 # generalized parse function
 
+def check_header(header):
+    if header < 0xc0:
+        return 1
+    elif header >= 0xc0 and header <= 0xdf:
+        return 2
+    elif header >= 0xe0 and header <= 0xef:
+        return 3
+    else :
+        return 4
+
 def mresult(pf):
     def curry(px):
         if pf(px):
@@ -27,17 +37,38 @@ def union(old, new, mtree):
 def jany(px):
     if px.pos < px.length:
         header = px.inputs[px.pos]
-        if header < 0xc0:
-            px.pos += 1
-        elif header >= 0xc0 and header <= 0xdf:
-            px.pos += 2
-        elif header >= 0xe0 and header <= 0xef:
-            px.pos += 3
-        else :
-            px.pos += 4
+        px.pos += check_header(header)
         px.headpos = max(px.pos, px.headpos)
         return True
     return False
+
+def jbits(n):
+    def curry(px) :
+        if px.pos > px.length - 1:
+            return False
+        num = check_header(px.inputs[px.pos])
+        if px.pos + num > px.length:
+            return False
+        for i in range(0, num):
+            if (n[i] & (1 << px.inputs[px.pos + i])) == 0:
+                return False
+        px.pos += num
+        px.headpos = max(px.pos, px.headpos)
+        return True
+    return curry
+
+def emit_JByteRange(pe):
+    n = [0,0,0,0]
+    for c in pe.chars:
+        b = bytes(c, 'utf-8')
+        for i in range(0, check_header(b[0])):
+            n[i] |= (1 << b[i])
+    for r in pe.ranges:
+        if len(bytes(r[0], 'utf-8')) >= 2 or len(bytes(r[1], 'utf-8')) >= 2:
+            raise ValueError('Can\'t use multi bytes charactor at range')
+        for c in range(ord(r[0]), ord(r[1])+1):
+            n[0] |= (1 << c)
+    return mresult(jbits(n))
     
 
 #GChar

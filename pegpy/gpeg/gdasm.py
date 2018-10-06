@@ -10,7 +10,7 @@ def gdasm_setup():
     Empty.gdasm = lambda self: gparsefunc.true
     Any.gdasm = lambda self: gparsefunc.mresult(gparsefunc.jany)
     Char.gdasm = gparsefunc.emit_GByte
-    Range.gdasm = gparsefunc.emit_GByteRange
+    Range.gdasm = gparsefunc.emit_JByteRange
 
     Seq.gdasm = lambda pe: gparsefunc.emit_GSeq(pe,emit, TreeLink)
     Ore.gdasm = lambda pe: gparsefunc.emit_GOr(pe,emit)

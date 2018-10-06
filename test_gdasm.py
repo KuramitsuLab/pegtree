@@ -51,13 +51,13 @@ def NLGrammar(peg = None):
     peg.iroSeq = pe('い') & pe('ろ')
     peg.irohaSeq = pe('い') & pe('ろ') & pe('は')
     peg.any = ANY & ANY
-    peg.range = Range('い', 'ろ', 'は')*0
+    peg.chclass = Range('い', 'ろ', 'は')*0
 
     peg.example('iroha', 'いろは', "[# 'いろは']")
     peg.example('iroSeq', 'いろは', "[# 'いろ']")
     peg.example('irohaSeq', 'いろは', "[# 'いろは']")
     peg.example('any', 'いろは', "[# 'いろ']")
-    peg.example('range', 'いろは', "[# 'いろは']")
+    peg.example('chclass', 'いろは', "[# 'いろは']")
 
     return peg
 
