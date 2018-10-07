@@ -63,3 +63,24 @@ def NLGrammar(peg = None):
 
 peg2 = NLGrammar()
 peg2.testAll(gdasm)
+
+def NLPGrammar(peg = None):
+    if peg == None: peg = PEG('nlp')
+    peg.Assign = TreeAs('Assign', N % '$VARIABLENAME' & pe('を') & N % '$Expression' & Range('とおく', 'とする'))
+    peg.Const = TreeAs('Const', N % '$VARIABLENAME' & pe('は') & N % '$Expression' & Range('である'))
+
+    peg.Expression = N % 'Product' ^ TreeAs('Infix', N % '$AddSub $Product') * 0
+    peg.Product = N % 'Value' ^ TreeAs('Infix', N % '$MulDiv $Value') * 0
+    peg.Value = N % 'Int' | '(' & N % 'Expression' & ')'
+    peg.Int = TreeAs('Int', Range('0-9') + 0)
+    peg.AddSub = TreeAs('', Range('+-'))
+    peg.MulDiv = TreeAs('', Range('*/%'))
+
+    peg.VARIABLENAME = TreeAs('Variable', Range('A-Z', 'a-z') & Range('A-Z', 'a-z', '0-9') * 0)
+
+    peg.example('Assign', 'Xを1+2*3とおく', "[#Assign [#Variable 'X'] [#Infix [#Int '1'] [# '+'] [#Infix [#Int '2'] [# '*'] [#Int '3']]]]")
+    peg.example('Const', 'Xは5である', "[#Const [#Variable 'X'] [#Int '5']]")
+    return peg
+
+peg2 = NLPGrammar()
+peg2.testAll(gdasm)
