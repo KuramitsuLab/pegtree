@@ -59,15 +59,25 @@ def jbits(n):
 
 def emit_JByteRange(pe):
     n = [0,0,0,0]
+    debug = []
     for c in pe.chars:
         b = bytes(c, 'utf-8')
         for i in range(0, check_header(b[0])):
             n[i] |= (1 << b[i])
     for r in pe.ranges:
-        if len(bytes(r[0], 'utf-8')) >= 2 or len(bytes(r[1], 'utf-8')) >= 2:
-            raise ValueError('Can\'t use multi bytes charactor at range')
-        for c in range(ord(r[0]), ord(r[1])+1):
-            n[0] |= (1 << c)
+        r0 = bytes(r[0], 'utf-8')
+        r1 = bytes(r[1], 'utf-8')
+        if len(r0) != len(r1):
+            raise ValueError('Can\'t use multi bytes of different length ')
+        for i in range(0, len(r0)):
+            s = r0[i] if r0[i] != r1[i] else 0
+            e = r1[i] if r0[i] != r1[i] else 15 
+            for c in range(s, e):
+                debug.append(hex(c))
+                n[i] |= (1 << c)
+        print(debug)
+        
+            
     return mresult(jbits(n))
     
 
