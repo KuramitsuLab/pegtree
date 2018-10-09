@@ -52,14 +52,18 @@ def NLGrammar(peg = None):
     peg.irohaSeq = pe('い') & pe('ろ') & pe('は')
     peg.any = ANY & ANY
     peg.chclass = Range('い', 'ろ', 'は')*0
-    peg.range1 = Range('あ-を')*0
+    peg.hiragana = Range('ぁ-ん')*0
+    peg.katakana = Range('ァ-ヶ')*0
+    peg.kanji = Range("\u3005","\u3007","\u303b","\u3400-\u4DB5","\u4E00-\u9FA0")*0
 
     peg.example('iroha', 'いろは', "[# 'いろは']")
     peg.example('iroSeq', 'いろは', "[# 'いろ']")
     peg.example('irohaSeq', 'いろは', "[# 'いろは']")
     peg.example('any', 'いろは', "[# 'いろ']")
     peg.example('chclass', 'いろは', "[# 'いろは']")
-    peg.example('range1', 'あいうえおかきくけもやゆよらりるれろわを', "[# 'あいうえおかきくけもやゆよらりるれろわを']")
+    peg.example('hiragana', 'あかさたなはまやらわを', "[# 'あかさたなはまやらわを']")
+    peg.example('katakana', 'アカサタナハマヤラワヲ', "[# 'アカサタナハマヤラワヲ']")
+    peg.example('kanji', '倉光研究室', "[# '倉光研究室']")
 
     return peg
 

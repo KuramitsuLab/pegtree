@@ -1,4 +1,5 @@
 from pegpy.parsefunc import *
+import functools
 
 # generalized parse function
 
@@ -32,6 +33,14 @@ def union(old, new, mtree):
         result[pos] = new[pos]
     return result
 
+#for debug
+def debug_jbits(n):
+    res = []
+    for i in range(0, 256):
+        c = 1 << i
+        if (n[0] & c) != 0:
+            res = res + [chr(i)]
+    return res
 
 #for Japanese
 def jany(px):
@@ -46,38 +55,56 @@ def jbits(n):
     def curry(px) :
         if px.pos > px.length - 1:
             return False
-        num = check_header(px.inputs[px.pos])
-        if px.pos + num > px.length:
+        length = check_header(px.inputs[px.pos])
+        if px.pos + length > px.length:
             return False
-        for i in range(0, num):
-            if (n[i] & (1 << px.inputs[px.pos + i])) == 0:
+        if length == 1:
+            if (n[0] & (1 << px.inputs[px.pos])) == 0:
                 return False
-        px.pos += num
+        elif length == 2:
+            if (n[1] & (1 << px.inputs[px.pos + 1])) == 0:
+                return False
+        elif length == 3:
+            (i1, i2) = px.inputs[px.pos + 1:px.pos + 3]
+            if (n[2][i1] & (1 << i2)) == 0:
+                return False
+        elif length == 4:
+            (i1, i2, i3) = px.inputs[px.pos + 1:px.pos + 4]
+            if (n[3][i1][i2] & (1 << i3)) == 0:
+                return False
+        px.pos += length
         px.headpos = max(px.pos, px.headpos)
         return True
     return curry
 
 def emit_JByteRange(pe):
-    n = [0,0,0,0]
-    debug = []
+    n = [0,0,[0 for i in range(257)],[ [0 for j in range(257)] for k in range(257) ] ]
     for c in pe.chars:
         b = bytes(c, 'utf-8')
-        for i in range(0, check_header(b[0])):
-            n[i] |= (1 << b[i])
+        length = check_header(b[0])
+        if length == 1:
+            n[0] |= (1 << b[0])
+        elif length == 2:
+            n[1] |= (1 << b[1])
+        elif length == 3:
+            n[2][b[1]] |= (1 << b[2])
+        elif length == 4:
+            n[3][b[1]][b[2]] |= (1 << b[3])
     for r in pe.ranges:
         r0 = bytes(r[0], 'utf-8')
         r1 = bytes(r[1], 'utf-8')
         if len(r0) != len(r1):
             raise ValueError('Can\'t use multi bytes of different length ')
-        for i in range(0, len(r0)):
-            s = r0[i] if r0[i] != r1[i] else 0
-            e = r1[i] if r0[i] != r1[i] else 15 
-            for c in range(s, e):
-                debug.append(hex(c))
-                n[i] |= (1 << c)
-        print(debug)
-        
-            
+        length = len(r0)
+        for i in range(functools.reduce(lambda x, y: y + (x << 8), r0), functools.reduce(lambda x, y: y + (x << 8), r1) + 1):
+            if length == 1:
+                n[0] |= (1 << i)
+            elif length == 2:
+                n[1] |= (1 << (i & 0xff))
+            elif length == 3:
+                n[2][ (i & 0xff00) >> 8] |= (1 << (i & 0xff))
+            elif length == 4:
+                n[3][ (i & 0xff00) >> 8][ (i & 0xff0000) >> 16] |= (1 << (i & 0xff))
     return mresult(jbits(n))
     
 
