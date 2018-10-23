@@ -11,7 +11,7 @@ def read_inputs(a):
   except:
     return a.encode() + b'\0' # Zero Termination
 
-def parse(opt):
+def parse2(opt):
     peg = PEG()
     peg.load(opt['grammar'])
     peg.pegp()

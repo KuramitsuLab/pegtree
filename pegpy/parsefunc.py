@@ -216,7 +216,7 @@ def tree(tag, pf, mtree):
     return curry
 
 def emit_TreeAs(pe, emit, mtree):
-    return tree(pe.tag, emit(pe.inner), mtree)
+    return tree(pe.name, emit(pe.inner), mtree)
 
 def link(tag, pf, mlink):
     def curry(px):
@@ -228,7 +228,7 @@ def link(tag, pf, mlink):
     return curry
 
 def emit_LinkAs(pe, emit, mlink):
-    return link(pe.tag, emit(pe.inner), mlink)
+    return link(pe.name, emit(pe.inner), mlink)
 
 def fold(ltag, tag, pf, mtree, mlink):
     def curry(px):
@@ -241,7 +241,7 @@ def fold(ltag, tag, pf, mtree, mlink):
     return curry
 
 def emit_FoldAs(pe, emit, mtree, mlink):
-    return fold(pe.ltag, pe.tag, emit(pe.inner), mtree, mlink)
+    return fold(pe.left, pe.name, emit(pe.inner), mtree, mlink)
 
 def unit(pf):
     def curry(px):

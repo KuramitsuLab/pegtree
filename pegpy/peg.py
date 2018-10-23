@@ -1,5 +1,7 @@
 #!/usr/local/bin/python
 import pegpy.ast as ast
+import pegpy.parsefunc as parsefunc
+import pegpy.utils as utils
 
 class ParsingExpression(object):
     def __repr__(self):
@@ -27,9 +29,12 @@ class ParsingExpression(object):
     def setpeg(self, peg):
         if hasattr(self, 'inner'):
             self.inner.setpeg(peg)
-        if hasattr(self, 'left'):
+        if hasattr(self, 'right'):
             self.left.setpeg(peg)
             self.right.setpeg(peg)
+    @classmethod
+    def new(cls, e):
+        return e
 
 class Empty(ParsingExpression):
     def __str__(self):
@@ -50,7 +55,9 @@ class Range(ParsingExpression):
         chars = []
         ranges = []
         for s in ss :
-            if len(s) == 3 and s[1] is '-':
+            if isinstance(s, tuple):
+                ranges.append(s)
+            elif len(s) == 3 and s[1] is '-':
                 ranges.append((s[0], s[2]))
             else:
                 for c in s:
@@ -95,7 +102,7 @@ class Seq(ParsingExpression):
         self.left = pe(left)
         self.right = pe(right)
     def __str__(self):
-        return quote_pe(self.left, inSeq) + ' ' + quote_pe(self.right, inSeq)
+        return grouping(self.left, inSeq) + ' ' + grouping(self.right, inSeq)
     def flatten(self, ls):
         if isinstance(self.left, Seq):
             self.left.flatten(ls)
@@ -114,7 +121,7 @@ class Ore(ParsingExpression):
         self.right = pe(right)
     def __str__(self):
         if self.right == EMPTY:
-            return quote_pe(self.left, inUnary) + '?'
+            return grouping(self.left, inUnary) + '?'
         return str(self.left) + ' / ' + str(self.right)
     def flatten(self, ls):
         if isinstance(self.left, Ore):
@@ -150,30 +157,30 @@ class And(ParsingExpression):
     def __init__(self, inner):
         self.inner = pe(inner)
     def __str__(self):
-        return '&' + quote_pe(self.inner, inUnary)
+        return '&' + grouping(self.inner, inUnary)
 
 class Not(ParsingExpression):
     __slots__ = ['inner']
     def __init__(self, inner):
         self.inner = pe(inner)
     def __str__(self):
-        return '!' + quote_pe(self.inner, inUnary)
+        return '!' + grouping(self.inner, inUnary)
 
 class Many(ParsingExpression):
     __slots__ = ['inner']
     def __init__(self, inner):
         self.inner = pe(inner)
     def __str__(self):
-        return quote_pe(self.inner, inUnary) + '*'
+        return grouping(self.inner, inUnary) + '*'
 
 class Many1(ParsingExpression):
     __slots__ = ['inner']
     def __init__(self, inner):
         self.inner = pe(inner)
     def __str__(self):
-        return quote_pe(self.inner, inUnary) + '+'
+        return grouping(self.inner, inUnary) + '+'
 
-def quote_pe(e, f): return '(' + str(e) + ')' if f(e) else str(e)
+def grouping(e, f): return '(' + str(e) + ')' if f(e) else str(e)
 def inSeq(e): return isinstance(e, Ore) or isinstance(e, Alt)
 def inUnary(e): return (isinstance(e, Ore) and e.right != EMPTY) or isinstance(e, Seq) or isinstance(e, Alt)
 def quote_str(e, esc = "'"):
@@ -228,47 +235,47 @@ def lfold(ltag,e):
     if isinstance(e, Ore):
         return Ore(lfold(ltag, e.left), lfold(ltag, e.right))
     if isinstance(e, TreeAs):
-        return FoldAs(ltag, e.tag, pe(e.inner))
+        return FoldAs(ltag, e.name, pe(e.inner))
     return e
 
 ## Tree Construction
 
 class TreeAs(ParsingExpression):
-    __slots__ = ['tag', 'inner']
-    def __init__(self, tag, inner):
-        self.tag = tag
+    __slots__ = ['name', 'inner']
+    def __init__(self, name = '', inner = EMPTY):
+        self.name = name
         self.inner = pe(inner)
     def __str__(self):
-        return self.tag + '{ ' + str(self.inner) + ' }'
+        return self.name + '{ ' + str(self.inner) + ' }'
 
 class LinkAs(ParsingExpression):
-    __slots__ = ['tag', 'inner']
-    def __init__(self, tag, inner=None):
-        self.tag = tag
+    __slots__ = ['name', 'inner']
+    def __init__(self, name = '', inner=None):
+        self.name = name
         self.inner = pe(inner)
     def __str__(self):
-        if self.tag == '':
-            return '$' + quote_pe(self.inner, inUnary)
-        return '(' + self.tag + '=>' + str(self.inner) + ')'
+        if self.name == '':
+            return '$' + grouping(self.inner, inUnary)
+        return '(' + self.name + '=>' + str(self.inner) + ')'
     def __le__(self, right):
-        return LinkAs(self.tag, right)
+        return LinkAs(self.name, right)
     def __ge__(self, right):
-        return LinkAs(self.tag, right)
+        return LinkAs(self.name, right)
     def __mod__(self, right):
         return ref(right)
     def __xor__(self,right):
-        return lfold(self.tag, pe(right))
+        return lfold(self.name, pe(right))
 
 N = LinkAs("")
 
 class FoldAs(ParsingExpression):
-    __slots__ = ['ltag', 'tag', 'inner']
-    def __init__(self, ltag, tag, inner):
+    __slots__ = ['left', 'name', 'inner']
+    def __init__(self, left = '', name = '', inner = EMPTY):
+        self.left = left
+        self.name = name
         self.inner = pe(inner)
-        self.ltag = ltag
-        self.tag = tag
     def __str__(self):
-        return self.ltag + '^' + self.tag +'{ ' + str(self.inner) + ' }'
+        return self.left + '^' + self.name + '{ ' + str(self.inner) + ' }'
 
 class Detree(ParsingExpression):
     __slots__ = ['inner']
@@ -285,9 +292,9 @@ class Detree(ParsingExpression):
 '''
 
 class Meta(ParsingExpression):
-    __slots__ = ['tag', 'inner', 'opt']
-    def __init__(self, tag, inner, opt = None):
-        self.tag = tag
+    __slots__ = ['name', 'inner', 'opt']
+    def __init__(self, name, inner, opt = None):
+        self.name = name
         self.inner = pe(inner)
         self.opt = opt
     def __str__(self):
@@ -302,77 +309,62 @@ class ParserContext:
         self.pos = pos
         self.headpos = pos
         self.ast = None
-
-class TPEGConv(TreeConv):
-    def __init__(self, peg:PEG):
-        self.peg = peg
-    def load(self, path):
-        self.peg = PEG(path)
-        f = open(path, 'r')
-        data = f.read()
-        f.close()
-        return self.peg
-    def Source(self,t:ParseTree):
-        for stmt in t.asArray():
-            self.parse(stmt)
-    def Example(self, t:ParseTree):
-        names, input = t.asArray()
-        for name in names:
-            self.peg.example(name.asString(), input.asString())
-    def Production(self, t:ParseTree):
-        name, expr = t.asArray()
-        setattr(self.peg, name.asString(), self.parse(expr))
-    def Name(self, t:ParseTree):
-        return Ref(t.asString())
-    def Char(self, t:ParseTree):
-        return pe(t.asString())
-    def Class(self, t:ParseTree):
-        return pe(t.asString())
-    def Any(self, t:ParseTree):
-        return ANY
-    def Or(self,t:ParseTree):
-        return lor(list(map(lambda x: self.parse(x), t.asArray())))
-    def Seq(self,t:ParseTree):
-        return lseq(list(map(lambda x: self.parse(x), t.asArray())))
-    def Many(self,t:ParseTree):
-        return Many(self.parse(t[0]))
-    def Many1(self,t:ParseTree):
-        return Many1(self.parse(t[0]))
-    def Option(self,t:ParseTree):
-        return Ore(self.parse(t[0]), EMPTY)
-    def And(self,t:ParseTree):
-        return And(self.parse(t[0]))
-    def Not(self,t:ParseTree):
-        return Not(self.parse(t[0]))
-    def Append(self,t:ParseTree):
-        return LinkAs('', self.parse(t[0]))
-    def Tree(self,t:ParseTree):
-        if len(t) == 2:
-            return TreeAs(t[0].asString(), self.parse(t[1]))
-        return TreeAs('', self.parse(t[0]))
-    def Link(self,t:ParseTree):
-        if len(t) == 2:
-            return LinkAs(t[0].asString(), self.parse(t[1]))
-        return LinkAs('', self.parse(t[0]))
-    def Fold(self,t:ParseTree):
-        if len(t) == 3:
-            return FoldAs(t[0].asString(), t[1].asString(), self.parse(t[3]))
-        if len(t) == 2:
-            return FoldAs('', t[0].asString(), self.parse(t[1]))
-        return FoldAs('', '', self.parse(t[0]))
-
-    def unquote(self, s):
-        sb = []
-        while len(s) > 0:
-            if s.startswith('\\') and len(s) > 1:
-                s = self.unesc(s, sb)
-            else:
-                sb.append(s[0])
-                s = s[1:]
-        return ''.join(sb)
-
 '''
+#
 
+def pegp(peg, name = None, conv = None):
+    if not hasattr(Char, 'dasm'):
+        def emit(pe): return pe.dasm()
+
+        Empty.dasm = lambda self: parsefunc.true
+        Any.dasm = lambda self: parsefunc.any
+        Char.dasm = parsefunc.emit_Byte
+        Range.dasm = parsefunc.emit_ByteRange
+
+        Seq.dasm = lambda pe: parsefunc.emit_Seq(pe, emit)
+        Ore.dasm = lambda pe: parsefunc.emit_Or(pe, emit)
+        Not.dasm = lambda pe: parsefunc.emit_Not(pe, emit)
+        And.dasm = lambda pe: parsefunc.emit_And(pe, emit)
+        Many.dasm = lambda pe: parsefunc.emit_Many(pe, emit)
+        Many1.dasm = lambda pe: parsefunc.emit_Many1(pe, emit)
+
+        TreeAs.dasm = lambda pe: parsefunc.emit_TreeAs(pe, emit, ast.ParseTree)
+        LinkAs.dasm = lambda pe: parsefunc.emit_LinkAs(pe, emit, ast.TreeLink)
+        FoldAs.dasm = lambda pe: parsefunc.emit_FoldAs(pe, emit, ast.ParseTree, ast.TreeLink)
+        Detree.dasm = lambda pe: parsefunc.emit_Unit(pe, emit)
+
+        # Ref
+        Ref.dasm = lambda pe: parsefunc.emit_Ref(pe.peg, pe.name, "_DAsm_", emit)
+        Rule.dasm = lambda pe: parsefunc.emit_Rule(pe, emit)
+    # end of dasm
+
+    if isinstance(peg, ParsingExpression):
+        f = peg.dasm()
+    else:
+        if name == None: name = "start"
+        f = parsefunc.emit_Ref(peg, name, "_DAsm_", lambda pe: pe.dasm())
+
+    class DAsmContext:
+        __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
+
+        def __init__(self, inputs, urn='(unknown)', pos=0):
+            s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+            self.inputs, self.pos = ast.encode_source(s, urn, pos)
+            self.length = len(self.inputs)
+            self.headpos = self.pos
+            self.ast = None
+
+    def parse(s, urn = '(unknown)', pos = 0):
+        px = DAsmContext(s, urn, pos)
+        pos = px.pos
+        ast0 = None
+        if not f(px):
+            ast0 = ast.ParseTree("err", px.inputs, px.headpos, len(s), None)
+        else:
+            ast0 = px.ast if px.ast is not None else ast.ParseTree("", px.inputs, pos, px.pos, None)
+        return conv(ast0) if conv is not None else ast0
+
+    return parse
 
 # Rule
 
@@ -431,7 +423,8 @@ class PEG(object):
     def example(self, prod, input, output = None):
         for name in prod.split(','):
             self.example77.append((name, input, output))
-    def testAll(self, combinator):
+
+    def testAll(self, combinator = pegp):
         p = {}
         test = 0
         ok = 0
@@ -695,10 +688,11 @@ def testRules(g: PEG):
         p = getattr(g, name)
         p.checkRule()
 
-## TPEG　Parser
 
-def TPEGGrammar(g = None):
-    if g == None: g = PEG('tpeg')
+## Loader
+
+def tpeg(g = None):
+    if g == None: g = PEG('peg')
 
     # Preliminary
     __ = N % '__'
@@ -714,30 +708,34 @@ def TPEGGrammar(g = None):
     g.S = Range(' \t')
 
     g.Source = TreeAs('Source', (N%'$Statement')*0)
-    "EOS = _ (';' _ / EOL (S/COMMENT) _ / EOL )*"
     g.EOS = N%'_' & (';' & N%'_' | N%'EOL' & (N%'S' | N%'COMMENT') & N%'_' | N%'EOL')* 0
 
-    g.Statement = N%'Example/Production'
+    left = LinkAs('left')
+    right = LinkAs('right')
+    name = LinkAs('name')
+    inner = LinkAs('inner')
 
-    g.Production = TreeAs('Production', N%'$Identifier __' & '=' & __ & (Range('/|') & __ |0) & N%'$Expression') & EOS
+    g.Statement = N%'Example/Rule'
 
-    g.Name = TreeAs('Name', N%'NAME')
-    g.NAME = '"' & (pe(r'\"') | ~Range('\\"\n') & ANY)*0 & '"' | (~Range(' \t\r\n(,){};<>[|/*+?=^\'`') & ANY)+0
+    g.Rule = TreeAs('Rule', (name <= N%'Identifier __') & '=' & __ & (Range('/|') & __ |0) & (inner <= N%'Expression')) & EOS
 
-    g.Example = TreeAs('Example', 'example' & N%'S _ $Names $Doc') & EOS
+    g.Example = TreeAs('Example', 'example' & N%'S _' & (name <= N%'Names') & (inner <= N%'Doc')) & EOS
     g.Names = TreeAs('', N%'$Identifier _' & (Range(',&') & N%'_ $Identifier _')*0)
     Doc1 = TreeAs("Doc", (~(N%'DELIM EOL') & ANY)* 0)
-    Doc2 = TreeAs("Doc", (~Range('\r\n') & ANY)*0)
+    Doc2 = TreeAs("Doc", (~Range('\r\n') & ANY)* 0)
     g.Doc = N%'DELIM' & (N%'S'*0) & N%'EOL' & Doc1 & N % 'DELIM' | Doc2
     g.DELIM = pe("'''")
 
-    g.Expression = N%'Choice' ^ (TreeAs('Alt', __ & '|' & _ & N%'$Expression')|0)
-    g.Choice = N%'Sequence' ^ (TreeAs('Or', __ & '/' & _ & N%'$Choice')|0)
+    g.Expression = N%'Choice' & (left ^ (TreeAs('Alt', __ & '|' & _ & (right <= N%'Expression'))|0))
+    g.Choice = N%'Sequence' & (left ^ (TreeAs('Ore', __ & '/' & _ & (right <= N%'Choice'))|0))
     g.SS = N%'S _' & ~(N%'EOL') | (N%'_ EOL')+0 & N%'S _'
-    g.Sequence = N%'Predicate' ^ (TreeAs('Seq', N%'SS $Sequence')|0)
+    g.Sequence = N%'Predicate' & (left ^ (TreeAs('Seq', (right <= N%'SS Sequence'))|0))
 
-    g.Predicate = TreeAs('Not', '!' & N%'$Predicate') | TreeAs('And', '&' & N%'$Predicate') | TreeAs('Append', '$' & N%'_ $Predicate') | N%'Suffix'
-    g.Suffix = N%'Term' ^ (TreeAs('Many', '*') | TreeAs('OneMore', '+') | TreeAs('Option', '?') | 0)
+    g.Predicate = TreeAs('Not', '!' & (inner <= N%'Predicate')) \
+                  | TreeAs('And', '&' & (inner <= N%'Predicate')) \
+                  | TreeAs('Append', '$' & ( inner <= N%'Predicate')) \
+                  | N%'Suffix'
+    g.Suffix = N%'Term' & ((inner ^ TreeAs('Many', '*')) | (inner ^ TreeAs('Many1', '+')) | (inner ^ TreeAs('Option', '?')) | 0)
 
     g.Term = N%'Group/Char/Class/Any/Tree/Fold/BindFold/Bind/Func/Ref'
     g.Group = '(' & __ & N%'Expression/Empty' & __ & ')'
@@ -746,135 +744,133 @@ def TPEGGrammar(g = None):
     g.Any = TreeAs('Any', '.')
     g.Char = "'" & TreeAs('Char', (r'\\' & ANY | ~Range("'\n") & ANY)*0) & "'"
     g.Class = '[' & TreeAs('Class', (r'\\' & ANY | ~Range("]") & ANY)*0) & ']'
-    g.Tree = TreeAs('Tree', N%'Tag __' & (N%'$Expression __' | N%'$Empty') & '}' )
-    g.Fold = '^' & _ & TreeAs('Fold', N%'Tag __' & (N%'$Expression __' | N%'$Empty') & '}' )
-    g.Tag = (N%'$Identifier'|0) & '{'
+    g.Tree = TreeAs('TreeAs', N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}' )
+    g.Fold = '^' & _ & TreeAs('Fold', N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}' )
+    g.Tag = ((name <= N%'Identifier')|0) & '{'
     g.Identifier = TreeAs('Name', Range('A-Z', 'a-z', '@') & Range('A-Z', 'a-z', '0-9', '_.')*0)
 
-    g.Bind = TreeAs('Bind', N%'$Var _' & '=>' & N%'_ $Expression')
-    g.BindFold = TreeAs('Fold', N%'$Var _' & '^' & _ & N%'Tag __' & (N%'$Expression __' | N%'$Empty') & '}')
+    g.Bind = TreeAs('LinkAs', (name <= N%'Var _') & '=>' & (inner <= N%'_ Expression'))
+    g.BindFold = TreeAs('Fold', (left <= N%'Var _') & '^' & _ & N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}')
     g.Var = TreeAs('Name', Range('a-z', '$') & Range('A-Z', 'a-z', '0-9', '_')*0)
 
     g.Func = TreeAs('Func', N%'$Identifier' & '(' & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression _' & ')')
-    g.Ref = N%'Name'
+    g.Ref = TreeAs('Ref', N%'NAME')
+    g.NAME = '"' & (pe(r'\"') | ~Range('\\"\n') & ANY)* 0 & '"' | (~Range(' \t\r\n(,){};<>[|/*+?=^\'`') & ANY)+0
 
     # Example
-    g.example("Name", "abc")
-    g.example("Name", '"abc"')
+    #g.example("Ref", "abc")
+    #g.example("Ref", '"abc"')
     g.example("COMMENT", "/*hoge*/hoge", "[# '/*hoge*/']")
     g.example("COMMENT", "//hoge\nhoge", "[# '//hoge']")
 
-    g.example("Ref,Term,Expression", "a", "[#Name 'a']")
+    g.example("Ref,Term,Expression", "a", "[#Ref 'a']")
 
     g.example("Char,Expression", "''", "[#Char '']")
     g.example("Char,Expression", "'a'", "[#Char 'a']")
-    g.example("Name,Expression", "\"a\"", "[#Name '\"a\"']")
+    g.example("Ref,Expression", "\"a\"", "[#Ref '\"a\"']")
     g.example("Class,Expression", "[a]", "[#Class 'a']")
-    g.example("Func", "f(a)", "[#Func [#Name 'f'] [#Name 'a']]")
-    g.example("Func", "f(a,b)", "[#Func [#Name 'f'] [#Name 'a'] [#Name 'b']]")
-    g.example("Predicate,Expression", "&a", "[#And [#Name 'a']]")
-    g.example("Predicate,Expression", "!a", "[#Not [#Name 'a']]")
-    g.example("Suffix,Expression", "a?", "[#Option [#Name 'a']]")
-    g.example("Suffix,Expression", "a*", "[#Many [#Name 'a']]")
-    g.example("Suffix,Expression", "a+", "[#OneMore [#Name 'a']]")
-    g.example("Expression", "{}", "[#Tree [#Empty '']]")
-    g.example("Expression", "{ a }", "[#Tree [#Name 'a']]")
-    g.example("Expression", "{ }", "[#Tree [#Empty '']]")
+    g.example("Func", "f(a)", "[#Func [#Name 'f'] [#Ref 'a']]")
+    g.example("Func", "f(a,b)", "[#Func [#Name 'f'] [#Ref 'a'] [#Ref 'b']]")
+    g.example("Predicate,Expression", "&a", "[#And inner=[#Ref 'a']]")
+    g.example("Predicate,Expression", "!a", "[#Not inner=[#Ref 'a']]")
+    g.example("Suffix,Expression", "a?", "[#Option inner=[#Ref 'a']]")
+    g.example("Suffix,Expression", "a*", "[#Many inner=[#Ref 'a']]")
+    g.example("Suffix,Expression", "a+", "[#Many1 inner=[#Ref 'a']]")
+    g.example("Expression", "{}", "[#TreeAs inner=[#Empty '']]")
+    g.example("Expression", "{ a }", "[#TreeAs inner=[#Ref 'a']]")
+    g.example("Expression", "{ }", "[#TreeAs inner=[#Empty '']]")
     g.example("Expression", "()", "[#Empty '']")
-    g.example("Expression", "&'a'", "[#And [#Char 'a']]")
+    g.example("Expression", "&'a'", "[#And inner=[#Char 'a']]")
 
-    g.example("Expression", "{a}", "[#Tree [#Name 'a']]")
-    g.example("Expression", "Int{a}", "[#Tree [#Name 'Int'] [#Name 'a']]")
-    g.example("Expression", "^{a}", "[#Fold [#Name 'a']]")
-    g.example("Expression", "^Int{a}", "[#Fold [#Name 'Int'] [#Name 'a']]")
-    g.example("Expression", "name^{a}", "[#Fold [#Name 'name'] [#Name 'a']]")
-    g.example("Expression", "name^Int{a}", "[#Fold [#Name 'name'] [#Name 'Int'] [#Name 'a']]")
-    g.example("Expression", "$a", "[#Append [#Name 'a']]")
-    g.example("Expression", "name=>a", "[#Bind [#Name 'name'] [#Name 'a']]")
-    g.example("Expression", "name => a", "[#Bind [#Name 'name'] [#Name 'a']]")
+    g.example("Expression", "{a}", "[#TreeAs inner=[#Ref 'a']]")
+    g.example("Expression", "Int{a}", "[#TreeAs name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "^{a}", "[#Fold inner=[#Ref 'a']]")
+    g.example("Expression", "^Int{a}", "[#Fold name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "name^{a}", "[#Fold left=[#Name 'name'] inner=[#Ref 'a']]")
+    g.example("Expression", "name^Int{a}", "[#Fold left=[#Name 'name'] name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "$a", "[#Append inner=[#Ref 'a']]")
+    g.example("Expression", "name=>a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")
+    g.example("Expression", "name => a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")
 
-    g.example("Expression", "a a", "[#Seq [#Name 'a'] [#Name 'a']]")
-    g.example("Expression", "a b c", "[#Seq [#Name 'a'] [#Seq [#Name 'b'] [#Name 'c']]]")
-    g.example("Expression", "a/b / c", "[#Or [#Name 'a'] [#Or [#Name 'b'] [#Name 'c']]]")
-    g.example("Statement", "A=a", "[#Production [#Name 'A'] [#Name 'a']]")
-    g.example("Statement", "example A,B abc \n", "[#Example [# [#Name 'A'] [#Name 'B']] [#Doc 'abc ']]")
-    g.example("Statement", "A = a\n  b", "[#Production [#Name 'A'] [#Seq [#Name 'a'] [#Name 'b']]]")
+    g.example("Expression", "a a", "[#Seq left=[#Ref 'a'] right=[#Ref 'a']]")
+    g.example("Expression", "a b c", "[#Seq left=[#Ref 'a'] right=[#Seq left=[#Ref 'b'] right=[#Ref 'c']]]")
+    g.example("Expression", "a/b / c", "[#Ore left=[#Ref 'a'] right=[#Ore left=[#Ref 'b'] right=[#Ref 'c']]]")
+    g.example("Expression", "a|b | c", "[#Alt left=[#Ref 'a'] right=[#Alt left=[#Ref 'b'] right=[#Ref 'c']]]")
+    g.example("Statement", "A=a", "[#Rule name=[#Name 'A'] inner=[#Ref 'a']]")
+    g.example("Statement", "example A,B abc \n", "[#Example name=[# [#Name 'A'] [#Name 'B']] inner=[#Doc 'abc ']]")
+    g.example("Statement", "A = a\n  b", "[#Rule name=[#Name 'A'] inner=[#Seq left=[#Ref 'a'] right=[#Ref 'b']]]")
     g.example("Start", "A = a; B = b;;",
-                  "[#Source [#Production [#Name 'A'] [#Name 'a']] [#Production [#Name 'B'] [#Name 'b']]]")
+              "[#Source [#Rule name=[#Name 'A'] inner=[#Ref 'a']] [#Rule name=[#Name 'B'] inner=[#Ref 'b']]]")
     g.example("Start", "A = a\nB = b",
-                  "[#Source [#Production [#Name 'A'] [#Name 'a']] [#Production [#Name 'B'] [#Name 'b']]]")
+              "[#Source [#Rule name=[#Name 'A'] inner=[#Ref 'a']] [#Rule name=[#Name 'B'] inner=[#Ref 'b']]]")
     g.example("Start", "A = a //hoge\nB = b",
-                  "[#Source [#Production [#Name 'A'] [#Name 'a']] [#Production [#Name 'B'] [#Name 'b']]]")
+              "[#Source [#Rule name=[#Name 'A'] inner=[#Ref 'a']] [#Rule name=[#Name 'B'] inner=[#Ref 'b']]]")
 
     return g
 
-'''
-class TPEGConv(TreeConv):
-    def __init__(self, peg:PEG):
-        self.peg = peg
+
+def setup_loader():
+    class PEGConv(ast.TreeConv):
+        def __init__(self, *args):
+            super(PEGConv, self).__init__(*args)
+
+        def Empty(self, t):
+            return EMPTY
+
+        def Any(self, t):
+            return ANY
+
+        def Char(self, t):
+            s = t.asString()
+            if s.find(r'\x') >= 0:
+                sb = []
+                s = s.encode('utf-8')
+                while len(s) > 0:
+                    c, s = utils.unquote(bytes(s, 'ascii'))
+                    sb.append(c)
+                return pe(b''.join(sb))
+            else:
+                sb = []
+                while len(s) > 0:
+                    c, s = utils.unquote(s)
+                    sb.append(c)
+                return pe(''.join(sb))
+
+        def Class(self, t):
+            s = t.asString()
+            sb = []
+            while len(s) > 0:
+                c, s = utils.unquote(s)
+                if s.startswith('-') and len(s) > 2:
+                    c2, s = utils.unquote(s[1:])
+                    sb.append((c, c2))
+                else:
+                    sb.append(c)
+            return Range(sb)
+
+        def Fold(self, t):
+            left = t['left'].asString() if t.has('left') else ''
+            name = t['name'].asString() if t.has('name') else ''
+            inner = self.conv(t['inner'])
+            return FoldAs(left, name, inner)
+
+    PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
+    pegparser = pegp(tpeg())
+
     def load(self, path):
-        self.peg = PEG(path)
-        f = open(path, 'r')
+        f = open(path)
         data = f.read()
         f.close()
-        return self.peg
-    def Source(self,t:ParseTree):
+        # print('@@', data)
+        t = pegparser(data, path)
+        # print('@@', pegparser(data))
+        # load
         for stmt in t.asArray():
-            self.parse(stmt)
-    def Example(self, t:ParseTree):
-        names, input = t.asArray()
-        for name in names:
-            self.peg.example(name.asString(), input.asString())
-    def Production(self, t:ParseTree):
-        name, expr = t.asArray()
-        setattr(self.peg, name.asString(), self.parse(expr))
-    def Name(self, t:ParseTree):
-        return Ref(t.asString())
-    def Char(self, t:ParseTree):
-        return pe(t.asString())
-    def Class(self, t:ParseTree):
-        return pe(t.asString())
-    def Any(self, t:ParseTree):
-        return ANY
-    def Or(self,t:ParseTree):
-        return lor(list(map(lambda x: self.parse(x), t.asArray())))
-    def Seq(self,t:ParseTree):
-        return lseq(list(map(lambda x: self.parse(x), t.asArray())))
-    def Many(self,t:ParseTree):
-        return Many(self.parse(t[0]))
-    def Many1(self,t:ParseTree):
-        return Many1(self.parse(t[0]))
-    def Option(self,t:ParseTree):
-        return Ore(self.parse(t[0]), EMPTY)
-    def And(self,t:ParseTree):
-        return And(self.parse(t[0]))
-    def Not(self,t:ParseTree):
-        return Not(self.parse(t[0]))
-    def Append(self,t:ParseTree):
-        return LinkAs('', self.parse(t[0]))
-    def Tree(self,t:ParseTree):
-        if len(t) == 2:
-            return TreeAs(t[0].asString(), self.parse(t[1]))
-        return TreeAs('', self.parse(t[0]))
-    def Link(self,t:ParseTree):
-        if len(t) == 2:
-            return LinkAs(t[0].asString(), self.parse(t[1]))
-        return LinkAs('', self.parse(t[0]))
-    def Fold(self,t:ParseTree):
-        if len(t) == 3:
-            return FoldAs(t[0].asString(), t[1].asString(), self.parse(t[3]))
-        if len(t) == 2:
-            return FoldAs('', t[0].asString(), self.parse(t[1]))
-        return FoldAs('', '', self.parse(t[0]))
+            if stmt == 'Rule':
+                name = stmt['name'].asString()
+                pexr = stmt['inner']
+                # print(name, '\n\t', pexr, '\n\t', pexr.asJSON())
+                print(name, PEGconv.conv(pexr))
+    PEG.load = load
 
-    def unquote(self, s):
-        sb = []
-        while len(s) > 0:
-            if s.startswith('\\') and len(s) > 1:
-                s = self.unesc(s, sb)
-            else:
-                sb.append(s[0])
-                s = s[1:]
-        return ''.join(sb)
-'''
-
+setup_loader()

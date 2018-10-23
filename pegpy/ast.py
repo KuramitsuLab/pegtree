@@ -33,6 +33,13 @@ class ParseTree(object):
                 cur = cur.prev
         return None
 
+    def has(self, label):
+        cur = self.child
+        while(cur is not None):
+            if label is cur.tag :return True
+            cur = cur.prev
+        return False
+
     def __repr__(self):
         return self.__str__()
 
@@ -59,9 +66,20 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
+    def isString(self):
+        return self.child is None
+
     def asString(self):
         s = self.inputs[self.spos:self.epos]
         return s.decode('utf-8') if isinstance(s, bytes) else s
+
+    def isArray(self):
+        cur = self.child
+        while cur is not None:
+            if cur.tag is not None and len(cur.tag) > 0:
+                return False
+            cur = cur.prev
+        return True
 
     def asArray(self):
         a = []
@@ -157,26 +175,31 @@ class SourcePosition(object):
     def pos(self):
         return decode_source(self.pos[0], self.pos[1], self.pos[2])
 
+## TreeConv
+
 class TreeConv(object):
     def __init__(self, *args):
         self.dict = {}
         for c in args: self.dict[c.__name__] = c
 
-    def conv(self, t):
+    def conv(self, t: ParseTree):
         tag = t.tag
         if hasattr(self, tag):
             f = getattr(self, tag)
             return self.pos(f(t), t)
         if tag in self.dict:
             c = self.dict[tag]
-            if len(t) == 0:
+            if t.isString():
                 return self.pos(c(t.asString()),t)
+            elif t.isArray():
+                return self.pos(c(*t.asArray()), t)
             else :
                 d = {}
                 for name in c.__slots__:
                     sub = t[name]
                     if sub is None:
-                        raise NameError(name)
+                        print ('TODO', sub, c)
+                        continue
                     d[name] = self.conv(sub)
                 return self.pos(c(**d), t)
         return t.asJSON()
