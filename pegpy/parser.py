@@ -1,23 +1,30 @@
 #!/usr/local/bin/python
 
-'''
-def timeit(f):
-    s = time.time()
-    f()
-    print(time.time() - s)
-'''
+from pegpy.expression import *
+from pegpy.ast import *
+import pegpy.utils as u
 
-def true(px): return True
-def false(px): return False
+class ParserContext:
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
 
-def any(px):
+  def __init__(self, inputs, urn='(unknown)', pos=0):
+    s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+    self.inputs, self.pos = u.encode_source(s, urn, pos)
+    self.length = len(self.inputs)
+    self.headpos = self.pos
+    self.ast = None
+
+def p_True(px): return True
+def p_False(px): return False
+
+def p_Any(px):
     if px.pos < px.length:
         px.pos += 1
         px.headpos = max(px.pos, px.headpos)
         return True
     return False
 
-def char(c):
+def emit_char(c):
     def curry(px):
         if px.pos < px.length and px.inputs[px.pos] == c:
             px.pos += 1
@@ -27,7 +34,7 @@ def char(c):
     return curry
 
 # Str
-def multi(s, slen):
+def emit_multi(s, slen):
     def curry(px):
         pos = px.pos
         if pos + slen <= px.length:
@@ -45,19 +52,19 @@ pf_char = {}
 
 def emit_Char(pe):
     if len(pe.a)>1:
-        return multi(pe.a, len(pe.a))
+        return emit_multi(pe.a, len(pe.a))
     if not pe.a in pf_char:
-        pf_char[pe.a] = char(pe.a)
+        pf_char[pe.a] = emit_char(pe.a)
     return pf_char[pe.a]
 
 def emit_Byte(pe):
     if len(pe.a)>1:
         b = bytes(pe.a, 'utf-8')
-        return multi(b, len(b))
+        return emit_multi(b, len(b))
     c = ord(pe.a)
     key = str(c)
     if not key in pf_char:
-        pf_char[key] = char(c)
+        pf_char[key] = emit_char(c)
     return pf_char[key]
 
 def bits(n):
@@ -96,38 +103,24 @@ def emit_CharRange(pe):
         return False
     return curry
 
-# Ref
-def emit_Ref(peg, name, prefix, emit):
-    key = prefix + name
-    if not peg.hasmemo(key):
-        peg.setmemo(key, lambda px: peg.getmemo(key)(px))
-        pe = getattr(peg, name)
-        ff = emit(pe)
-        peg.setmemo(key, ff)
-        return ff
-    return peg.getmemo(key)
-
 # Seq
 
-def seq2(left, right):
+def emit_Seq2(left, right):
     return lambda px: left(px) and right(px)
 
-def seq(ls):
+def emit_Seq(pe, emit):
+    ls = tuple(map(emit, pe.flatten([])))
+    if len(ls) == 2:
+        return emit_Seq2(ls[0], ls[1])
     def curry(px):
         for p in ls:
             if not p(px): return False
         return True
     return curry
 
-def emit_Seq(pe, emit):
-    ls = tuple(map(emit, pe.flatten([])))
-    if len(ls) == 2:
-        return seq2(ls[0], ls[1])
-    return seq(ls)
-
 # OrElse
 
-def or2(left, right):
+def emit_Or2(left, right):
     def curry(px):
         pos = px.pos
         ast = px.ast
@@ -138,7 +131,10 @@ def or2(left, right):
         return True
     return curry
 
-def _or(ls):
+def emit_Or(pe, emit):
+    ls = tuple(map(emit, pe.flatten([])))
+    if len(ls) == 2:
+        return emit_Or2(ls[0], ls[1])
     def curry(px):
         pos = px.pos
         ast = px.ast
@@ -148,12 +144,6 @@ def _or(ls):
             px.ast = ast
         return False
     return curry
-
-def emit_Or(pe, emit):
-    ls = tuple(map(emit, pe.flatten([])))
-    if len(ls) == 2:
-        return or2(ls[0], ls[1])
-    return _or(ls)
 
 #Not
 def _not(pf):
@@ -201,7 +191,7 @@ def emit_Many(pe, emit):
     return many(emit(pe.inner))
 
 def emit_Many1(pe, emit):
-    return seq2(emit(pe.inner), many(emit(pe.inner)))
+    return emit_Seq2(emit(pe.inner), many(emit(pe.inner)))
 
 # Tree
 
@@ -243,7 +233,8 @@ def fold(ltag, tag, pf, mtree, mlink):
 def emit_FoldAs(pe, emit, mtree, mlink):
     return fold(pe.left, pe.name, emit(pe.inner), mtree, mlink)
 
-def unit(pf):
+def emit_Detree(pe, emit):
+    pf = emit(pe.inner)
     def curry(px):
         ast = px.ast
         if pf(px):
@@ -252,68 +243,59 @@ def unit(pf):
         return False
     return curry
 
-def emit_Unit(pe, emit):
-    return unit(emit(pe.inner))
+# Ref
+def emit_Ref(ref: Ref, memo: dict, emit):
+    key = ref.name
+    if not key in memo:
+        memo[key] = lambda px: memo[key](px)
+        memo[key] = emit(ref.deref())
+    return memo[key]
 
-def emit_Rule(pe, emit):
-    return emit(pe.inner)
+# Setting Parser
 
+def setting(f: str):
+    if not hasattr(Char, f):
+        def emit(pe): return getattr(pe, f)()
 
-# dasm
+        setattr(Empty,f, lambda self: p_True)
+        setattr(Empty, f, lambda self: p_Any)
+        setattr(Char, f, emit_Byte)
+        setattr(Range, f, emit_ByteRange)
 
-'''
-from tpeg import *
-import parsefunc
+        setattr(Seq, f, lambda pe: emit_Seq(pe, emit))
+        setattr(Ore, f, lambda pe: emit_Or(pe, emit))
+        setattr(Alt, f, lambda pe: emit_Or(pe, emit))
+        setattr(Not, f, lambda pe: emit_Not(pe, emit))
+        setattr(And, f, lambda pe: emit_And(pe, emit))
+        setattr(Many, f, lambda pe: emit_Many(pe, emit))
+        setattr(Many1, f, lambda pe: emit_Many1(pe, emit))
 
-# ParserFunction
+        setattr(TreeAs, f, lambda pe: emit_TreeAs(pe, emit, ParseTree))
+        setattr(LinkAs, f, lambda pe: emit_LinkAs(pe, emit, TreeLink))
+        setattr(FoldAs, f, lambda pe: emit_FoldAs(pe, emit, ParseTree, TreeLink))
+        setattr(Detree, f, lambda pe: emit_Detree(pe, emit))
 
-def dasm_setup():
-    def emit(pe): return pe.dasm()
+        # Ref
+        memo = {}
+        setattr(Ref, f, lambda pe: emit_Ref(pe, memo, emit))
+        #Rule.dasm = lambda pe: parsefunc.emit_Rule(pe, emit)
+        return True
+    return False
 
-    Empty.dasm = lambda self: parsefunc.true
-    Any.dasm = lambda self: parsefunc.any
-    Char.dasm = parsefunc.emit_Byte
-    Range.dasm = parsefunc.emit_ByteRange
+def generate(p, f = 'dasm'):
+    setting(f)
+    if not isinstance(p, ParsingExpression): # Grammar
+        p = Ref(p.start().name, p)
+    return getattr(p, f)()
 
-    Seq.dasm = lambda pe: parsefunc.emit_Seq(pe,emit)
-    Or.dasm = lambda pe: parsefunc.emit_Or(pe,emit)
-    Not.dasm = lambda pe: parsefunc.emit_Not(pe, emit)
-    And.dasm = lambda pe: parsefunc.emit_And(pe, emit)
-    Many.dasm = lambda pe: parsefunc.emit_Many(pe, emit)
-    Many1.dasm = lambda pe: parsefunc.emit_Many1(pe, emit)
-
-    TreeAs.dasm = lambda pe: parsefunc.emit_TreeAs(pe,emit, ParseTree)
-    LinkAs.dasm = lambda pe: parsefunc.emit_LinkAs(pe,emit, TreeLink)
-    FoldAs.dasm = lambda pe: parsefunc.emit_FoldAs(pe,emit, ParseTree, TreeLink)
-    Detree.dasm = lambda pe: parsefunc.emit_Unit(pe,emit)
-
-    # Ref
-    Ref.dasm = lambda pe: parsefunc.emit_Ref(pe.peg, pe.name, "_DAsm_", emit)
-    Rule.dasm = lambda pe: parsefunc.emit_Rule(pe, emit)
-
-class DAsmContext:
-    __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
-    def __init__(self, inputs, pos = 0):
-        self.inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-        self.length = len(self.inputs)
-        self.pos = pos
-        self.headpos = pos
-        self.ast = None
-
-def dasm(peg: PEG, name = None):
-    if isinstance(peg, Pe):
-        f = peg.dasm()
-    else:
-        if name == None: name = "start"
-        f = parsefunc.emit_Ref(peg, name, "_DAsm_", lambda pe: pe.dasm())
-    def parse(s, pos = 0):
-        px = DAsmContext(s, pos)
+def generate_parser(f, conv = None):
+    def parse(s, urn = '(unknown)', pos = 0):
+        px = ParserContext(s, urn, pos)
+        pos = px.pos
+        result = None
         if not f(px):
-            return ParseTree("err", s, px.pos, len(s), None)
-        if px.ast == None:
-            return ParseTree("", s, pos, px.pos, None)
-        return px.ast
+            result = ParseTree("err", px.inputs, px.headpos, len(s), None)
+        else:
+            result = px.ast if px.ast is not None else ParseTree("", px.inputs, pos, px.pos, None)
+        return conv(result) if conv is not None else result
     return parse
-
-dasm_setup()
-'''

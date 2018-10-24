@@ -1,3 +1,14 @@
+## Source
+
+import pegpy.utils as u
+
+class SourcePosition(object):
+    def __init__(self, inputs, spos, epos):
+        self.pos = (inputs, spos, epos)
+
+    def pos(self):
+        return u.decode_source(self.pos[0], self.pos[1], self.pos[2])
+
 class ParseTree(object):
     __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child']
 
@@ -135,45 +146,6 @@ class TreeLink(object):
 
     def strOut(self, sb):
         sb.append('@@@@ FIXME @@@@')
-
-## Source
-
-def encode_source(inputs, urn = '(unknown)', pos = 0):
-    if isinstance(inputs, bytes):
-        return bytes(urn, 'utf-8').ljust(256, b' ') + inputs, pos + 256
-    return urn.ljust(256, ' ') + inputs, pos + 256
-
-def bytestr(b):
-    return b.decode('utf-8') if isinstance(b, bytes) else b
-
-def decode_source(inputs, spos, epos):
-    urn = inputs[0:256].strip()
-    inputs = inputs[256:]
-    spos -= 256
-    epos -= 256
-    ls = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    pos = spos
-    c = 1
-    for l in ls:
-        length = len(l) + 1
-        if pos < length:
-            line = l
-            linenum = c
-            break
-        pos =- length
-        c += 1
-    epos = pos + (epos - spos)
-    length = len(line) - pos if len(line) < epos else epos - pos
-    if length <= 0: length = 1
-    mark = (' ' * pos) + ('^' * length)
-    return (bytestr(urn), spos, linenum, pos, bytestr(line), mark)
-
-class SourcePosition(object):
-    def __init__(self, inputs, spos, epos):
-        self.pos = (inputs, spos, epos)
-
-    def pos(self):
-        return decode_source(self.pos[0], self.pos[1], self.pos[2])
 
 ## TreeConv
 

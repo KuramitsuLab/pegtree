@@ -1,6 +1,5 @@
-from pegpy.peg import *
 from pegpy.ast import *
-import pegpy.parsefunc as parsefunc
+import pegpy.old.parsefunc as parsefunc
 
 # ParserFunction
 

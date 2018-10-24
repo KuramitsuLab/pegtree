@@ -1,5 +1,39 @@
 #!/usr/local/bin/python
 
+# Source
+
+def bytestr(b):
+    return b.decode('utf-8') if isinstance(b, bytes) else b
+
+def encode_source(inputs, urn = '(unknown)', pos = 0):
+    if isinstance(inputs, bytes):
+        return bytes(urn, 'utf-8').ljust(256, b' ') + inputs, pos + 256
+    return urn.ljust(256, ' ') + inputs, pos + 256
+
+def decode_source(inputs, spos, epos):
+    urn = inputs[0:256].strip()
+    inputs = inputs[256:]
+    spos -= 256
+    epos -= 256
+    ls = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
+    pos = spos
+    c = 1
+    for l in ls:
+        length = len(l) + 1
+        if pos < length:
+            line = l
+            linenum = c
+            break
+        pos =- length
+        c += 1
+    epos = pos + (epos - spos)
+    length = len(line) - pos if len(line) < epos else epos - pos
+    if length <= 0: length = 1
+    mark = (' ' * pos) + ('^' * length)
+    return (bytestr(urn), spos, linenum, pos, bytestr(line), mark)
+
+# unquote
+
 def unquote(s):
     if isinstance(s, str):
         if s.startswith('\\'):
@@ -37,4 +71,3 @@ def unquote(s):
                 return s[1], s[2:]
         else:
             return s[0], s[1:]
-
