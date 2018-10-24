@@ -6,6 +6,10 @@ def eval(p, conv = None):
     pg.setting('eval')
     return pg.generate_parser(pg.generate(p, 'eval'), conv)
 
+def nez(p, conv = None):
+    pg.setting('nez')
+    return pg.generate_parser(pg.generate(p, 'nez'), conv)
+
 def dasm(p, conv = None):
     pg.setting('dasm')
     return pg.generate_parser(pg.generate(p, 'dasm'), conv)
@@ -54,9 +58,6 @@ class Grammar(object):
         self.rules.append(x)
         self.rulemap[key] = x
 
-    def load(self, source):
-        pass
-
     def generate(self, algo = 'eval', conv = None):
         pg.setting(algo)
         return pg.generate_parser(pg.generate(self.start().deref(), 'dasm'), conv)
@@ -72,17 +73,22 @@ class Grammar(object):
     def dump(self):
         for r  in self.rules: print(r)
 
-    def testAll(self, combinator = dasm):
+    def testAll(self, combinator = nez):
         p = {}
         test = 0
         ok = 0
         for testcase in self.examples:
             name, input, output = testcase
-            if not name in p: p[name] = combinator(pe.Ref(name, self))
+            if not name in p:
+                p[name] = combinator(pe.Ref(name, self))
             res = p[name](input)
             t = str(res).replace(" b'", " '")
             if output == None:
-                print(name, input, '=>', t)
+                if res == 'err':
+                    er = res.getpos()
+                    print('NG {}({}:{}:{}+{})'.format(name, er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
+                else:
+                    print('OK', name, '=>', t)
             else:
                 test += 1
                 if t == output:
@@ -93,3 +99,4 @@ class Grammar(object):
         if test > 0:
             print('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
 
+pe.setup_loader(Grammar, nez)

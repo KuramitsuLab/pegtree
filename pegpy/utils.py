@@ -11,26 +11,26 @@ def encode_source(inputs, urn = '(unknown)', pos = 0):
     return urn.ljust(256, ' ') + inputs, pos + 256
 
 def decode_source(inputs, spos, epos):
+    token = inputs[spos:epos]
     urn = inputs[0:256].strip()
     inputs = inputs[256:]
     spos -= 256
     epos -= 256
     ls = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    pos = spos
-    c = 1
-    for l in ls:
-        length = len(l) + 1
-        if pos < length:
-            line = l
-            linenum = c
-            break
-        pos =- length
-        c += 1
-    epos = pos + (epos - spos)
-    length = len(line) - pos if len(line) < epos else epos - pos
+    #print('@', spos, ls)
+    linenum = 0
+    remain = spos
+    for line in ls:
+        len0 = len(line) + 1
+        linenum += 1
+        #print('@', linenum, len0, remain, line)
+        if remain < len0: break
+        remain -= len0
+    epos = remain + (epos - spos)
+    length = len(line) - remain if len(line) < epos else epos - remain
     if length <= 0: length = 1
-    mark = (' ' * pos) + ('^' * length)
-    return (bytestr(urn), spos, linenum, pos, bytestr(line), mark)
+    mark = (' ' * remain) + ('^' * length)
+    return (bytestr(urn), spos, linenum, remain, bytestr(line), mark)
 
 # unquote
 

@@ -59,8 +59,10 @@ example Array, Value '''
 /* Here are three small JSON texts containing only values: */
 
 example String, Value "Hello world!" 
-example Number, Value 42 
-example Value        true
+example Number, Value 42
+example Number, Value 42.22
+example Value true
+example INT 42
  
 File
 	= S* Value S* !.
@@ -128,7 +130,11 @@ Null
 Number
         = { '-'? INT FRAC EXP? #Float } S*
         / { '-'? INT #Int } S*
+
 INT
+	= [0-9]+
+
+INT2
 	= '0' / [1-9] DIGIT*
 
 DIGIT

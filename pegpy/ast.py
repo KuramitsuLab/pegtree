@@ -6,7 +6,7 @@ class SourcePosition(object):
     def __init__(self, inputs, spos, epos):
         self.pos = (inputs, spos, epos)
 
-    def pos(self):
+    def getpos(self):
         return u.decode_source(self.pos[0], self.pos[1], self.pos[2])
 
 class ParseTree(object):
@@ -136,6 +136,11 @@ class ParseTree(object):
         else:
             return self.asArray()
 
+    def getpos(self):
+        return u.decode_source(self.inputs, self.spos, self.epos)
+
+
+
 class TreeLink(object):
     __slots__ = ['tag', 'child', 'prev']
 
@@ -149,34 +154,36 @@ class TreeLink(object):
 
 ## TreeConv
 
-class TreeConv(object):
+class ParseTreeConv(object):
     def __init__(self, *args):
         self.dict = {}
         for c in args: self.dict[c.__name__] = c
+
+    def setpos(self, s, t):
+        if isinstance(s, SourcePosition):
+            s.pos = (t.inputs, t.spos, t.epos)
+        return s
 
     def conv(self, t: ParseTree):
         tag = t.tag
         if hasattr(self, tag):
             f = getattr(self, tag)
-            return self.pos(f(t), t)
+            return self.setpos(f(t), t)
         if tag in self.dict:
             c = self.dict[tag]
             if t.isString():
-                return self.pos(c(t.asString()),t)
+                return self.setpos(c(t.asString()),t)
             elif t.isArray():
-                return self.pos(c(*t.asArray()), t)
+                return self.setpos(c(*t.asArray()), t)
             else :
                 d = {}
                 for name in c.__slots__:
                     sub = t[name]
                     if sub is None:
-                        print ('TODO', sub, c)
+                        print ('TODO', name, c)
                         continue
                     d[name] = self.conv(sub)
-                return self.pos(c(**d), t)
-        return t.asJSON()
+                return self.setpos(c(**d), t)
+        print('@TODO', tag)
+        return t
 
-    def pos(self, s, t):
-        if isinstance(s, SourcePosition):
-            s.pos = (t.inputs, t.spos, t.epos)
-        return s
