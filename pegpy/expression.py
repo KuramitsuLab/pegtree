@@ -362,18 +362,20 @@ def load_tpeg(g):
     g.Any = TreeAs('Any', '.')
     g.Char = "'" & TreeAs('Char', (r'\\' & ANY | ~Range("'\n") & ANY)*0) & "'"
     g.Class = '[' & TreeAs('Class', (r'\\' & ANY | ~Range("]") & ANY)*0) & ']'
-    g.Tree = TreeAs('TreeAs', N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}' )
-    g.Fold = '^' & _ & TreeAs('Fold', N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}' )
-    g.Tag = ((name <= N%'Identifier')|0) & '{'
+
+    g.Tag = '{' & __ & (('#' & (name <= N%'Identifier')) | 0) & __
+    g.ETag = ('#' & (name <= N%'Identifier') | 0) & __ & '}'
     g.Identifier = TreeAs('Name', Range('A-Z', 'a-z', '@') & Range('A-Z', 'a-z', '0-9', '_.')*0)
 
+    g.Tree = TreeAs('TreeAs', N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag' )
+    g.Fold = '^' & _ & TreeAs('Fold', N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag' )
     g.Bind = TreeAs('LinkAs', (name <= N%'Var' & ':') & _ & (inner <= N%'_ Expression'))
-    g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':') & _ & '^' & _ & N%'Tag __' & (inner <= (N%'Expression __' | N%'Empty')) & '}')
+    g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':^') & _ & N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag')
     g.Var = TreeAs('Name', Range('a-z', '$') & Range('A-Z', 'a-z', '0-9', '_')*0)
 
     g.Func = TreeAs('Func', N%'$Identifier' & '(' & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression _' & ')')
     g.Ref = TreeAs('Ref', N%'NAME')
-    g.NAME = '"' & (ParsingExpression.new(r'\"') | ~Range('\\"\n') & ANY)* 0 & '"' | (~Range(' \t\r\n(,){};<>[|/*+?=^\'`') & ANY)+0
+    g.NAME = '"' & (ParsingExpression.new(r'\"') | ~Range('\\"\n') & ANY)* 0 & '"' | (~Range(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)+0
 
     # Example
     #g.example("Ref", "abc")
@@ -388,8 +390,10 @@ def load_tpeg(g):
     g.example("Char,Expression", "'ab'", "[#Char 'ab']")
     g.example("Ref,Expression", "\"a\"", "[#Ref '\"a\"']")
     g.example("Class,Expression", "[a]", "[#Class 'a']")
-    g.example("Func", "f(a)", "[#Func [#Name 'f'] [#Ref 'a']]")
-    g.example("Func", "f(a,b)", "[#Func [#Name 'f'] [#Ref 'a'] [#Ref 'b']]")
+    g.example("Func,Expression", "f(a)", "[#Func [#Name 'f'] [#Ref 'a']]")
+    g.example("Func,Expression", "f(a,b)", "[#Func [#Name 'f'] [#Ref 'a'] [#Ref 'b']]")
+    g.example("Func,Expression", "@symbol(a)", "[#Func [#Name '@symbol'] [#Ref 'a']]")
+    g.example("Func,Expression", "@exists(a,'b')", "[#Func [#Name '@exists'] [#Ref 'a'] [#Char 'b']]")
     g.example("Predicate,Expression", "&a", "[#And inner=[#Ref 'a']]")
     g.example("Predicate,Expression", "!a", "[#Not inner=[#Ref 'a']]")
     g.example("Suffix,Expression", "a?", "[#Option inner=[#Ref 'a']]")
@@ -402,11 +406,12 @@ def load_tpeg(g):
     g.example("Expression", "&'a'", "[#And inner=[#Char 'a']]")
 
     g.example("Expression", "{a}", "[#TreeAs inner=[#Ref 'a']]")
-    g.example("Expression", "Int{a}", "[#TreeAs name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "{a #Int}", "[#TreeAs inner=[#Ref 'a'] name=[#Name 'Int']]")
+    g.example("Expression", "{#Int a}", "[#TreeAs name=[#Name 'Int'] inner=[#Ref 'a']]")
     g.example("Expression", "^{a}", "[#Fold inner=[#Ref 'a']]")
-    g.example("Expression", "^Int{a}", "[#Fold name=[#Name 'Int'] inner=[#Ref 'a']]")
-    g.example("Expression", "name: ^{a}", "[#Fold left=[#Name 'name'] inner=[#Ref 'a']]")
-    g.example("Expression", "name: ^Int{a}", "[#Fold left=[#Name 'name'] name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "^{ #Int a }", "[#Fold name=[#Name 'Int'] inner=[#Ref 'a']]")
+    g.example("Expression", "name:^ {a}", "[#Fold left=[#Name 'name'] inner=[#Ref 'a']]")
+    g.example("Expression", "name:^ {#Int a}", "[#Fold left=[#Name 'name'] name=[#Name 'Int'] inner=[#Ref 'a']]")
     g.example("Expression", "$a", "[#Append inner=[#Ref 'a']]")
     g.example("Expression", "name: a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")
     #g.example("Expression", "name: a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")

@@ -1,5 +1,5 @@
 
-Expression = Product left: ^ Infix{ name: { [+\-] } right: Product }
-Product = Value left: ^ Infix{ name: { [*%] } right:  Value }
+Expression = Product left:^ { name: { [+\-] } right: Product #Infix }
+Product = Value left:^ { name: { [*%] } right: Value #Infix }
 Value = Int / '(' Expression ')'
-Int = Int{ [0-9]+ }
+Int = { [0-9]+ #Int }
