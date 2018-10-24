@@ -258,7 +258,7 @@ def setting(f: str):
         def emit(pe): return getattr(pe, f)()
 
         setattr(Empty,f, lambda self: p_True)
-        setattr(Empty, f, lambda self: p_Any)
+        setattr(Any, f, lambda self: p_Any)
         setattr(Char, f, emit_Byte)
         setattr(Range, f, emit_ByteRange)
 
