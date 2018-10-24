@@ -143,14 +143,19 @@ class Ref(ParsingExpression):
     def __init__(self, name, peg = None):
         self.name = name
         self.peg = peg
+        self.pos = None
     def __str__(self):
         return str(self.name)
+    def uname(self):
+        return self.name if self.name.find(':') > 0 else self.peg.namespace() + ':' + self.name
+
     def setpeg(self, peg):
         self.peg = peg
     def isNonTerminal(self):
-        return hasattr(self.peg, self.name)
+        return self.peg.isDefined(self.name)
     def deref(self):
-        return getattr(self.peg, self.name).inner
+        return self.peg[self.name].inner
+
     def prop(self):
         return getattr(self.peg, self.name)
     def getmemo(self,prefix):

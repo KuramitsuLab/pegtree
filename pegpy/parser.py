@@ -245,7 +245,7 @@ def emit_Detree(pe, emit):
 
 # Ref
 def emit_Ref(ref: Ref, memo: dict, emit):
-    key = ref.name
+    key = ref.uname()
     if not key in memo:
         memo[key] = lambda px: memo[key](px)
         memo[key] = emit(ref.deref())
@@ -278,7 +278,6 @@ def setting(f: str):
         # Ref
         memo = {}
         setattr(Ref, f, lambda pe: emit_Ref(pe, memo, emit))
-        #Rule.dasm = lambda pe: parsefunc.emit_Rule(pe, emit)
         return True
     return False
 
