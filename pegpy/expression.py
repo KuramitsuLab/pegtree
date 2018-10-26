@@ -297,6 +297,16 @@ class Detree(ParsingExpression):
     def __str__(self):
         return '@unit(' + str(self.inner) + ')'
 
+## Symbol
+
+class Symbol(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@symbol(' + str(self.inner) + ')'
+
 ## Meta
 
 class Meta(ParsingExpression):
@@ -371,7 +381,7 @@ def load_tpeg(g):
 
     g.Tree = TreeAs('TreeAs', N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag' )
     g.Fold = '^' & _ & TreeAs('Fold', N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag' )
-    g.Bind = TreeAs('LinkAs', (name <= N%'Var' & ':') & _ & (inner <= N%'_ Expression'))
+    g.Bind = TreeAs('LinkAs', (name <= N%'Var' & ':') & _ & (inner <= N%'_ Term'))
     g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':^') & _ & N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag')
     g.Var = TreeAs('Name', Range('a-z', '$') & Range('A-Z', 'a-z', '0-9', '_')*0)
 
@@ -419,6 +429,7 @@ def load_tpeg(g):
     g.example("Expression", "$a", "[#Append inner=[#Ref 'a']]")
     g.example("Expression", "$(a)", "[#Append inner=[#Ref 'a']]")
     g.example("Expression", "name: a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")
+    g.example("Expression", "name: a a", "[#Seq left=[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']] right=[#Ref 'a']]")
     #g.example("Expression", "name: a", "[#LinkAs name=[#Name 'name'] inner=[#Ref 'a']]")
 
     g.example("Expression", "a b", "[#Seq left=[#Ref 'a'] right=[#Ref 'b']]")
@@ -495,6 +506,7 @@ def setup_loader(Grammar, pc):
         def LinkAs(self, t):
             name = t['name'].asString() if t.has('name') else ''
             inner = self.conv(t['inner'])
+            #print('@LinkAs', LinkAs(name, inner))
             return LinkAs(name, inner)
 
         def Append(self, t):
@@ -506,6 +518,7 @@ def setup_loader(Grammar, pc):
                 inner = self.conv(a[1])
             else:
                 inner = self.conv(tsub)
+            #print('@Append', LinkAs(name, inner))
             return LinkAs(name, inner)
 
         def Fold(self, t):

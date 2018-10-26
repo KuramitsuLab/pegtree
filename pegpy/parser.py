@@ -51,14 +51,14 @@ def emit_multi(s, slen):
 pf_char = {}
 
 def emit_Char(pe):
-    if len(pe.a)>1:
+    if len(pe.a) > 1:
         return emit_multi(pe.a, len(pe.a))
     if not pe.a in pf_char:
         pf_char[pe.a] = emit_char(pe.a)
     return pf_char[pe.a]
 
 def emit_Byte(pe):
-    if len(pe.a)>1:
+    if len(pe.a) > 1:
         b = bytes(pe.a, 'utf-8')
         return emit_multi(b, len(b))
     c = ord(pe.a)

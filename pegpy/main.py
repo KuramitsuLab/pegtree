@@ -1,6 +1,5 @@
 #!/usr/local/bin/python
 import sys
-from pegpy.peg import PEG
 
 def read_inputs(a):
   try:
@@ -11,10 +10,12 @@ def read_inputs(a):
   except:
     return a.encode() + b'\0' # Zero Termination
 
+'''
 def parse2(opt):
     peg = PEG()
     peg.load(opt['grammar'])
     peg.pegp()
+'''
 
 def parse_opt(argv):
     def parse_each(a, d):
