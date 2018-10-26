@@ -17,17 +17,49 @@ def parse2(opt):
     peg.pegp()
 '''
 
+def parse(opt):
+    pass
+
+def nezcc(opt):
+    pass
+
+def tojson(opt):
+    pass
+
+def main():
+    try:
+        cmd = sys.argv[1]
+        d = parse_opt(sys.argv[2:])
+        names = globals()
+        if cmd in names:
+            names[cmd](d)
+        else:
+            usage(d)
+    except Exception as e:
+        usage(e.args[0])
+
 def parse_opt(argv):
     def parse_each(a, d):
-        if a[0] == '-g' and len(a) > 1:
-            d['grammar'] = a[1]
-            return a[2:]
-        inputs = []
-        for f in a:
-            if not f.startswith('-'): inputs.append(f)
-        d['inputs'] = inputs
-        return []
-    d  = {}
+        if a[0].startswith('-'):
+            if len(a) > 1:
+                if a[0] == '-g':
+                    d['grammar'] = a[1]
+                    return a[2:]
+                elif a[0] == '-s':
+                    d['start'] = a[1]
+                    return a[2:]
+                elif a[0] == '-X':
+                    d['extension'] = a[1]
+                    return a[2:]
+                elif a[0] == '-D':
+                    d['option'] = a[1]
+                    return a[2:]
+            d['inputs'].extend(a)
+            raise Exception(d)
+        else:
+            d['inputs'].append(a[0])
+            return a[1:]
+    d  = {'inputs': []}
     while len(argv) > 0:
         argv = parse_each(argv, d)
     return d
@@ -50,13 +82,7 @@ def usage(opt):
     print(" nezcc      " + 'MainFmt.generate_nez_parser');
 
 if __name__ == "__main__":
-    cmd = sys.argv[1]
-    d = parse_opt(sys.argv[2:])
-    names = globals()
-    if cmd in names:
-        names[cmd](d)
-    else:
-        usage(d)
+    main()
 
 '''
   st = time.time()
