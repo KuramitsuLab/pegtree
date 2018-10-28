@@ -243,12 +243,20 @@ def emit_Detree(pe, emit):
         return False
     return curry
 
+def emit_trace(ref: Ref, pf):
+    key = ref.uname()
+    def curry(px):
+        print("+", key, px.pos)
+        return pf(px)
+    return curry
+
 # Ref
 def emit_Ref(ref: Ref, memo: dict, emit):
     key = ref.uname()
     if not key in memo:
         memo[key] = lambda px: memo[key](px)
         memo[key] = emit(ref.deref())
+        #memo[key] = emit_trace(ref, emit(ref.deref()))
     return memo[key]
 
 # Setting Parser

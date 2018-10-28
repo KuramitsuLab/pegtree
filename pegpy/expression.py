@@ -295,17 +295,89 @@ class Detree(ParsingExpression):
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
     def __str__(self):
-        return '@unit(' + str(self.inner) + ')'
+        return '@detree(' + str(self.inner) + ')'
 
 ## Symbol
 
+# @scope(e)
+class Scope(ParsingExpression):
+    __slots__ = ['inner']
+    def __init__(self, inner):
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@scope(' + str(self.inner) + ')'
+
+# @symbol(A)
 class Symbol(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = str(inner) if name is None else name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@symbol(' + str(self.inner) + ')'
+
+# @match(A)
+class Match(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = str(inner) if name is None else name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@match(' + str(self.inner) + ')'
+
+# @exists(A)
+class Exists(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = str(inner) if name is None else name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@exists(' + str(self.inner) + ')'
+
+# @equals(A)
+class Equals(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = str(inner) if name is None else name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@contains(' + str(self.inner) + ')'
+
+# @contains(A)
+class Contains(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = str(inner) if name is None else name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@contains(' + str(self.inner) + ')'
+
+# @on(flag, e)
+class On(ParsingExpression):
     __slots__ = ['name', 'inner']
     def __init__(self, name, inner):
         self.name = name
         self.inner = ParsingExpression.new(inner)
     def __str__(self):
-        return  '@symbol(' + str(self.inner) + ')'
+        return  '@on(' + str(self.inner) + ')'
+
+# @off(flag, e)
+class Off(ParsingExpression):
+    __slots__ = ['name', 'inner']
+    def __init__(self, name, inner):
+        self.name = name
+        self.inner = ParsingExpression.new(inner)
+    def __str__(self):
+        return  '@off(' + str(self.inner) + ')'
+
+# @if(flag)
+class If(ParsingExpression):
+    __slots__ = ['name']
+    def __init__(self, name):
+        self.name = name
+    def __str__(self):
+        return  '@if(' + str(self.name) + ')'
+
 
 ## Meta
 
@@ -346,7 +418,7 @@ def load_tpeg(g):
     g.Statement = N%'Example/Rule'
 
     g.Rule = TreeAs('Rule', (name <= N%'Identifier __') & '=' & __ & (Range('/|') & __ |0) & (inner <= N%'Expression')) & EOS
-    g.Identifier = TreeAs('Name', (Range('A-Z', 'a-z', '@') & Range('A-Z', 'a-z', '0-9', '_.')*0
+    g.Identifier = TreeAs('Name', (Range('A-Z', 'a-z', '@_') & Range('A-Z', 'a-z', '0-9', '_.')*0
                                    | '"' & (ParsingExpression.new(r'\"') | ~Range('\\"\n') & ANY)* 0 & '"'))
 
     g.Example = TreeAs('Example', 'example' & N%'S _' & (name <= N%'Names') & (inner <= N%'Doc')) & EOS
@@ -373,8 +445,8 @@ def load_tpeg(g):
 
     g.Empty = TreeAs('Empty', EMPTY)
     g.Any = TreeAs('Any', '.')
-    g.Char = "'" & TreeAs('Char', (r'\\' & ANY | ~Range("'\n") & ANY)*0) & "'"
-    g.Class = '[' & TreeAs('Class', (r'\\' & ANY | ~Range("]") & ANY)*0) & ']'
+    g.Char = "'" & TreeAs('Char', ('\\' & ANY | ~Range("'\n") & ANY)*0) & "'"
+    g.Class = '[' & TreeAs('Class', ('\\' & ANY | ~Range("]") & ANY)*0) & ']'
 
     g.Tag = '{' & __ & (('#' & (name <= N%'Identifier')) | 0) & __
     g.ETag = ('#' & (name <= N%'Identifier') | 0) & __ & '}'
@@ -400,6 +472,8 @@ def load_tpeg(g):
     g.example("Char,Expression", "''", "[#Char '']")
     g.example("Char,Expression", "'a'", "[#Char 'a']")
     g.example("Char,Expression", "'ab'", "[#Char 'ab']")
+    #g.example("Char,Expression", "'\\''", "[#Char \"'\"]")
+    g.example("Char,Expression", "'\\\\a'", "[#Char '\\\\\\\\a']")
     g.example("Ref,Expression", "\"a\"", "[#Ref '\"a\"']")
     g.example("Class,Expression", "[a]", "[#Class 'a']")
     g.example("Func,Expression", "f(a)", "[#Func [#Name 'f'] [#Ref 'a']]")
@@ -528,9 +602,28 @@ def setup_loader(Grammar, pc):
             return FoldAs(left, name, inner)
 
         def Func(self, t):
-            print('@TODO', t)
+            a = t.asArray()
+            name = a[0].asString()
+            if name == '@if' and len(a) > 1:
+                return If(a[1].asString())
+            elif name == '@on' and len(a) > 2:
+                return On(a[1].asString(), self.conv(a[2]))
+            elif name == '@off' and len(a) > 2:
+                return Off(a[1].asString(), self.conv(a[2]))
+            elif name == '@scope' and len(a) > 1:
+                return Scope(self.conv(a[1]))
+            elif name == '@symbol' and len(a) > 1:
+                return Symbol(None, self.conv(a[1]))
+            elif name == '@match' and len(a) > 1:
+                return Match(None, self.conv(a[1]))
+            elif name == '@exists' and len(a) > 1:
+                return Exists(None, self.conv(a[1]))
+            elif name == '@equals' and len(a) > 1:
+                return Equals(None, self.conv(a[1]))
+            elif name == '@contains' and len(a) > 1:
+                return Equals(None, self.conv(a[1]))
+            print('@TODO', name)
             return EMPTY
-
 
     PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
     pegparser = pc(load_tpeg(Grammar('tpeg')))
