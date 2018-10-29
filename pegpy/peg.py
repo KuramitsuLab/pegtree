@@ -61,6 +61,22 @@ class Range(ParsingExpression):
         l = tuple(map(lambda x: quote_str(x[0], ']')+'-'+quote_str(x[1], ']'), self.ranges))
         return "[" + ''.join(l) + quote_str(self.chars, ']') + "]"
 
+class NRange(ParsingExpression):
+    __slots__ = ['chars', 'ranges']
+    def __init__(self, *ss):
+        chars = []
+        ranges = []
+        for s in ss :
+            if len(s) == 3 and s[1] is '-':
+                ranges.append((s[0], s[2]))
+            else:
+                chars.append(s)
+        self.chars = tuple(chars)
+        self.ranges = tuple(ranges)
+    def __str__(self):
+        l = tuple(map(lambda x: quote_str(x[0], ']')+'-'+quote_str(x[1], ']'), self.ranges))
+        return "[" + ''.join(l) + quote_str(self.chars, ']') + "]"
+
 
 class Any(ParsingExpression):
     def __str__(self):

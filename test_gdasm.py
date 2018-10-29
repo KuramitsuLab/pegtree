@@ -56,6 +56,12 @@ def NLGrammar(peg = None):
     peg.katakana = Range('ァ-ヶ')*0
     peg.kanji = Range("\u3005","\u3007","\u303b","\u3400-\u4DB5","\u4E00-\u9FA0")*0
 
+    peg.np = ((N % 'NP' | N % 'adj' | N % 'PP') & N % 'NP') | N % 'NP'
+    peg.NP = Range('水車小屋', '娘')
+    peg.adj = ( N % 'NP' & N % 'PP' ) | N % 'ADJ'
+    peg.ADJ = Range('美しい')
+    peg.PP = Range('の')
+
     peg.example('iroha', 'いろは', "[# 'いろは']")
     peg.example('iroSeq', 'いろは', "[# 'いろ']")
     peg.example('irohaSeq', 'いろは', "[# 'いろは']")
@@ -63,7 +69,13 @@ def NLGrammar(peg = None):
     peg.example('chclass', 'いろは', "[# 'いろは']")
     peg.example('hiragana', 'あかさたなはまやらわを', "[# 'あかさたなはまやらわを']")
     peg.example('katakana', 'アカサタナハマヤラワヲ', "[# 'アカサタナハマヤラワヲ']")
-    peg.example('kanji', '倉光研究室', "[# '倉光研究室']")
+    peg.example('kanji', '倉光研究室です', "[# '倉光研究室です']")
+    peg.example('kanji', 'あかさたなはまやらわを', "[# 'あかさたなはまやらわを']")
+
+    peg.example('ADJ', '美しい', '[#]')
+    peg.example('adj', '水車小屋の', '[#]')
+    peg.example('np', '美しい娘', '[#]')
+    #peg.example('np', '美しい水車小屋の娘', '[#]' )
 
     return peg
 
@@ -89,4 +101,36 @@ def NLPGrammar(peg = None):
     return peg
 
 peg2 = NLPGrammar()
+peg2.testAll(gdasm)
+
+def AmbGrammar(peg = None):
+  if peg == None: peg = PEG('amb')
+  peg.S = TreeAs('S', N % '$NP0' & N % '$VP0' )
+  peg.NP0 = TreeAs('NP', N % '$NP1' & N % '$PP') | TreeAs('NP', N % '$DT' & N % '$NN')
+  peg.NP1 = TreeAs('NP', N % '$DT' & N % '$NN' & N % '$NP1' & N % '$PP') | TreeAs('NP', N % '$DT' & N % '$NN')
+  peg.VP0 = TreeAs('VP', N % '$VP1' & N % '$PP') | TreeAs('VP', (N % '$Vt' & N % '$NP0'))
+  peg.VP1 = TreeAs('VP', N % '$Vt' & N % '$NP0' & N % '$VP1' & N % '$PP') | TreeAs('VP', N % '$Vt' & N % '$NP0')
+  peg.PP = TreeAs('PP', N % '$IN' & N % '$NP0')
+  peg.DT = TreeAs('DT', pe('the'))
+  peg.NN = TreeAs('NN', pe('man') / pe('dog') / pe('telescope'))
+  peg.IN = TreeAs('IN', pe('with'))
+  peg.Vt = TreeAs('Vt', pe('saw'))
+  peg.example('S', 'themansawthedogwiththetelescope')
+  return peg
+
+peg2 = AmbGrammar()
+peg2.testAll(gdasm)
+
+
+def ManyBGrammar(peg=None):
+  if peg == None:
+    peg = PEG('manyB')
+  peg.S = TreeAs('S', pe('b') & N % '$S' & N % '$S' | N % '$S1')
+  peg.S1 = TreeAs('S\'', pe('b') & N % '$S' | pe('b'))
+
+  peg.example('S', 'bbb')
+  return peg
+
+
+peg2 = ManyBGrammar()
 peg2.testAll(gdasm)

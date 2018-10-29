@@ -23,10 +23,11 @@ def mresult(pf):
             return False
     return curry
 
-def union(old, new, mtree):
+def union(px, old, pos, mtree, mlink):
     result = {}
+    new = px.result
     for pos in set(old) & set(new):
-        result[pos] = mtree("Ambiguity", old[pos], new[pos])
+        result[pos] = mtree("Ambiguity", px.inputs, pos, px.pos, mlink("", new[pos], mlink("", old[pos], None)))
     for pos in set(old) - set(new):
         result[pos] = old[pos]
     for pos in set(new) - set(old):
@@ -140,20 +141,10 @@ def emit_GByteRange(pe):
             n |= (1 << c)
     return mresult(bits(n))
 
-def emit_GCharRange(pe):
-    chars = pe.chars
-    ranges = pe.ranges
-    def curry(px) :
-        if px.pos < px.length and isCharRange(px.inputs[px.pos], ranges, chars):
-            px.pos += 1
-            px.headpos = max(px.pos, px.headpos)
-            return True
-        return False
-    return mresult(curry)
         
 # GSeq
 
-def gseq2(left, right, mtree):
+def gseq2(left, right, mtree, mlink):
     def curry(px):
         result = {}
         if left(px):
@@ -163,14 +154,14 @@ def gseq2(left, right, mtree):
                 px.pos = pos
                 px.ast = ast
                 if right(px):
-                    result = union(result, px.result, mtree)
+                    result = union(px, result, pos, mtree, mlink)
             px.result = result
             return False if len(px.result) == 0 else True
         return False
     return curry
 
 
-def gseq(ls, mtree):
+def gseq(ls, mtree, mlink):
     def curry(px):
         result = {}
         if not ls[0](px):
@@ -182,7 +173,7 @@ def gseq(ls, mtree):
                 px.pos = pos
                 px.ast = ast
                 if p(px):
-                    result = union(result, px.result, mtree)
+                    result = union(px, result, pos, mtree, mlink)
                 else:
                     return False
             px.result = result
@@ -190,11 +181,11 @@ def gseq(ls, mtree):
         return False if len(px.result) == 0 else True
     return curry
 
-def emit_GSeq(pe, emit, mtree):
+def emit_GSeq(pe, emit, mtree, mlink):
     ls = tuple(map(emit, pe.flatten([])))
     if len(ls) == 2:
-        return gseq2(ls[0], ls[1], mtree)
-    return gseq(ls, mtree)
+        return gseq2(ls[0], ls[1], mtree, mlink)
+    return gseq(ls, mtree, mlink)
 
 # OrElse
 
@@ -230,13 +221,14 @@ def emit_GOr(pe, emit):
 
 #GAlt
 
-def alt2(left, right, mtree):
+def alt2(left, right, mtree, mlink):
     def curry(px):
         pos = px.pos
         ast = px.ast
         if not left(px):
             px.pos = pos
             px.ast = ast
+            px.result = {}
             return right(px)
         else:
             px.pos = pos
@@ -247,11 +239,11 @@ def alt2(left, right, mtree):
                 px.result = lresult
                 return True
             else:
-                px.result = union(lresult, px.result, mtree)
+                px.result = union(px, lresult, pos, mtree, mlink)
         return True
     return curry
 
-def alt(ls, mtree):
+def alt(ls, mtree, mlink):
     def curry(px):
         result = {}
         for p in ls:
@@ -262,40 +254,43 @@ def alt(ls, mtree):
                 px.ast = ast
                 continue
             else:
-                result = union(result, px.result, mtree)
+                result = union(px, result, pos, mtree, mlink)
                 px.result = {}
         px.result = result
         return False if len(px.result) == 0 else True
     return curry
 
-def emit_GAlt(pe, emit, mtree):
+def emit_GAlt(pe, emit, mtree, mlink):
     ls = tuple(map(emit, pe.flatten([])))
     if len(ls) == 2:
-        return alt2(ls[0], ls[1], mtree)
-    return alt(ls, mtree)
+        return alt2(ls[0], ls[1], mtree, mlink)
+    return alt(ls, mtree, mlink)
 
 # Many
 
-def rec_gmany(pf, px, mtree):
+def rec_gmany(pf, px, mtree, mlink):
     fresult = {}
     sresult = {}
     presult = px.result
+    ppos = px.pos
     for pos, ast in presult.items():
         px.result = {}
         px.ast = ast
         px.pos = pos
         if pf(px) and pos < px.pos:
-            sresult = union(sresult, rec_gmany(pf, px, mtree), mtree)
+            px.result = rec_gmany(pf, px, mtree, mlink)
+            sresult = union(px, sresult, pos, mtree, mlink)
         else:
             fresult[pos] = ast
-    return union(fresult, sresult, mtree)
+    px.result = sresult
+    return union(px, fresult, ppos, mtree, mlink)
 
-def gmany(pf, mtree):
+def gmany(pf, mtree, mlink):
     def curry(px):
         pos = px.pos
         ast = px.ast
         if pf(px) and pos < px.pos:
-            px.result = rec_gmany(pf, px, mtree)
+            px.result = rec_gmany(pf, px, mtree, mlink)
         else:
             px.pos = pos
             px.ast = ast
@@ -303,11 +298,11 @@ def gmany(pf, mtree):
         return True
     return curry
 
-def emit_GMany(pe, emit, mtree):
-    return gmany(emit(pe.inner), mtree)
+def emit_GMany(pe, emit, mtree, mlink):
+    return gmany(emit(pe.inner), mtree, mlink)
 
-def emit_GMany1(pe, emit, mtree):
-    return gseq2(emit(pe.inner), gmany(emit(pe.inner), mtree), mtree)
+def emit_GMany1(pe, emit, mtree, mlink):
+    return gseq2(emit(pe.inner), gmany(emit(pe.inner), mtree, mlink), mtree, mlink)
 
 #Not
 def gnot(pf):

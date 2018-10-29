@@ -12,13 +12,13 @@ def gdasm_setup():
     Char.gdasm = gparsefunc.emit_GByte
     Range.gdasm = gparsefunc.emit_JByteRange
 
-    Seq.gdasm = lambda pe: gparsefunc.emit_GSeq(pe,emit, TreeLink)
+    Seq.gdasm = lambda pe: gparsefunc.emit_GSeq(pe,emit, ParseTree, TreeLink)
     Ore.gdasm = lambda pe: gparsefunc.emit_GOr(pe,emit)
-    Alt.gdasm = lambda pe: gparsefunc.emit_GAlt(pe,emit, TreeLink)
+    Alt.gdasm = lambda pe: gparsefunc.emit_GAlt(pe,emit, ParseTree, TreeLink)
     Not.gdasm = lambda pe: gparsefunc.emit_GNot(pe, emit)
     And.gdasm = lambda pe: gparsefunc.emit_GAnd(pe, emit)
-    Many.gdasm = lambda pe: gparsefunc.emit_GMany(pe, emit, TreeLink)
-    Many1.gdasm = lambda pe: gparsefunc.emit_GMany1(pe, emit, TreeLink)
+    Many.gdasm = lambda pe: gparsefunc.emit_GMany(pe, emit, ParseTree, TreeLink)
+    Many1.gdasm = lambda pe: gparsefunc.emit_GMany1(pe, emit, ParseTree, TreeLink)
 
     TreeAs.gdasm = lambda pe: gparsefunc.emit_GTreeAs(pe,emit, ParseTree)
     LinkAs.gdasm = lambda pe: gparsefunc.emit_GLinkAs(pe,emit, TreeLink)

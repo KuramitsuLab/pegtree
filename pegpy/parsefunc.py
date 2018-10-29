@@ -82,7 +82,7 @@ def isCharRange(c, ranges, chars):
     for r in ranges:
         if r[0] <= c and c <= r[1]: return True
     for c2 in chars:
-        if c is c2: return True
+        if c == c2: return True
     return False
 
 def emit_CharRange(pe):
