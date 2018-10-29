@@ -11,7 +11,8 @@ setup(
 	packages = ["pegpy"],
 	entry_points = {
 		'console_scripts': [
-			'nez = pegpy.nez:hello',
+			'nez = pegpy.main:hello',
+			'origami = pegpy.main:hello',
 		]
 	}
 )

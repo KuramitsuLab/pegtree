@@ -1,0 +1,17 @@
+
+Expression = Product (left:^ { name: { [+\-] } right: Product #Infix })*
+Product = Value (left:^ { name: { [*%/] } right: Value #Infix })*
+Value = Int / '(' Expression ')'
+Int = { [0-9]+ #Int }
+
+/*
+Expression = Product (left:^ { $name({ [+\-] }) $right(Product) #Infix })*
+Product = Value (left:^ { $name({ [*%/] }) $right(Value) #Infix })*
+Value = Int / '(' Expression ')'
+Int = { [0-9]+ #Int }
+*/
+
+example Expression 1*2+3
+example Expression 1+2*3
+example Int 123
+

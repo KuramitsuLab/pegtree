@@ -1,3 +1,14 @@
+## Source
+
+import pegpy.utils as u
+
+class SourcePosition(object):
+    def __init__(self, inputs, spos, epos):
+        self.pos = (inputs, spos, epos)
+
+    def getpos(self):
+        return u.decode_source(self.pos[0], self.pos[1], self.pos[2])
+
 class ParseTree(object):
     __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child']
 
@@ -33,6 +44,13 @@ class ParseTree(object):
                 cur = cur.prev
         return None
 
+    def has(self, label):
+        cur = self.child
+        while(cur is not None):
+            if label is cur.tag :return True
+            cur = cur.prev
+        return False
+
     def __repr__(self):
         return self.__str__()
 
@@ -63,9 +81,20 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
+    def isString(self):
+        return self.child is None
+
     def asString(self):
         s = self.inputs[self.spos:self.epos]
         return s.decode('utf-8') if isinstance(s, bytes) else s
+
+    def isArray(self):
+        cur = self.child
+        while cur is not None:
+            if cur.tag is not None and len(cur.tag) > 0:
+                return False
+            cur = cur.prev
+        return True
 
     def asArray(self):
         a = []
@@ -111,6 +140,11 @@ class ParseTree(object):
         else:
             return self.asArray()
 
+    def getpos(self):
+        return u.decode_source(self.inputs, self.spos, self.epos)
+
+
+
 class TreeLink(object):
     __slots__ = ['tag', 'child', 'prev']
 
@@ -122,70 +156,38 @@ class TreeLink(object):
     def strOut(self, sb):
         sb.append('@@@@ FIXME @@@@')
 
-## Source
+## TreeConv
 
-def encode_source(inputs, urn = '(unknown)', pos = 0):
-    if isinstance(inputs, bytes):
-        return bytes(urn, 'utf-8').ljust(256, b' ') + inputs, pos + 256
-    return urn.ljust(256, ' ') + inputs, pos + 256
-
-def bytestr(b):
-    return b.decode('utf-8') if isinstance(b, bytes) else b
-
-def decode_source(inputs, spos, epos):
-    urn = inputs[0:256].strip()
-    inputs = inputs[256:]
-    spos -= 256
-    epos -= 256
-    ls = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    pos = spos
-    c = 1
-    for l in ls:
-        length = len(l) + 1
-        if pos < length:
-            line = l
-            linenum = c
-            break
-        pos =- length
-        c += 1
-    epos = pos + (epos - spos)
-    length = len(line) - pos if len(line) < epos else epos - pos
-    if length <= 0: length = 1
-    mark = (' ' * pos) + ('^' * length)
-    return (bytestr(urn), spos, linenum, pos, bytestr(line), mark)
-
-class SourcePosition(object):
-    def __init__(self, inputs, spos, epos):
-        self.pos = (inputs, spos, epos)
-
-    def pos(self):
-        return decode_source(self.pos[0], self.pos[1], self.pos[2])
-
-class TreeConv(object):
+class ParseTreeConv(object):
     def __init__(self, *args):
         self.dict = {}
         for c in args: self.dict[c.__name__] = c
 
-    def conv(self, t):
+    def setpos(self, s, t):
+        if isinstance(s, SourcePosition):
+            s.pos = (t.inputs, t.spos, t.epos)
+        return s
+
+    def conv(self, t: ParseTree):
         tag = t.tag
         if hasattr(self, tag):
             f = getattr(self, tag)
-            return self.pos(f(t), t)
+            return self.setpos(f(t), t)
         if tag in self.dict:
             c = self.dict[tag]
-            if len(t) == 0:
-                return self.pos(c(t.asString()),t)
+            if t.isString():
+                return self.setpos(c(t.asString()),t)
+            elif t.isArray():
+                return self.setpos(c(*t.asArray()), t)
             else :
                 d = {}
                 for name in c.__slots__:
                     sub = t[name]
                     if sub is None:
-                        raise NameError(name)
+                        print ('TODO', name, c)
+                        continue
                     d[name] = self.conv(sub)
-                return self.pos(c(**d), t)
-        return t.asJSON()
+                return self.setpos(c(**d), t)
+        print('@TODO', tag)
+        return t
 
-    def pos(self, s, t):
-        if isinstance(s, SourcePosition):
-            s.pos = (t.inputs, t.spos, t.epos)
-        return s

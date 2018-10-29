@@ -1,5 +1,4 @@
-from pegpy.parsefunc import *
-import functools
+from pegpy.p import *
 
 # generalized parse function
 
