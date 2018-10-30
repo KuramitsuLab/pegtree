@@ -14,13 +14,11 @@ def read_inputs(a):
 
 def parse(opt):
     g = Grammar('x')
-    path = 'grammar/' + opt['grammar']
-    if not os.path.isfile(path):
-        path = '../' + path
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'grammar', opt['grammar'])
     g.load(path)
     g.dump()
     g.testAll()
-    print("")
+    print('')
     p = nez(g)
     for input in opt['inputs']:
         print(p(input))

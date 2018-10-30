@@ -8,7 +8,8 @@ setup(
     author = 'KuramitsuLab',
     description = 'Nez Parser for Python',
     install_requires = ['setuptools'],
-	packages = ["pegpy"],
+	packages = ['pegpy', 'pegpy.gpeg'],
+	package_data = {'pegpy': ['../grammar/*.tpeg']},
 	entry_points = {
 		'console_scripts': [
 			'pegpy = pegpy.main:main',
