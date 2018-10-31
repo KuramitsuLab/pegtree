@@ -32,6 +32,15 @@ def decode_source(inputs, spos, epos):
     mark = (' ' * remain) + ('^' * length)
     return (bytestr(urn), spos, linenum, remain, bytestr(line), mark)
 
+def string_intern():
+    d = {}
+    def f(s):
+        nonlocal d
+        if not s in d:
+            d[s] = s
+        return d[s]
+    return f
+
 # unquote
 
 def unquote(s):

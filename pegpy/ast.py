@@ -32,6 +32,7 @@ class ParseTree(object):
 
     def __getitem__(self, label):
         cur = self.child
+        '''
         if isinstance(label, int):
             c = 0
             while (cur is not None):
@@ -39,15 +40,16 @@ class ParseTree(object):
                 c += 1
                 cur = cur.prev
         else :
-            while(cur is not None):
-                if label is cur.tag :return cur.child
-                cur = cur.prev
+        '''
+        while(cur is not None):
+            if label == cur.tag :return cur.child
+            cur = cur.prev
         return None
 
-    def has(self, label):
+    def __contains__(self, label):
         cur = self.child
         while(cur is not None):
-            if label is cur.tag :return True
+            if label == cur.tag :return True
             cur = cur.prev
         return False
 
@@ -63,7 +65,7 @@ class ParseTree(object):
         sb.append("[#")
         sb.append(self.tag)
         c = len(sb)
-        for tag, child in self.fields():
+        for tag, child in self:
             sb.append(' ' if tag is '' else ' ' + tag + '=')
             child.strOut(sb)
         if c == len(sb):
@@ -102,6 +104,10 @@ class ParseTree(object):
         a.reverse()
         return a
 
+    def __iter__(self):
+        return TreeLinkIter(self.child)
+
+    '''
     def fields(self):
         a = []
         cur = self.child
@@ -111,6 +117,7 @@ class ParseTree(object):
             cur = cur.prev
         a.reverse()
         return a
+    '''
 
     def asJSON(self, tag = '__class__', hook = None):
         listCount = 0
@@ -139,7 +146,12 @@ class ParseTree(object):
     def getpos(self):
         return u.decode_source(self.inputs, self.spos, self.epos)
 
+    def pos3(self):
+        return (self.inputs, self.spos, self.epos)
 
+    def asExpression(self):
+        intern = u.string_intern()
+        return SExpr.of(self, intern)
 
 class TreeLink(object):
     __slots__ = ['tag', 'child', 'prev']
@@ -151,6 +163,100 @@ class TreeLink(object):
 
     def strOut(self, sb):
         sb.append('@@@@ FIXME @@@@')
+
+class TreeLinkIter(object):
+    __slots__ = ['stack']
+    def __init__(self, cur: TreeLink):
+        self.stack = []
+        while cur is not None:
+            if cur.child is not None:
+                self.stack.append(cur)
+            cur = cur.prev
+
+    def __next__(self):
+        if len(self.stack) == 0:
+            raise StopIteration()
+        cur = self.stack.pop()
+        return (cur.tag, cur.child)
+
+
+## SExpression
+
+class SExpr(object):
+    ORIGAMI = {
+        'Unary': 'name expr',
+        'Infix': 'name left right',
+        'IntExpr': lambda t: int(t.asString())
+    }
+    @classmethod
+    def of(cls, t, intern, conv = ORIGAMI):
+        if t is None: return SExprList(())
+        key = t.tag
+        if len(t) == 0 :
+            if key in conv:
+                return SExprAtom(conv[key](t), t.pos3())
+            else:
+                return SExprAtom(intern(t.asString()), t.pos3())
+        else:
+            lconv = conv[key] if key in conv else None
+            cons = []
+            if isinstance(lconv, str):
+                for name in lconv.split():
+                    if name.startswith('#'):
+                        cons.append(SExprAtom(intern(name[1:]), t.pos3()))
+                    else:
+                        cons.append(SExpr.of(t[name], intern, conv))
+                return SExprList(cons)
+            else:
+                cons.append(SExprAtom(intern(key.lower()), t.pos3()))
+                for n, v in t:
+                    cons.append(SExpr.of(v, intern, conv))
+                return SExprList(cons)
+
+    @classmethod
+    def new(cls, s):
+        """
+        >>> parse_sexp("(+ 5 (+ 3 5))")
+        [['+', '5', ['+', '3', '5']]]
+        """
+        sexp = [[]]
+        word = ''
+        in_str = False
+        for char in s:
+            if char == '(' and not in_str:
+                sexp.append([])
+            elif char == ')' and not in_str:
+                if word:
+                    sexp[-1].append(word)
+                    word = ''
+                temp = sexp.pop()
+                sexp[-1].append(temp)
+            elif char in (' ', '\n', '\t') and not in_str:
+                if word:
+                    sexp[-1].append(word)
+                    word = ''
+            elif char == '\"':
+                in_str = not in_str
+            else:
+                word += char
+        return sexp[0]
+
+class SExprAtom(SExpr):
+    __slots__ = ['data', 'pos3', 'ty']
+    def __init__(self, data, pos3 = None, ty = None):
+        self.data = data
+        self.pos3 = pos3
+        self.ty = ty
+    def __str__(self):
+        return str(self.data)
+
+class SExprList(SExpr):
+    __slots__ = ['data', 'ty']
+    def __init__(self, data, ty = None):
+        self.data = tuple(data)
+        self.ty = ty
+    def __str__(self):
+        return '(' + (' '.join(map(str, self.data))) + ')'
 
 ## TreeConv
 
