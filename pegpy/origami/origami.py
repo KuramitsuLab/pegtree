@@ -386,7 +386,6 @@ class Infix(Expression):
         }
         return fs[self.exprs[0]](self.exprs[1].eval(env),self.exprs[2].eval(env))
 
-
 '''
 require math.h
 + :: any <- any, any = %1 + %2
