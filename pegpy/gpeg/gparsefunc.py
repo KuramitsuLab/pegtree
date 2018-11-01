@@ -1,16 +1,7 @@
-from pegpy.p import *
+from pegpy.parser import *
+import functools
 
 # generalized parse function
-
-def check_header(header):
-    if header < 0xc0:
-        return 1
-    elif header >= 0xc0 and header <= 0xdf:
-        return 2
-    elif header >= 0xe0 and header <= 0xef:
-        return 3
-    else :
-        return 4
 
 def mresult(pf):
     def curry(px):
@@ -33,88 +24,14 @@ def union(px, old, pos, mtree, mlink):
         result[pos] = new[pos]
     return result
 
-#for debug
-def debug_jbits(n):
-    res = []
-    for i in range(0, 256):
-        c = 1 << i
-        if (n[0] & c) != 0:
-            res = res + [chr(i)]
-    return res
-
-#for Japanese
-def jany(px):
-    if px.pos < px.length:
-        header = px.inputs[px.pos]
-        px.pos += check_header(header)
-        px.headpos = max(px.pos, px.headpos)
-        return True
-    return False
-
-def jbits(n):
-    def curry(px) :
-        if px.pos > px.length - 1:
-            return False
-        length = check_header(px.inputs[px.pos])
-        if px.pos + length > px.length:
-            return False
-        if length == 1:
-            if (n[0] & (1 << px.inputs[px.pos])) == 0:
-                return False
-        elif length == 2:
-            if (n[1] & (1 << px.inputs[px.pos + 1])) == 0:
-                return False
-        elif length == 3:
-            (i1, i2) = px.inputs[px.pos + 1:px.pos + 3]
-            if (n[2][i1] & (1 << i2)) == 0:
-                return False
-        elif length == 4:
-            (i1, i2, i3) = px.inputs[px.pos + 1:px.pos + 4]
-            if (n[3][i1][i2] & (1 << i3)) == 0:
-                return False
-        px.pos += length
-        px.headpos = max(px.pos, px.headpos)
-        return True
-    return curry
-
-def emit_JByteRange(pe):
-    n = [0,0,[0 for i in range(257)],[ [0 for j in range(257)] for k in range(257) ] ]
-    for c in pe.chars:
-        b = bytes(c, 'utf-8')
-        length = check_header(b[0])
-        if length == 1:
-            n[0] |= (1 << b[0])
-        elif length == 2:
-            n[1] |= (1 << b[1])
-        elif length == 3:
-            n[2][b[1]] |= (1 << b[2])
-        elif length == 4:
-            n[3][b[1]][b[2]] |= (1 << b[3])
-    for r in pe.ranges:
-        r0 = bytes(r[0], 'utf-8')
-        r1 = bytes(r[1], 'utf-8')
-        if len(r0) != len(r1):
-            raise ValueError('Can\'t use multi bytes of different length ')
-        length = len(r0)
-        for i in range(functools.reduce(lambda x, y: y + (x << 8), r0), functools.reduce(lambda x, y: y + (x << 8), r1) + 1):
-            if length == 1:
-                n[0] |= (1 << i)
-            elif length == 2:
-                n[1] |= (1 << (i & 0xff))
-            elif length == 3:
-                n[2][ (i & 0xff00) >> 8] |= (1 << (i & 0xff))
-            elif length == 4:
-                n[3][ (i & 0xff00) >> 8][ (i & 0xff0000) >> 16] |= (1 << (i & 0xff))
-    return mresult(jbits(n))
-    
 
 #GChar
 
 def emit_GChar(pe):
     if len(pe.a)>1:
-        return mresult(multi(pe.a, len(pe.a)))
+        return mresult(emit_multi(pe.a, len(pe.a)))
     if not pe.a in pf_char:
-        pf_char[pe.a] = mresult(char(pe.a))
+        pf_char[pe.a] = mresult(emit_char(pe.a))
     return pf_char[pe.a]
 
 #GByte
@@ -122,11 +39,11 @@ def emit_GChar(pe):
 def emit_GByte(pe):
     b = bytes(pe.a, 'utf-8')
     if len(b)>1:
-        return mresult(multi(b, len(b)))
+        return mresult(emit_multi(b, len(b)))
     c = ord(pe.a)
     key = str(c)
     if not key in pf_char:
-        pf_char[key] = mresult(char(c))
+        pf_char[key] = mresult(emit_char(c))
     return pf_char[key]
 
 #GRange
@@ -140,6 +57,17 @@ def emit_GByteRange(pe):
             n |= (1 << c)
     return mresult(bits(n))
 
+def emit_GCharRange(pe):
+    chars = pe.chars
+    ranges = pe.ranges
+
+    def curry(px):
+        if px.pos < px.length and isCharRange(px.inputs[px.pos], ranges, chars):
+            px.pos += 1
+            px.headpos = max(px.pos, px.headpos)
+            return True
+        return False
+    return mresult(curry)
         
 # GSeq
 
@@ -348,7 +276,7 @@ def gtree(tag, pf, mtree):
     return curry
 
 def emit_GTreeAs(pe, emit, mtree):
-    return gtree(pe.tag, emit(pe.inner), mtree)
+    return gtree(pe.name, emit(pe.inner), mtree)
 
 def glink(tag, pf, mlink):
     def curry(px):
@@ -363,7 +291,7 @@ def glink(tag, pf, mlink):
     return curry
 
 def emit_GLinkAs(pe, emit, mlink):
-    return glink(pe.tag, emit(pe.inner), mlink)
+    return glink(pe.name, emit(pe.inner), mlink)
 
 def gfold(ltag, tag, pf, mtree, mlink):
     def curry(px):
@@ -379,9 +307,9 @@ def gfold(ltag, tag, pf, mtree, mlink):
     return curry
 
 def emit_GFoldAs(pe, emit, mtree, mlink):
-    return gfold(pe.ltag, pe.tag, emit(pe.inner), mtree, mlink)
+    return gfold(pe.left, pe.name, emit(pe.inner), mtree, mlink)
 
-def gunit(pf):
+def gdetree(pf):
     def curry(px):
         ppos = px.pos
         past = px.ast
@@ -393,5 +321,5 @@ def gunit(pf):
         return False
     return curry
 
-def emit_GUnit(pe, emit):
-    return gunit(emit(pe.inner))
+def emit_GDetree(pe, emit):
+    return gdetree(emit(pe.inner))

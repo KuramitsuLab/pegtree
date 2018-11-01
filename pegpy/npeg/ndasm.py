@@ -1,53 +1,56 @@
 from pegpy.peg import *
-from pegpy.ast import *
 import pegpy.gpeg.gparsefunc as gparsefunc
-import pegpy.npeg.nparsefunc as nparsefunc
-import pegpy.parsefunc as parsefunc
+from pegpy.parser import *
 
-# ParserFunction
+def ndasm(p, conv=None):
+    nsetting('ndasm')
+    return generate_nparser(ngenerate(p, 'ndasm'), conv)
 
+def nsetting(f: str):
+    if not hasattr(Char, f):
+        def emit(pe): return getattr(pe, f)()
 
-def ndasm_setup():
-    def emit(pe): return pe.ndasm()
+        setattr(Empty, f, lambda self: p_True)
+        setattr(Any, f, lambda self: gparsefunc.mresult(p_Any))
+        setattr(Char, f, gparsefunc.emit_GChar)
+        setattr(Range, f, gparsefunc.emit_GCharRange)
 
-    Empty.ndasm = lambda self: gparsefunc.true
-    Any.ndasm = lambda self: gparsefunc.mresult(parsefunc.any)
-    Char.ndasm = gparsefunc.emit_GChar
-    Range.ndasm = nparsefunc.emit_NCharRange
-    NRange.ndasm = nparsefunc.emit_NCharRange
+        setattr(Seq, f, lambda pe: gparsefunc.emit_GSeq(pe, emit, ParseTree, TreeLink))
+        setattr(Ore, f, lambda pe: gparsefunc.emit_GOr(pe, emit))
+        setattr(Alt, f, lambda pe: gparsefunc.emit_GAlt(pe, emit, ParseTree, TreeLink))
+        setattr(Not, f, lambda pe: gparsefunc.emit_GNot(pe, emit))
+        setattr(And, f, lambda pe: gparsefunc.emit_GAnd(pe, emit))
+        setattr(Many, f, lambda pe: gparsefunc.emit_GMany(pe, emit, ParseTree, TreeLink))
+        setattr(Many1, f, lambda pe: gparsefunc.emit_GMany1(pe, emit, ParseTree, TreeLink))
 
-    Seq.ndasm = lambda pe: gparsefunc.emit_GSeq(pe, emit, TreeLink)
-    Ore.ndasm = lambda pe: gparsefunc.emit_GOr(pe, emit)
-    Alt.ndasm = lambda pe: gparsefunc.emit_GAlt(pe, emit, TreeLink)
-    Not.ndasm = lambda pe: gparsefunc.emit_GNot(pe, emit)
-    And.ndasm = lambda pe: gparsefunc.emit_GAnd(pe, emit)
-    Many.ndasm = lambda pe: gparsefunc.emit_GMany(pe, emit, TreeLink)
-    Many1.ndasm = lambda pe: gparsefunc.emit_GMany1(pe, emit, TreeLink)
+        setattr(TreeAs, f, lambda pe: gparsefunc.emit_GTreeAs(pe, emit, ParseTree))
+        setattr(LinkAs, f, lambda pe: gparsefunc.emit_GLinkAs(pe, emit, TreeLink))
+        setattr(FoldAs, f, lambda pe: gparsefunc.emit_GFoldAs(pe, emit, ParseTree, TreeLink))
+        setattr(Detree, f, lambda pe: gparsefunc.emit_GDetree(pe, emit))
 
-    TreeAs.ndasm = lambda pe: gparsefunc.emit_GTreeAs(pe, emit, ParseTree)
-    LinkAs.ndasm = lambda pe: gparsefunc.emit_GLinkAs(pe, emit, TreeLink)
-    FoldAs.ndasm = lambda pe: gparsefunc.emit_GFoldAs(
-        pe, emit, ParseTree, TreeLink)
-    Detree.ndasm = lambda pe: gparsefunc.emit_GUnit(pe, emit)
-
-    # Ref
-    Ref.ndasm = lambda pe: gparsefunc.emit_Ref(pe.peg, pe.name, "_DAsm_", emit)
-    Rule.ndasm = lambda pe: gparsefunc.emit_Rule(pe, emit)
-
-
-ndasm_setup()
+        # Ref
+        memo = {}
+        setattr(Ref, f, lambda pe: gparsefunc.emit_Ref(pe, memo, emit))
+        return True
+    return False
 
 
-class NDAsmContext:
-    __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
+def ngenerate(p, f='ndasm'):
+    if not isinstance(p, ParsingExpression):  # Grammar
+        p = Ref(p.start().name, p)
+    return getattr(p, f)()
 
-    def __init__(self, inputs, pos=0):
-        self.inputs = inputs
-        self.length = len(self.inputs)
-        self.pos = pos
-        self.headpos = pos
-        self.ast = None
-        self.result = {}
+
+class NParserContext:
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
+
+  def __init__(self, inputs, urn='(unknown)', pos=0):
+    self.inputs = inputs
+    self.pos = pos
+    self.length = len(self.inputs)
+    self.headpos = self.pos
+    self.ast = None
+    self.result = {}
 
 
 def collect_amb(s, pos, result):
@@ -63,25 +66,19 @@ def collect_amb(s, pos, result):
     return prev
 
 
-def ndasm(peg: PEG, name=None):
-    if isinstance(peg, ParsingExpression):
-        f = peg.ndasm()
-    else:
-        if name == None:
-            name = "start"
-        f = gparsefunc.emit_Ref(peg, name, "_DAsm_", lambda pe: pe.ndasm())
-
-    def parse(s, pos=0):
-        px = NDAsmContext(s, pos)
+def generate_nparser(f, conv=None):
+    def parse(s, urn='(unknown)', pos=0):
+        px = NParserContext(s, urn, pos)
+        pos = px.pos
         if not f(px):
-            return ParseTree("err", s, px.pos, len(s), None)
-        if len(px.result) == 0:
-            return ParseTree("", s, pos, px.pos, None)
-        if len(px.result) == 1:
+            return ParseTree("err", px.inputs, px.headpos, len(s), None)
+        elif len(px.result) == 0:
+            return ParseTree("", px.inputs, pos, px.pos, None)
+        elif len(px.result) == 1:
             (result_pos, result_ast) = list(px.result.items())[0]
             if result_ast == None:
-                return ParseTree("", s, pos, result_pos, None)
+                return ParseTree("", px.inputs, pos, result_pos, None)
             else:
                 return result_ast
-        return ParseTree("Ambiguity", s, pos, px.pos, collect_amb(s, pos, px.result))
+        return ParseTree("Ambiguity", px.inputs, pos, px.pos, collect_amb(px.inputs, pos, px.result))
     return parse

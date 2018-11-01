@@ -1,45 +1,56 @@
-from pegpy.peg import *
-from pegpy.ast import *
 import pegpy.gpeg.gparsefunc as gparsefunc
+from pegpy.parser import *
+from pegpy.peg import *
 
-# ParserFunction
 
-def gdasm_setup():
-    def emit(pe): return pe.gdasm()
+def gdasm(p, conv=None):
+    gsetting('gdasm')
+    return generate_gparser(ggenerate(p, 'gdasm'), conv)
 
-    Empty.gdasm = lambda self: gparsefunc.true
-    Any.gdasm = lambda self: gparsefunc.mresult(gparsefunc.jany)
-    Char.gdasm = gparsefunc.emit_GByte
-    Range.gdasm = gparsefunc.emit_JByteRange
+def gsetting(f: str):
+    if not hasattr(Char, f):
+        def emit(pe): return getattr(pe, f)()
 
-    Seq.gdasm = lambda pe: gparsefunc.emit_GSeq(pe,emit, ParseTree, TreeLink)
-    Ore.gdasm = lambda pe: gparsefunc.emit_GOr(pe,emit)
-    Alt.gdasm = lambda pe: gparsefunc.emit_GAlt(pe,emit, ParseTree, TreeLink)
-    Not.gdasm = lambda pe: gparsefunc.emit_GNot(pe, emit)
-    And.gdasm = lambda pe: gparsefunc.emit_GAnd(pe, emit)
-    Many.gdasm = lambda pe: gparsefunc.emit_GMany(pe, emit, ParseTree, TreeLink)
-    Many1.gdasm = lambda pe: gparsefunc.emit_GMany1(pe, emit, ParseTree, TreeLink)
+        setattr(Empty, f, lambda self: p_True)
+        setattr(Any, f, lambda self: gparsefunc.mresult(p_Any))
+        setattr(Char, f, gparsefunc.emit_GByte)
+        setattr(Range, f, gparsefunc.emit_GByteRange)
 
-    TreeAs.gdasm = lambda pe: gparsefunc.emit_GTreeAs(pe,emit, ParseTree)
-    LinkAs.gdasm = lambda pe: gparsefunc.emit_GLinkAs(pe,emit, TreeLink)
-    FoldAs.gdasm = lambda pe: gparsefunc.emit_GFoldAs(pe,emit, ParseTree, TreeLink)
-    Detree.gdasm = lambda pe: gparsefunc.emit_GUnit(pe,emit)
+        setattr(Seq, f, lambda pe: gparsefunc.emit_GSeq(pe, emit, ParseTree, TreeLink))
+        setattr(Ore, f, lambda pe: gparsefunc.emit_GOr(pe, emit))
+        setattr(Alt, f, lambda pe: gparsefunc.emit_GAlt(pe, emit, ParseTree, TreeLink))
+        setattr(Not, f, lambda pe: gparsefunc.emit_GNot(pe, emit))
+        setattr(And, f, lambda pe: gparsefunc.emit_GAnd(pe, emit))
+        setattr(Many, f, lambda pe: gparsefunc.emit_GMany(pe, emit, ParseTree, TreeLink))
+        setattr(Many1, f, lambda pe: gparsefunc.emit_GMany1(pe, emit, ParseTree, TreeLink))
 
-    # Ref
-    Ref.gdasm = lambda pe: gparsefunc.emit_Ref(pe.peg, pe.name, "_DAsm_", emit)
-    Rule.gdasm = lambda pe: gparsefunc.emit_Rule(pe, emit)
+        setattr(TreeAs, f, lambda pe: gparsefunc.emit_GTreeAs(pe, emit, ParseTree))
+        setattr(LinkAs, f, lambda pe: gparsefunc.emit_GLinkAs(pe, emit, TreeLink))
+        setattr(FoldAs, f, lambda pe: gparsefunc.emit_GFoldAs(pe, emit, ParseTree, TreeLink))
+        setattr(Detree, f, lambda pe: gparsefunc.emit_GDetree(pe, emit))
 
-gdasm_setup()
+        # Ref
+        memo = {}
+        setattr(Ref, f, lambda pe: gparsefunc.emit_Ref(pe, memo, emit))
+        return True
+    return False
 
-class GDAsmContext:
-    __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
-    def __init__(self, inputs, pos = 0):
-        self.inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-        self.length = len(self.inputs)
-        self.pos = pos
-        self.headpos = pos
-        self.ast = None
-        self.result = {}
+def ggenerate(p, f='gdasm'):
+    if not isinstance(p, ParsingExpression):  # Grammar
+        p = Ref(p.start().name, p)
+    return getattr(p, f)()
+
+
+class GParserContext:
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
+
+  def __init__(self, inputs, urn='(unknown)', pos=0):
+    s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+    self.inputs, self.pos = u.encode_source(s, urn, pos)
+    self.length = len(self.inputs)
+    self.headpos = self.pos
+    self.ast = None
+    self.result = {}
 
 def collect_amb(s, pos, result):
     is_first = True
@@ -53,24 +64,19 @@ def collect_amb(s, pos, result):
             prev = TreeLink("", r, prev)
     return prev
 
-def gdasm(peg: PEG, name = None):
-    if isinstance(peg, ParsingExpression):
-        f = peg.gdasm()
-    else:
-        if name == None: name = "start"
-        f = gparsefunc.emit_Ref(peg, name, "_DAsm_", lambda pe: pe.gdasm())
-    def parse(s, pos = 0):
-        px = GDAsmContext(s, pos)
-        s = bytes(s, 'utf-8')
+def generate_gparser(f, conv=None):
+    def parse(s, urn='(unknown)', pos=0):
+        px = GParserContext(s, urn, pos)
+        pos = px.pos
         if not f(px):
-            return ParseTree("err", s, px.pos, len(s), None)
-        if len(px.result) == 0:
-            return ParseTree("", s, pos, px.pos, None)
-        if len(px.result) == 1:
-            (result_pos, result_ast) = list(px.result.items())[0] 
+            return ParseTree("err", px.inputs, px.headpos, len(s), None)
+        elif len(px.result) == 0:
+            return ParseTree("", px.inputs, pos, px.pos, None)
+        elif len(px.result) == 1:
+            (result_pos, result_ast) = list(px.result.items())[0]
             if result_ast == None:
-                return ParseTree("", s, pos, result_pos, None)
+                return ParseTree("", px.inputs, pos, result_pos, None)
             else:
                 return result_ast
-        return ParseTree("Ambiguity", s, pos, px.pos, collect_amb(s, pos, px.result))
+        return ParseTree("Ambiguity", px.inputs, pos, px.pos, collect_amb(px.inputs, pos, px.result))
     return parse
