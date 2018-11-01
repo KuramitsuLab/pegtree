@@ -1,3 +1,4 @@
+from pathlib import Path
 import pegpy.utils as u
 
 ## SExpression
@@ -125,6 +126,28 @@ class SyntaxMapper(object):
             ss.pushSTR(str(e))
         else:
             ss.pushFMT(self, self.syntaxMap['TODO'], e.data)
+
+    def load(self, file):
+        path = Path(file)
+        if not path.exists():
+            path = Path(__file__).parent / path
+        f = path.open('r')
+        libs = ()
+        for line in f.readlines():
+            if line.startswith('#require'):
+                libs = line.split()[1:]
+                print(libs)
+                continue
+            if line.startswith('#'):
+                continue
+            loc = line.find('\t')
+            if loc == -1:
+                loc = line.find(' ')
+            if loc != -1:
+                key = line[:loc]
+                value = u.unquote(line[loc:].strip())
+                self.addSyntax(key, value)
+        f.close()
 
 class SourceSection(object):
     __slots__ = ['sb', 'indent', 'tab', 'lf']
