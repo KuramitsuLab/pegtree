@@ -1,17 +1,27 @@
 #!/usr/local/bin/python
-import sys
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+from pegpy.peg import *
 
 def read_inputs(a):
-  try:
-    f = open(a, 'rb')
-    data = f.read() + b'\0'  # Zero Termination
-    f.close()
-    return data
-  except:
-    return a.encode() + b'\0' # Zero Termination
+    try:
+        f = open(a, 'rb')
+        data = f.read() + b'\0'  # Zero Termination
+        f.close()
+        return data
+    except:
+        return a.encode() + b'\0' # Zero Termination
 
 def parse(opt):
-    pass
+    g = Grammar('x')
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'grammar', opt['grammar'])
+    g.load(path)
+    g.dump()
+    g.testAll()
+    print('')
+    p = nez(g)
+    for input in opt['inputs']:
+        print(p(input))
 
 def nezcc(opt):
     pass
@@ -21,15 +31,19 @@ def tojson(opt):
 
 def main():
     try:
-        cmd = sys.argv[1]
-        d = parse_opt(sys.argv[2:])
+        argv = sys.argv
+        if len(argv) < 2:
+            raise CommandError({})
+
+        cmd = argv[1]
+        d = parse_opt(argv[2:])
         names = globals()
         if cmd in names:
             names[cmd](d)
         else:
             usage(d)
-    except Exception as e:
-        usage(e.args[0])
+    except CommandError as e:
+        usage(e.opt)
 
 def parse_opt(argv):
     def parse_each(a, d):
@@ -48,7 +62,7 @@ def parse_opt(argv):
                     d['option'] = a[1]
                     return a[2:]
             d['inputs'].extend(a)
-            raise Exception(d)
+            raise CommandError(d)
         else:
             d['inputs'].append(a[0])
             return a[1:]
@@ -73,6 +87,10 @@ def usage(opt):
     print("The most commonly used nez commands are:");
     print(" parse      run an interactive parser");
     print(" nezcc      generate a nez parser");
+
+class CommandError(Exception):
+    def __init__(self, opt):
+        self.opt = opt
 
 if __name__ == "__main__":
     main()

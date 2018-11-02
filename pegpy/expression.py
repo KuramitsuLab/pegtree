@@ -378,7 +378,6 @@ class If(ParsingExpression):
     def __str__(self):
         return  '@if(' + str(self.name) + ')'
 
-
 ## Meta
 
 class Meta(ParsingExpression):
@@ -573,12 +572,12 @@ def setup_loader(Grammar, pc):
             return Ore(inner, EMPTY)
 
         def TreeAs(self, t):
-            name = t['name'].asString() if t.has('name') else ''
+            name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             return TreeAs(name, inner)
 
         def LinkAs(self, t):
-            name = t['name'].asString() if t.has('name') else ''
+            name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             #print('@LinkAs', LinkAs(name, inner))
             return LinkAs(name, inner)
@@ -596,8 +595,8 @@ def setup_loader(Grammar, pc):
             return LinkAs(name, inner)
 
         def Fold(self, t):
-            left = t['left'].asString() if t.has('left') else ''
-            name = t['name'].asString() if t.has('name') else ''
+            left = t['left'].asString() if 'left' in t else ''
+            name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             return FoldAs(left, name, inner)
 

@@ -32,6 +32,7 @@ class ParseTree(object):
 
     def __getitem__(self, label):
         cur = self.child
+        '''
         if isinstance(label, int):
             c = 0
             while (cur is not None):
@@ -39,15 +40,16 @@ class ParseTree(object):
                 c += 1
                 cur = cur.prev
         else :
-            while(cur is not None):
-                if label is cur.tag :return cur.child
-                cur = cur.prev
+        '''
+        while(cur is not None):
+            if label == cur.tag :return cur.child
+            cur = cur.prev
         return None
 
-    def has(self, label):
+    def __contains__(self, label):
         cur = self.child
         while(cur is not None):
-            if label is cur.tag :return True
+            if label == cur.tag :return True
             cur = cur.prev
         return False
 
@@ -63,7 +65,7 @@ class ParseTree(object):
         sb.append("[#")
         sb.append(self.tag)
         c = len(sb)
-        for tag, child in self.fields():
+        for tag, child in self:
             sb.append(' ' if tag is '' else ' ' + tag + '=')
             child.strOut(sb)
         if c == len(sb):
@@ -106,6 +108,10 @@ class ParseTree(object):
         a.reverse()
         return a
 
+    def __iter__(self):
+        return TreeLinkIter(self.child)
+
+    '''
     def fields(self):
         a = []
         cur = self.child
@@ -115,6 +121,7 @@ class ParseTree(object):
             cur = cur.prev
         a.reverse()
         return a
+    '''
 
     def asJSON(self, tag = '__class__', hook = None):
         listCount = 0
@@ -143,7 +150,8 @@ class ParseTree(object):
     def getpos(self):
         return u.decode_source(self.inputs, self.spos, self.epos)
 
-
+    def pos3(self):
+        return (self.inputs, self.spos, self.epos)
 
 class TreeLink(object):
     __slots__ = ['tag', 'child', 'prev']
@@ -155,6 +163,21 @@ class TreeLink(object):
 
     def strOut(self, sb):
         sb.append('@@@@ FIXME @@@@')
+
+class TreeLinkIter(object):
+    __slots__ = ['stack']
+    def __init__(self, cur: TreeLink):
+        self.stack = []
+        while cur is not None:
+            if cur.child is not None:
+                self.stack.append(cur)
+            cur = cur.prev
+
+    def __next__(self):
+        if len(self.stack) == 0:
+            raise StopIteration()
+        cur = self.stack.pop()
+        return (cur.tag, cur.child)
 
 ## TreeConv
 

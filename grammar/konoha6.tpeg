@@ -255,7 +255,7 @@ EQ =
 	/ '>'  !'>'
 
 SumExpr =
-	ProdExpr (left:^ { name: { EQ } _ right: ProdExpr #Infix })*
+	ProdExpr (left:^ { name: { SUM } _ right: ProdExpr #Infix })*
 
 SUM =
 	/ '++'
@@ -409,5 +409,4 @@ EXPONENT =
 TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
 FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
 NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'ULL' / 'othing' ) #NullExpr } _
-
 
