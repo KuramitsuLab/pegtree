@@ -43,8 +43,8 @@ def emit_GByte(pe):
     c = ord(pe.a)
     key = str(c)
     if not key in pf_char:
-        pf_char[key] = mresult(emit_char(c))
-    return pf_char[key]
+        pf_char[key] = emit_char(c)
+    return mresult(pf_char[key])
 
 #GRange
 
