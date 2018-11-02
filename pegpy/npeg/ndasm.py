@@ -1,5 +1,5 @@
 from pegpy.peg import *
-import pegpy.gpeg.gparsefunc as gparsefunc
+import pegpy.gpeg.generalizedparser as gparser
 from pegpy.parser import *
 
 def ndasm(p, conv=None):
@@ -11,26 +11,26 @@ def nsetting(f: str):
         def emit(pe): return getattr(pe, f)()
 
         setattr(Empty, f, lambda self: p_True)
-        setattr(Any, f, lambda self: gparsefunc.mresult(p_Any))
-        setattr(Char, f, gparsefunc.emit_GChar)
-        setattr(Range, f, gparsefunc.emit_GCharRange)
+        setattr(Any, f, lambda self: gparser.mresult(p_Any))
+        setattr(Char, f, gparser.emit_GChar)
+        setattr(Range, f, gparser.emit_GCharRange)
 
-        setattr(Seq, f, lambda pe: gparsefunc.emit_GSeq(pe, emit, ParseTree, TreeLink))
-        setattr(Ore, f, lambda pe: gparsefunc.emit_GOr(pe, emit))
-        setattr(Alt, f, lambda pe: gparsefunc.emit_GAlt(pe, emit, ParseTree, TreeLink))
-        setattr(Not, f, lambda pe: gparsefunc.emit_GNot(pe, emit))
-        setattr(And, f, lambda pe: gparsefunc.emit_GAnd(pe, emit))
-        setattr(Many, f, lambda pe: gparsefunc.emit_GMany(pe, emit, ParseTree, TreeLink))
-        setattr(Many1, f, lambda pe: gparsefunc.emit_GMany1(pe, emit, ParseTree, TreeLink))
+        setattr(Seq, f, lambda pe: gparser.emit_GSeq(pe, emit, ParseTree, TreeLink))
+        setattr(Ore, f, lambda pe: gparser.emit_GOr(pe, emit))
+        setattr(Alt, f, lambda pe: gparser.emit_GAlt(pe, emit, ParseTree, TreeLink))
+        setattr(Not, f, lambda pe: gparser.emit_GNot(pe, emit))
+        setattr(And, f, lambda pe: gparser.emit_GAnd(pe, emit))
+        setattr(Many, f, lambda pe: gparser.emit_GMany(pe, emit, ParseTree, TreeLink))
+        setattr(Many1, f, lambda pe: gparser.emit_GMany1(pe, emit, ParseTree, TreeLink))
 
-        setattr(TreeAs, f, lambda pe: gparsefunc.emit_GTreeAs(pe, emit, ParseTree))
-        setattr(LinkAs, f, lambda pe: gparsefunc.emit_GLinkAs(pe, emit, TreeLink))
-        setattr(FoldAs, f, lambda pe: gparsefunc.emit_GFoldAs(pe, emit, ParseTree, TreeLink))
-        setattr(Detree, f, lambda pe: gparsefunc.emit_GDetree(pe, emit))
+        setattr(TreeAs, f, lambda pe: gparser.emit_GTreeAs(pe, emit, ParseTree))
+        setattr(LinkAs, f, lambda pe: gparser.emit_GLinkAs(pe, emit, TreeLink))
+        setattr(FoldAs, f, lambda pe: gparser.emit_GFoldAs(pe, emit, ParseTree, TreeLink))
+        setattr(Detree, f, lambda pe: gparser.emit_GDetree(pe, emit))
 
         # Ref
         memo = {}
-        setattr(Ref, f, lambda pe: gparsefunc.emit_Ref(pe, memo, emit))
+        setattr(Ref, f, lambda pe: gparser.emit_Ref(pe, memo, emit))
         return True
     return False
 
