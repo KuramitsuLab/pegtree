@@ -1,20 +1,19 @@
+from pegpy.peg import *
 import pegpy.gpeg.generalizedparser as gparser
 from pegpy.parser import *
-from pegpy.peg import *
 
+def ndasm(p, conv=None):
+    nsetting('ndasm')
+    return generate_nparser(ngenerate(p, 'ndasm'), conv)
 
-def gdasm(p, conv=None):
-    gsetting('gdasm')
-    return generate_gparser(ggenerate(p, 'gdasm'), conv)
-
-def gsetting(f: str):
+def nsetting(f: str):
     if not hasattr(Char, f):
         def emit(pe): return getattr(pe, f)()
 
         setattr(Empty, f, lambda self: p_True)
         setattr(Any, f, lambda self: gparser.mresult(p_Any))
-        setattr(Char, f, gparser.emit_GByte)
-        setattr(Range, f, gparser.emit_GByteRange)
+        setattr(Char, f, gparser.emit_GChar)
+        setattr(Range, f, gparser.emit_GCharRange)
 
         setattr(Seq, f, lambda pe: gparser.emit_GSeq(pe, emit, ParseTree, TreeLink))
         setattr(Ore, f, lambda pe: gparser.emit_GOr(pe, emit))
@@ -35,22 +34,24 @@ def gsetting(f: str):
         return True
     return False
 
-def ggenerate(p, f='gdasm'):
+
+def ngenerate(p, f='ndasm'):
     if not isinstance(p, ParsingExpression):  # Grammar
         p = Ref(p.start().name, p)
     return getattr(p, f)()
 
 
-class GParserContext:
+class NParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
 
   def __init__(self, inputs, urn='(unknown)', pos=0):
-    s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-    self.inputs, self.pos = u.encode_source(s, urn, pos)
+    self.inputs = inputs
+    self.pos = pos
     self.length = len(self.inputs)
     self.headpos = self.pos
     self.ast = None
     self.result = {}
+
 
 def collect_amb(s, pos, result):
     is_first = True
@@ -64,9 +65,10 @@ def collect_amb(s, pos, result):
             prev = TreeLink("", r, prev)
     return prev
 
-def generate_gparser(f, conv=None):
+
+def generate_nparser(f, conv=None):
     def parse(s, urn='(unknown)', pos=0):
-        px = GParserContext(s, urn, pos)
+        px = NParserContext(s, urn, pos)
         pos = px.pos
         if not f(px):
             return ParseTree("err", px.inputs, px.headpos, len(s), None)

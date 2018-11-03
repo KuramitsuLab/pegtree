@@ -74,6 +74,10 @@ class ParseTree(object):
                 sb.append(" '")
                 sb.append(s)
                 sb.append("'")
+            elif isinstance(s, bytes):
+                sb.append(" '")
+                sb.append(s.decode('utf-8'))
+                sb.append("'")
             else:
                 sb.append(" ")
                 sb.append(str(s))
