@@ -81,9 +81,9 @@ PrimaryType =
 	/ TupleType
 	/ DataType
 	/ UnitType
-	/ ClassType
+	/ BaseType
 
-ClassType = !TKEYWORD TypeName
+BaseType = !TKEYWORD TypeName
 
 TKEYWORD
 	= 'public' !W
@@ -91,7 +91,7 @@ TKEYWORD
 
 TypeName = {
 	[A-Za-z_$\x80-\xF7]	[A-Za-z0-9_.\x80-\xF7]* [']*
-	#ClassType
+	#BaseType
 } _
 
 TupleType = {
@@ -148,6 +148,8 @@ Names = {
   $Identifier ("," $Identifier)*
 }
 
+/* LetDecl */
+
 LetDecl = {
 	'let' __
 	name: Identifier
@@ -158,6 +160,10 @@ LetDecl = {
 }
 
 /* FuncDecl */
+
+example FuncDecl, Statement '''
+f(x) = x + 1
+'''
 
 FuncDecl = {
 	name: Identifier

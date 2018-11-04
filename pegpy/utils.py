@@ -52,6 +52,8 @@ def unquote(s):
                 return '\t', s[2:]
             if s.startswith('\\r'):
                 return '\r', s[2:]
+            if s.startswith('\\v'):
+                return '\v', s[2:]
             if (s.startswith('\\x') or s.startswith('\\X')) and len(s) > 4:
                 c = int(s[2:4], 16)
                 return chr(c), s[4:]
@@ -80,3 +82,10 @@ def unquote(s):
                 return s[1], s[2:]
         else:
             return s[0], s[1:]
+
+def unquote_string(s):
+    l = []
+    while(len(s)>0):
+        c, s = unquote(s)
+        l.append(c)
+    return ''.join(l)

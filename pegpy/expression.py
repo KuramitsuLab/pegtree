@@ -135,7 +135,7 @@ ANY = Any()
 
 #class Ref(ParsingExpression, ast.SourcePosition):
 class Ref(ParsingExpression):
-    __slots__ = ['peg', 'name', 'pos']
+    __slots__ = ['peg', 'name', 'pos3']
     def __init__(self, name, peg = None):
         self.name = name
         self.peg = peg

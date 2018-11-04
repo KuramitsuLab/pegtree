@@ -1,6 +1,24 @@
 from pathlib import Path
 import pegpy.utils as u
 
+## Value
+
+class Type(object):
+    __slots__ = ['name']
+    def __init__(self, name):
+        self.name = name
+    def __eq__(self, other):
+        return self is other
+    def __str__(self):
+        return self.name
+
+class String(object):
+    __slots__ = ['value']
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
 ## SExpression
 
 class SExpr(object):
@@ -11,35 +29,47 @@ class SExpr(object):
         'FuncExpr' '#lambda params right'
         'IntExpr': lambda t: int(t.asString()),
         'DoubleExpr': lambda t: float(t.asString()),
-        'StringExpr': lambda t: t.asString(),
+        'StringExpr': lambda t: String(t.asString()),
         'CharExpr': lambda t: t.asString(),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
+        'BaseType': lambda t: Type(t.asString()),
     }
+
+    @classmethod
+    def addRule(cls, key, conv):
+        SExpr.ORIGAMI[key] = conv
+
     @classmethod
     def of(cls, t, intern, conv = ORIGAMI):
-        if t is None: return SExprList(())
+        if t is None: return ListExpr(())
         key = t.tag
-        if len(t) == 0 :
+        if len(t) == 0 :  #AtomExpr
             if key in conv:
-                return SExprAtom(conv[key](t), t.pos3())
+                return AtomExpr(conv[key](t), t.pos3())
             else:
-                return SExprAtom(intern(t.asString()), t.pos3())
+                return AtomExpr(intern(t.asString()), t.pos3())
+
+        lconv = conv[key] if key in conv else None
+        cons = []
+        def flatadd(l, e):
+            if isinstance(e, ListExpr) and e.first() == '':
+                # flatten [# e e]
+                for e2 in e.data[1:]: l.append(e2)
+            else:
+                l.append(e)
+        if isinstance(lconv, str):
+            for name in lconv.split():
+                if name.startswith('#'):
+                    cons.append(AtomExpr(intern(name[1:]), t.pos3()))
+                else:
+                    flatadd(cons, SExpr.of(t[name], intern, conv))
+            return ListExpr(cons)
         else:
-            lconv = conv[key] if key in conv else None
-            cons = []
-            if isinstance(lconv, str):
-                for name in lconv.split():
-                    if name.startswith('#'):
-                        cons.append(SExprAtom(intern(name[1:]), t.pos3()))
-                    else:
-                        cons.append(SExpr.of(t[name], intern, conv))
-                return SExprList(cons)
-            else:
-                cons.append(SExprAtom(intern(key.lower()), t.pos3()))
-                for n, v in t:
-                    cons.append(SExpr.of(v, intern, conv))
-                return SExprList(cons)
+            cons.append(AtomExpr(intern(key.lower()), t.pos3()))
+            for n, v in t:
+                flatadd(cons, SExpr.of(v, intern, conv))
+            return ListExpr(cons)
 
     @classmethod
     def new(cls, s):
@@ -69,7 +99,7 @@ class SExpr(object):
                 word += char
         return sexp[0]
 
-class SExprAtom(SExpr):
+class AtomExpr(SExpr):
     __slots__ = ['data', 'pos3', 'ty']
     def __init__(self, data, pos3 = None, ty = None):
         self.data = data
@@ -78,36 +108,34 @@ class SExprAtom(SExpr):
     def __str__(self):
         return str(self.data)
     def keys(self):
-        return [type(self.data).__name__, 'atom']
+        return [type(self.data).__name__, str(self.data)]
 
-class SExprList(SExpr):
+class ListExpr(SExpr):
     __slots__ = ['data', 'ty']
     def __init__(self, data, ty = None):
         self.data = tuple(data)
         self.ty = ty
     def __str__(self):
         return '(' + (' '.join(map(str, self.data))) + ')'
+    def first(self):
+        return str(self.data[0])
     def keys(self):
         key = str(self.data[0])
-        l = ['{}@{}'.format(key, len(self.data)-1), key]
+        keys = ['{}@{}'.format(key, len(self.data)-1), key]
         if self.ty is not None:
-            ty = ':' + str(self.ty)
-            return list(map(lambda k: k + ty, l)) + l
-        return l
-
-
+            return self.ty.joinkeys(keys)
+        return keys
 
 def sconv(t):
     intern = u.string_intern()
     return SExpr.of(t, intern)
-
 
 class SyntaxMapper(object):
     __slots__ = ['syntaxMap']
 
     def __init__(self):
         self.syntaxMap = {}
-        self.syntaxMap['TODO'] = 'TODO(%*)'
+        self.syntaxMap['TODO'] = 'TODO(%*)\v '
 
     def addSyntax(self, key, fmt):
         self.syntaxMap[key] = fmt
@@ -122,7 +150,7 @@ class SyntaxMapper(object):
                 else:
                     ss.pushFMT(self, rule, e.data)
                 return
-        if isinstance(e, SExprAtom):
+        if isinstance(e, AtomExpr):
             ss.pushSTR(str(e))
         else:
             ss.pushFMT(self, self.syntaxMap['TODO'], e.data)
@@ -134,18 +162,23 @@ class SyntaxMapper(object):
         f = path.open('r')
         libs = ()
         for line in f.readlines():
+            if line.startswith('#include'):
+                for file in line.split()[1:]:
+                    self.load(file)
+                continue
             if line.startswith('#require'):
                 libs = line.split()[1:]
                 print(libs)
                 continue
             if line.startswith('#'):
                 continue
-            loc = line.find('\t')
+            loc = line.find('\t=')
             if loc == -1:
-                loc = line.find(' ')
+                loc = line.find(' =')
             if loc != -1:
-                key = line[:loc]
-                value = u.unquote(line[loc:].strip())
+                key = line[:loc].strip()
+                value = u.unquote_string(line[loc+2:].strip())
+                #print('@', key, value)
                 self.addSyntax(key, value)
         f.close()
 
@@ -262,5 +295,3 @@ class SourceSection(object):
                 self.pushLF()
             else:
                 self.pushSTR(c)
-
-

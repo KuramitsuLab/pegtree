@@ -240,15 +240,17 @@ def testRules(g):
 
 # Rule
 
-class Rule(object):
-    def __init__(self, name, inner):
-        self.name = name
+class Rule(Ref):
+    __slots__ = ['peg', 'name', 'pos3', 'inner', 'checked']
+    def __init__(self, peg, name, inner):
+        super().__init__(name, peg)
         self.inner = ParsingExpression.new(inner)
         self.checked = False
     def __str__(self):
         return self.name + ' = ' + str(self.inner)
     def deref(self):
         return self.inner
+
     def isConsumed(self):
         if not hasattr(self, 'nonnull'):
             self.nonnull = isAlwaysConsumed(self.inner)

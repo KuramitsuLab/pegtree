@@ -54,7 +54,7 @@ class Grammar(object):
     def add(self, key: str, x: pe.ParsingExpression):
         x.setpeg(self)
         if not isinstance(x, pe.Rule):
-            x = pe.Rule(key, x)
+            x = pe.Rule(self, key, x)
         self.rules.append(x)
         self.rulemap[key] = x
 
