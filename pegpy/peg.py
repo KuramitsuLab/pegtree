@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
 import pegpy.rule as pe
 import pegpy.parser as pg
+import unittest as ut
 
 def eval(p, conv = None):
     pg.setting('eval')
@@ -73,8 +74,24 @@ class Grammar(object):
     def dump(self):
         for r  in self.rules: print(r)
 
-    def testAll(self, combinator = nez):
+    def testAll(self, combinator = nez, unittest = None):
+
         p = {}
+
+        if isinstance(unittest, ut.TestCase):
+            for testcase in self.examples:
+                name, input, output = testcase
+                if not name in p:
+                    p[name] = combinator(pe.Ref(name, self))
+                res = p[name](input)
+                t = str(res).replace(" b'", " '")
+                with unittest.subTest(example = name):
+                    if output == None:
+                        unittest.assertNotEqual(res, 'err')
+                    else:
+                        unittest.assertEqual(t, output)
+            return 
+
         test = 0
         ok = 0
         for testcase in self.examples:
