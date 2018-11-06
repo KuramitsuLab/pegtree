@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 from keras.utils import np_utils
 from functools import reduce
-from pegpy.ast import *
 from functools import lru_cache
 import canonicaltree as ct
 
@@ -70,15 +69,24 @@ class Tree2Vec(object):
         return topNode
 
     # canonicalTree2KernekTree :: CanonicalTree -> TreeInKernel
-    def canonicalTree2KernelTree(self, canotree, depth=0):
+    def canonicalTree2KernelTree(self, canotree, depthcounter=0):
         topNode = ct.TreeInKernel()
         topNode.code = canotree.code
         topNode.numberOfSiblings = canotree.numberOfSiblings
         topNode.positionInSiblings = canotree.positionInSiblings
-        topNode.depth = depth
-        topNode.child = map(lambda t: self.canonicalTree2KernelTree(
-            t, depth=depth + 1), canotree.child)
-        return topNode
+        topNode.depth = depthcounter
+        if depthcounter < self.window_depth:
+            if canotree.child == []:
+                zeroNode = ct.CanonicalTree()
+                zeroNode.code = np.zeros(self.feature_demention)
+                topNode.child = self.canonicalTree2KernelTree(
+                    zeroNode, depthcounter=depthcounter + 1)
+            else:
+                topNode.child = map(lambda t: self.canonicalTree2KernelTree(
+                    t, depthcounter=depthcounter + 1), canotree.child)
+            return topNode
+        else:
+            return topNode
 
     # tbcnn :: TreeInKernel -> np.array
     def tbcnn(self, top):
