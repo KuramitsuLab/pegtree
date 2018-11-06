@@ -1,17 +1,17 @@
 from pegpy.peg import *
-from pegpy.gpeg.gdasm import gdasm
+from pegpy.npeg.ndasm import ndasm
 
 g = Grammar('tm')
-g.load('grammar/sample.gpeg')
+g.load('grammar/npl.gpeg')
 
 # sample.gpeg の example がテストされる
-g.testAll(gdasm)
+g.testAll(ndasm)
 
 # parser が作られる
-parser = gdasm(g)
+parser = ndasm(g)
 
 # 文字列から ParseTree が得られる
-t = parser('aa')
+t = parser('ああ')
 
 # ParseTree の表示
 print(t)
