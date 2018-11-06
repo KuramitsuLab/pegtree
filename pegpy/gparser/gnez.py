@@ -1,19 +1,24 @@
-from pegpy.peg import *
-import pegpy.gpeg.generalizedparser as gparser
+import pegpy.gparser.generalizedparser as gparser
 from pegpy.parser import *
+from pegpy.peg import *
 
-def ndasm(p, conv=None):
-    nsetting('ndasm')
-    return generate_nparser(ngenerate(p, 'ndasm'), conv)
 
-def nsetting(f: str):
+def gnez(p, conv=None):
+    gsetting('gnez')
+    return generate_gparser(ggenerate(p, 'gnez'), GParserContext, conv)
+
+def nnez(p, conv=None):
+    gsetting('nnez')
+    return generate_gparser(ggenerate(p, 'nnez'), NParserContext,conv)
+
+def gsetting(f: str):
     if not hasattr(Char, f):
         def emit(pe): return getattr(pe, f)()
 
         setattr(Empty, f, lambda self: p_True)
         setattr(Any, f, lambda self: gparser.mresult(p_Any))
-        setattr(Char, f, gparser.emit_GChar)
-        setattr(Range, f, gparser.emit_GCharRange)
+        setattr(Char, f, gparser.emit_GByte) if f == "gnez" else setattr(Char, f, gparser.emit_GChar)
+        setattr(Range, f, gparser.emit_GByteRange) if f == "gnez" else setattr(Range, f, gparser.emit_GCharRange)
 
         setattr(Seq, f, lambda pe: gparser.emit_GSeq(pe, emit, ParseTree, TreeLink))
         setattr(Ore, f, lambda pe: gparser.emit_GOr(pe, emit))
@@ -34,12 +39,22 @@ def nsetting(f: str):
         return True
     return False
 
-
-def ngenerate(p, f='ndasm'):
+def ggenerate(p, f='gnez'):
     if not isinstance(p, ParsingExpression):  # Grammar
         p = Ref(p.start().name, p)
     return getattr(p, f)()
 
+
+class GParserContext:
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
+
+  def __init__(self, inputs, urn='(unknown)', pos=0):
+    s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+    self.inputs, self.pos = u.encode_source(s, urn, pos)
+    self.length = len(self.inputs)
+    self.headpos = self.pos
+    self.ast = None
+    self.result = {}
 
 class NParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
@@ -51,7 +66,6 @@ class NParserContext:
     self.headpos = self.pos
     self.ast = None
     self.result = {}
-
 
 def collect_amb(s, pos, result):
     is_first = True
@@ -65,10 +79,9 @@ def collect_amb(s, pos, result):
             prev = TreeLink("", r, prev)
     return prev
 
-
-def generate_nparser(f, conv=None):
+def generate_gparser(f, parser_context, conv=None):
     def parse(s, urn='(unknown)', pos=0):
-        px = NParserContext(s, urn, pos)
+        px = parser_context(s, urn, pos)
         pos = px.pos
         if not f(px):
             return ParseTree("err", px.inputs, px.headpos, len(s), None)
