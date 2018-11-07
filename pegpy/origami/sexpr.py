@@ -60,7 +60,7 @@ class SExpr(object):
                 l.append(e)
         if isinstance(lconv, str):
             lconv = tuple(lconv.split())
-            rules[key] = tuple
+            rules[key] = lconv
         if isinstance(lconv, tuple):
             cons = []
             for name in lconv:
@@ -70,6 +70,7 @@ class SExpr(object):
                     flatadd(cons, SExpr.of(t[name], intern, rules))
             return ListExpr(cons)
         elif callable(lconv):
+            print('@DEBUG', type(lconv), lconv)
             return lconv(t, intern, rules)
         else:
             cons = []

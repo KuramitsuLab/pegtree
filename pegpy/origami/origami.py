@@ -53,7 +53,7 @@ class Env(object):
         return self[iname]
 
     def load(self, path):
-        f = open(u.find_path(path, 'origami'))
+        f = u.find_path(path, 'origami').open()
         data = f.read()
         f.close()
         t = origami_parser(data, path)
@@ -62,10 +62,10 @@ class Env(object):
             print('SyntaxError ({}:{}:{}+{})'.format(er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
             return
         for _, stmt in t:
-            print(stmt)
+            #print(stmt)
             if stmt == 'CodeMap':
                 keys = getkeys(stmt)
-                expr = stmt['expr'].asString()
+                expr = u.unquote_string(stmt['expr'].asString())
                 self[keys[0]] = expr
                 for key in keys[1:]:
                     if not key in self:
@@ -78,6 +78,7 @@ class Env(object):
                 for key in keys[1:]:
                     if not key in self:
                         self[key] = expr
+        print('DEBUG', self.nameMap)
 
 
 class SourceSection(object):
@@ -87,6 +88,9 @@ class SourceSection(object):
         self.indent = indent
         self.tab = tab
         self.lf = lf
+
+    def __repr__(self):
+        return ''.join(self.sb)
 
     def __str__(self):
         return ''.join(self.sb)
@@ -127,12 +131,9 @@ class SourceSection(object):
                         if hasattr(rule, 'emit'):
                             rule.emit(env, e, self)
                         else:
-                            self.pushFMT(rule, e.data)
+                            self.pushFMT(env, rule, e.data)
                         return
-                if isinstance(e, AtomExpr):
-                    self.pushSTR(str(e))
-                else:
-                    self.pushFMT(self, self.syntaxMap['TODO'], e.data)
+                self.pushSTR(str(e))
         else:
             self.pushSTR(str(e))
 
@@ -210,7 +211,7 @@ class SourceSection(object):
                 self.pushSTR(c)
 
 
-def transpile(t, origami_files = ['python.origami']):
+def transpile(t, origami_files = ['common.origami']):
     env = Env()
     for file in origami_files:
         env.load(file)
@@ -218,4 +219,4 @@ def transpile(t, origami_files = ['python.origami']):
     # TODO typecheck is HERE
     ss = SourceSection()
     ss.pushEXPR(env, e)
-    print(ss)
+    return ss

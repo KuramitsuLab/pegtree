@@ -45,7 +45,6 @@ def parse(opt, conv=None):
     inputs = opt['inputs']
     if len(inputs) == 0:
         try:
-            version()
             while True:
                 s = readlines(bold('>>> '))
                 print(repr(parser(s, conv)))
@@ -73,31 +72,24 @@ def origami(opt):
     parser = nez(g)
     origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
     source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
-    for input in source_files:
-        t = parser(read_inputs(input))
-        transpile(t, origami_files)
+    if len(source_files) == 0:
+        try:
+            while True:
+                s = readlines(bold('>>> '))
+                t = parser(s)
+                print(repr(transpile(t, origami_files)))
+        except EOFError:
+            pass
+    else :
+        for input in source_files:
+            t = parser(read_inputs(input))
+            print(repr(transpile(t, origami_files)))
 
 def nezcc(opt):
     pass
 
 def bench(opt):
     pass
-
-def main():
-    try:
-        argv = sys.argv
-        if len(argv) < 2:
-            raise CommandError({})
-
-        cmd = argv[1]
-        d = parse_opt(argv[2:])
-        names = globals()
-        if cmd in names:
-            names[cmd](d)
-        else:
-            raise CommandError(d)
-    except CommandError as e:
-        usage(e.opt)
 
 def parse_opt(argv):
     def parse_each(a, d):
@@ -138,7 +130,7 @@ def usage(opt):
     print("Example:");
     print("  pegpy parse -g math.tpeg <inputs>");
     print("  pegpy json -g math.tpeg <inputs>");
-    print("  pegpy origami -g konoha6.tpeg python.origami <inputs>")
+    print("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
     print();
 
     print("The most commonly used nez commands are:");
@@ -151,6 +143,22 @@ def usage(opt):
 class CommandError(Exception):
     def __init__(self, opt):
         self.opt = opt
+
+def main():
+    try:
+        argv = sys.argv
+        if len(argv) < 2:
+            raise CommandError({})
+
+        cmd = argv[1]
+        d = parse_opt(argv[2:])
+        names = globals()
+        if cmd in names:
+            names[cmd](d)
+        else:
+            raise CommandError(d)
+    except CommandError as e:
+        usage(e.opt)
 
 if __name__ == "__main__":
     main()
