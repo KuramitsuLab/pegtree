@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import sys, time
+import sys, time, readline
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *

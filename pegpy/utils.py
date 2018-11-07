@@ -97,10 +97,10 @@ from pathlib import Path
 def find_path(file, subdir='grammar'):
     path = Path(file)
     if path.exists():
-        return file
+        return path
     else:
         path = Path(__file__).resolve().parent / subdir / file
         if path.exists():
-            return str(path)
+            return path
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)
