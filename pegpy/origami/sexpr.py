@@ -3,6 +3,13 @@ import pegpy.utils as u
 
 ## Value
 
+class String(object):
+    __slots__ = ['value']
+    def __init__(self, value):
+        self.value = value
+    def __str__(self):
+        return repr(self.value)
+
 class Type(object):
     __slots__ = ['name']
     def __init__(self, name):
@@ -11,13 +18,6 @@ class Type(object):
         return self is other
     def __str__(self):
         return self.name
-
-class String(object):
-    __slots__ = ['value']
-    def __init__(self, value):
-        self.value = value
-    def __str__(self):
-        return repr(self.value)
 
 ## SExpression
 
@@ -33,7 +33,6 @@ class SExpr(object):
         'CharExpr': lambda t: t.asString(),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
-        'BaseType': lambda t: Type(t.asString()),
     }
 
     @classmethod
@@ -41,17 +40,18 @@ class SExpr(object):
         SExpr.ORIGAMI[key] = conv
 
     @classmethod
-    def of(cls, t, intern, conv = ORIGAMI):
-        if t is None: return ListExpr(())
+    def of(cls, t, intern, rules = ORIGAMI):
+        if t is None:
+            return ListExpr(())
         key = t.tag
         if len(t) == 0 :  #AtomExpr
-            if key in conv:
-                return AtomExpr(conv[key](t), t.pos3())
+            if key in rules:
+                e = rules[key](t)
+                return e if isinstance(e, SExpr) else AtomExpr(rules[key](t), t.pos3())
             else:
                 return AtomExpr(intern(t.asString()), t.pos3())
 
-        lconv = conv[key] if key in conv else None
-        cons = []
+        lconv = rules[key] if key in rules else None
         def flatadd(l, e):
             if isinstance(e, ListExpr) and e.first() == '':
                 # flatten [# e e]
@@ -59,16 +59,23 @@ class SExpr(object):
             else:
                 l.append(e)
         if isinstance(lconv, str):
-            for name in lconv.split():
+            lconv = tuple(lconv.split())
+            rules[key] = tuple
+        if isinstance(lconv, tuple):
+            cons = []
+            for name in lconv:
                 if name.startswith('#'):
                     cons.append(AtomExpr(intern(name[1:]), t.pos3()))
                 else:
-                    flatadd(cons, SExpr.of(t[name], intern, conv))
+                    flatadd(cons, SExpr.of(t[name], intern, rules))
             return ListExpr(cons)
+        elif callable(lconv):
+            return lconv(t, intern, rules)
         else:
+            cons = []
             cons.append(AtomExpr(intern(key.lower()), t.pos3()))
             for n, v in t:
-                flatadd(cons, SExpr.of(v, intern, conv))
+                flatadd(cons, SExpr.of(v, intern, rules))
             return ListExpr(cons)
 
     @classmethod
@@ -129,6 +136,109 @@ class ListExpr(SExpr):
 def sconv(t):
     intern = u.string_intern()
     return SExpr.of(t, intern)
+
+## Type
+
+class TypeExpr(object):
+    def isFuncType(self): return False
+
+class BaseTypeExpr(AtomExpr, TypeExpr):
+    __slots__ = ['data', 'pos3', 'ty']
+    def __init__(self, data, ty = None):
+        super().__init__(data, None, ty)
+    def __str__(self):
+        return str(self.data)
+    def joinkeys(self, keys):
+        return [keys[0]+'@'+str(self.data)] + keys
+
+typeMap = {
+    'Type': BaseTypeExpr(Type('Type'))
+}
+
+TypeType =typeMap['Type']
+TypeType.ty = TypeType
+
+def BaseType(n):
+    if not n in typeMap:
+        typeMap[n] = BaseTypeExpr(Type(n), TypeType)
+    return typeMap[n]
+
+def cBaseType(t):
+    return BaseType(t.asString())
+
+IntType = BaseType('Int')
+
+def tyconv(ty):
+    if isinstance(ty, SExpr):
+        return ty
+    return BaseType(str(ty))
+
+class ParamTypeExpr(ListExpr, TypeExpr):
+    __slots__ = ['data', 'ty']
+    def __init__(self, data):
+        super().__init__(data, TypeType)
+    def __str__(self):
+        return str(self.data[1]) + '[' + (','.join(map(str, self.data[2:]))) + ']'
+    def keys(self):
+        m = str(self.data[1])
+        return [ m + str(self.data[2]), m] + super().keys()[1:]
+    def joinkeys(self, keys):
+        return [keys[0]+'@'+str(self.data)] + keys
+
+def ParamType(*types):
+    types = list(map(tyconv, types))
+    key = ' '.join(map(str, types))
+    if not key in typeMap:
+        typeMap[key] = ParamTypeExpr(['paramtype', *types])
+    return typeMap[key]
+
+def cParamType(t, intern, rules):
+    type = [SExpr.of(t['base'], intern, rules)]
+    for l,se in t['params']:
+        type.append(SExpr.of(se, intern, rules))
+    return ParamType(*type)
+
+class FuncTypeExpr(ListExpr, TypeExpr):
+    __slots__ = ['data', 'ty']
+    def __init__(self, data):
+        super().__init__(data, TypeType)
+    def __str__(self):
+        return 'Func['+ (','.join(map(str, self.data[1:])))+']'
+
+    def isFuncType(self):
+        return True
+    def joinkeys(self, keys):
+        return [keys[0]+'@'+str(self.data)] + keys
+
+def FuncType(*types):
+    types = list(map(tyconv, types))
+    key = 'F(' + '->'.join(map(str, types)) + ')'
+    if not key in typeMap:
+        typeMap[key] = FuncTypeExpr(['functype', *types])
+    return typeMap[key]
+
+def cFuncType(t, intern, rules):
+    types = []
+    base = t['base']
+    if base.tag == 'TupleType':
+        for l,se in t['base']:
+            types.append(SExpr.of(se, intern, rules))
+    else:
+        types.append(SExpr.of(base, intern, rules))
+    types.append(SExpr.of(t['type'], intern, rules))
+    return FuncType(*types)
+
+SExpr.addRule('BaseType', cBaseType)
+SExpr.addRule('ParamType', cParamType)
+SExpr.addRule('FuncType', cFuncType)
+
+
+
+
+
+
+## SyntaxMapper
+
 
 class SyntaxMapper(object):
     __slots__ = ['syntaxMap']
