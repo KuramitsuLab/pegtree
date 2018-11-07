@@ -55,18 +55,17 @@ class TestNPEG(unittest.TestCase):
         g = Grammar("math")
         g.load('math.tpeg')
         g.example('Expression,Int', '123', "[#Int '123']")
-        g.example('Expression', '1+2*3',
-                  "[#Infix left=[#Int '1'] name=[# '+'] right=[#Infix left=[#Int '2'] name=[# '*'] right=[#Int '3']]]")
-        g.testAll(nnez, self)
+        g.example('Expression', '1+2*3',"[#Infix left=[#Int '1'] name=[# '+'] right=[#Infix left=[#Int '2'] name=[# '*'] right=[#Int '3']]]")
+        self.exTest(g, nnez)
 
     def test_grammar(self):
         g = TestGrammar()
-        g.testAll(nnez, self)
+        self.exTest(g, nnez)
 
     def test_amb(self):
         g = NLGrammar()
-        g.testAll(nnez, self)
+        self.exTest(g, nnez)
 
     def test_manyb(self):
         g = NLPGrammar()
-        g.testAll(nnez, self)
+        self.exTest(g, nnez)

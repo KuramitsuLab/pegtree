@@ -1,4 +1,5 @@
 import unittest
+import tests
 from pegpy.gparser.gnez import *
 from pathlib import Path
 
@@ -63,19 +64,20 @@ class TestGPEG(unittest.TestCase):
         g.load('math.tpeg')
         g.example('Expression,Int', '123', "[#Int '123']")
         g.example('Expression', '1+2*3', "[#Infix left=[#Int '1'] name=[# '+'] right=[#Infix left=[#Int '2'] name=[# '*'] right=[#Int '3']]]")
-        g.testAll(gnez, self)
-
+        self.exTest(g, gnez)
+    
     def test_grammar(self):
         g = TestGrammar()
-        g.testAll(gnez, self)
-
+        self.exTest(g, gnez)
+    
     def test_amb(self):
         g = AmbGrammar()
-        g.testAll(gnez, self)
-
+        self.exTest(g, gnez)
+    
     def test_manyb(self):
-        g = ManyBGrammar()
-        g.testAll(gnez, self)
+        g = Grammar("manyb")
+        g.load('grammar/manyb.gpeg')
+        self.exTest(g, gnez)
 
 
 if __name__ == '__main__':

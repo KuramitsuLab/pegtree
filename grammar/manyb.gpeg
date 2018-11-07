@@ -1,0 +1,7 @@
+
+S = { 'b' $S $S | $S1 #S }
+S1 = { 'b' $S | 'b' #S } 
+
+example S bb
+example S bbb
+example S bbbb
