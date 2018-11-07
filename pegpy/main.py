@@ -13,20 +13,23 @@ def read_inputs(a):
     except:
         return a.encode() + b'\0' # Zero Termination
 
+def findpath(p):
+    path = Path(p)
+    if path.exists():
+        return path
+    else:
+        path = Path(__file__).resolve().parent / 'grammar' / p
+        if path.exists():
+            return path
+        else:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), p)
+
 def parse(opt):
     g = Grammar('x')
     if not 'grammar' in opt:
         raise CommandError(opt)
     else:
-        path = Path(opt['grammar'])
-        if path.exists():
-            g.load(path)
-        else:
-            path = Path(__file__).resolve().parent / 'grammar' / opt['grammar']
-            if path.exists():
-                g.load(path)
-            else:
-                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), opt['grammar'])
+        g.load(findpath(opt['grammar']))
 
     #g.dump()
     #g.testAll()
@@ -87,18 +90,21 @@ def usage(opt):
     print("Usage: nez <command> options inputs");
     print("  -g | --grammar <file>      specify a grammar file");
     print("  -s | --start <NAME>        specify a starting rule");
-    print("  -X                         specify an extension class");
     print("  -D                         specify an optional value");
     print()
 
     print("Example:");
     print("  pegpy parse -g math.tpeg <inputs>");
-    print("  pegpy tojson -g math.tpeg <inputs>");
+    print("  pegpy json -g math.tpeg <inputs>");
+    print("  pegpy origami -g konoha6.tpeg python.origami <inputs>")
     print();
 
     print("The most commonly used nez commands are:");
     print(" parse      run an interactive parser");
     print(" nezcc      generate a nez parser");
+    print(" origami    transpiler")
+    print(" bench      the bench mark")
+    print(" json       output tree as json file")
 
 class CommandError(Exception):
     def __init__(self, opt):
