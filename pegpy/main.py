@@ -54,7 +54,7 @@ def parse(opt):
         for input in opt['inputs']:
             print(parser(read_inputs(input)))
 
-def tojson(opt):
+def json(opt):
     pass
 
 def example(opt):
@@ -72,6 +72,9 @@ def origami(opt):
         transpile(t, origami_files)
 
 def nezcc(opt):
+    pass
+
+def bench(opt):
     pass
 
 def main():
