@@ -7,7 +7,7 @@ def bytestr(b):
 
 def encode_source(inputs, urn = '(unknown)', pos = 0):
     if isinstance(inputs, bytes):
-        return bytes(urn, 'utf-8').ljust(256, b' ') + inputs, pos + 256
+        return bytes(str(urn), 'utf-8').ljust(256, b' ') + inputs, pos + 256
     return urn.ljust(256, ' ') + inputs, pos + 256
 
 def decode_source(inputs, spos, epos):

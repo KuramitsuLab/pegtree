@@ -1,6 +1,7 @@
 #!/usr/local/bin/python
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+import sys, os, errno
+from pathlib import Path
+#sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
 
 def read_inputs(a):
@@ -14,14 +15,25 @@ def read_inputs(a):
 
 def parse(opt):
     g = Grammar('x')
-    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'grammar', opt['grammar'])
-    g.load(path)
-    g.dump()
-    g.testAll()
-    print('')
+    if not 'grammar' in opt:
+        raise CommandError(opt)
+    else:
+        path = Path(opt['grammar'])
+        if path.exists():
+            g.load(path)
+        else:
+            path = Path(__file__).resolve().parent / 'grammar' / opt['grammar']
+            if path.exists():
+                g.load(path)
+            else:
+                raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), opt['grammar'])
+
+    #g.dump()
+    #g.testAll()
+    #print('')
     p = nez(g)
     for input in opt['inputs']:
-        print(p(input))
+        print(p(read_inputs(input)))
 
 def nezcc(opt):
     pass
@@ -41,7 +53,7 @@ def main():
         if cmd in names:
             names[cmd](d)
         else:
-            usage(d)
+            raise CommandError(d)
     except CommandError as e:
         usage(e.opt)
 

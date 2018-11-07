@@ -1,6 +1,7 @@
 import unittest
 from pegpy.gparser.gnez import *
 from test_gpeg import TestGrammar
+from pathlib import Path
 
 
 def NLGrammar(peg=None):
@@ -52,7 +53,7 @@ class TestNPEG(unittest.TestCase):
 
     def test_math(self):
         g = Grammar("math")
-        g.load('grammar/math.tpeg')
+        g.load(Path('pegpy') / 'grammar' / 'math.tpeg')
         g.example('Expression,Int', '123', "[#Int '123']")
         g.example('Expression', '1+2*3',
                   "[#Infix left=[#Int '1'] name=[# '+'] right=[#Infix left=[#Int '2'] name=[# '*'] right=[#Int '3']]]")
