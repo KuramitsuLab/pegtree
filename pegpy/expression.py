@@ -628,7 +628,7 @@ def setup_loader(Grammar, pc):
     pegparser = pc(load_tpeg(Grammar('tpeg')))
 
     def load_grammar(g, path):
-        f = open(path)
+        f = open(u.find_path(path))
         data = f.read()
         f.close()
         t = pegparser(data, path)

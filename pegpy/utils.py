@@ -1,4 +1,6 @@
 #!/usr/local/bin/python
+import sys, os, errno
+from pathlib import Path
 
 # Source
 
@@ -89,3 +91,14 @@ def unquote_string(s):
         c, s = unquote(s)
         l.append(c)
     return ''.join(l)
+
+def find_path(file, subdir='grammar'):
+    path = Path(file)
+    if path.exists():
+        return path
+    else:
+        path = Path(__file__).resolve().parent / subdir / file
+        if path.exists():
+            return path
+        else:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)

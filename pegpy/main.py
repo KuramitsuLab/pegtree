@@ -1,47 +1,55 @@
 #!/usr/local/bin/python
 import sys, os, errno
-from pathlib import Path
+#from pathlib import Path
 #sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
+import pegpy.utils as u
 
 def read_inputs(a):
     try:
         f = open(a, 'rb')
-        data = f.read() + b'\0'  # Zero Termination
+        data = f.read()
         f.close()
         return data
     except:
-        return a.encode() + b'\0' # Zero Termination
+        return a.encode()
 
-def findpath(p):
-    path = Path(p)
-    if path.exists():
-        return path
-    else:
-        path = Path(__file__).resolve().parent / 'grammar' / p
-        if path.exists():
-            return path
-        else:
-            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), p)
+def load_grammar(opt, default = None):
+    file = default if not 'grammar' in opt else opt['grammar']
+    if file is None:
+        raise CommandError(opt)
+    g = Grammar(file)
+    g.load(u.findpath(file))
+    return g
 
 def parse(opt):
-    g = Grammar('x')
-    if not 'grammar' in opt:
-        raise CommandError(opt)
+    g = load_grammar(opt)
+    parser = nez(g)
+    if len(opt['inputs']) == 0:
+        print('>>>')
+        pass
     else:
-        g.load(findpath(opt['grammar']))
-
-    #g.dump()
-    #g.testAll()
-    #print('')
-    p = nez(g)
-    for input in opt['inputs']:
-        print(p(read_inputs(input)))
-
-def nezcc(opt):
-    pass
+        for input in opt['inputs']:
+            print(parser(read_inputs(input)))
 
 def tojson(opt):
+    pass
+
+def example(opt):
+    g = load_grammar(opt)
+    g.testAll()
+
+def origami(opt):
+    from pegpy.origami.origami import transpile
+    g = load_grammar(opt, 'konoha6.tpeg')
+    parser = nez(g)
+    origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
+    source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
+    for input in source_files:
+        t = parser(read_inputs(input))
+        transpile(t, origami_files)
+
+def nezcc(opt):
     pass
 
 def main():
@@ -112,13 +120,6 @@ class CommandError(Exception):
 
 if __name__ == "__main__":
     main()
-
-'''
-def parse2(opt):
-    peg = PEG()
-    peg.load(opt['grammar'])
-    peg.pegp()
-'''
 
 '''
   st = time.time()

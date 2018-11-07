@@ -40,7 +40,7 @@ class SExpr(object):
         SExpr.ORIGAMI[key] = conv
 
     @classmethod
-    def of(cls, t, intern, rules = ORIGAMI):
+    def of(cls, t, intern = u.string_intern(), rules = ORIGAMI):
         if t is None:
             return ListExpr(())
         key = t.tag
@@ -168,9 +168,6 @@ class ListExpr(SExpr):
                 if ty is not None:
                     self.typeCheck(ty)
                     break
-
-
-
 
 def sconv(t):
     intern = u.string_intern()
@@ -331,116 +328,3 @@ class SyntaxMapper(object):
                 self.addSyntax(key, value)
         f.close()
 
-class SourceSection(object):
-    __slots__ = ['sb', 'indent', 'tab', 'lf']
-    def __init__(self, indent = 0, tab = '   ', lf = '\n'):
-        self.sb = []
-        self.indent = indent
-        self.tab = tab
-        self.lf = lf
-
-    def __str__(self):
-        return ''.join(self.sb)
-
-    def incIndent(self):
-        self.indent += 1
-
-    def decIndent(self):
-        self.indent -= 1
-
-    def pushLF(self):
-        if len(self.lf) > 0: self.sb.append(self.lf)
-
-    def pushTAB(self):
-        if self.indent > 0 and len(self.tab) > 0:
-            self.sb.append(self.tab * self.indent)
-
-    def pushSTR(self, s):
-        if len(s) > 0: self.sb.append(s)
-
-    def pushLINE(self, s):
-        self.pushSTR(s)
-        self.pushLF()
-
-    def pushINDENT(self, s=''):
-        self.pushTAB()
-        self.pushSTR(s)
-
-    def pushEXPR(self, syn: SyntaxMapper, e):
-        if isinstance(e, SExpr):
-            syn.emit(e, self)
-        else:
-            self.pushSTR(str(e))
-
-    def pushFMT(self, syn: SyntaxMapper, fmt: str, args: list):
-        index = 1
-        start = 0
-        i = 0
-        delim = ''
-        loc = fmt.find('\v')
-        if loc >= 0:
-            delim = fmt[loc+1:]
-            fmt = fmt[0: loc]
-        while i < len(fmt):
-            c = fmt[i]
-            i += 1
-            if c == '\t' :
-                self.pushSTR(fmt[start: i - 1])
-                start = i
-                self.pushTAB()
-                continue
-            if c == '\f' :
-                self.pushSTR(fmt[start: i - 1])
-                start = i
-                self.incIndent()
-                continue
-            if c == '\b' :
-                self.pushSTR(fmt[start: i - 1])
-                start = i
-                self.decIndent()
-                continue
-            if c == '\n':
-                self.pushSTR(fmt[start: i - 1])
-                start = i
-                self.pushLF()
-                continue
-            if c == '%':
-                c = fmt[i] if i < len(fmt) else '%'
-                i += 1
-                if c == '%':
-                    self.pushSTR(fmt[start: i - 1])
-                    start = i
-                    continue
-                self.pushSTR(fmt[start: i - 2])
-                start = i
-                if '0' <= c and c <= '9':
-                    index = int(c)
-                    self.pushEXPR(syn, args[index])
-                    index +=1
-                    continue
-                if c == 's':
-                    self.pushEXPR(syn, args[index])
-                    index += 1
-                    continue
-                if c == '*':
-                    cnt = 0
-                    for a in args[index:]:
-                        if cnt > 0 : self.pushDELIM(delim)
-                        self.pushEXPR(syn, a)
-                        cnt += 1
-                    continue
-        #end while
-        self.pushSTR(fmt[start:])
-
-    def pushDELIM(self, fmt: str):
-        for c in fmt:
-            if c == '\t' :
-                self.pushTAB()
-            elif c == '\f' :
-                self.incIndent()
-            elif c == '\b' :
-                self.decIndent()
-            elif c == '\n':
-                self.pushLF()
-            else:
-                self.pushSTR(c)
