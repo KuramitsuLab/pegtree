@@ -60,7 +60,7 @@ def parse(opt, conv=None):
             et = time.time()
             print(file, str((et - st) * 1000.0) + "[ms]: ", t.tag)
 
-def tojson(opt):
+def json(opt):
     pass
 
 def example(opt):
@@ -78,6 +78,9 @@ def origami(opt):
         transpile(t, origami_files)
 
 def nezcc(opt):
+    pass
+
+def bench(opt):
     pass
 
 def main():
