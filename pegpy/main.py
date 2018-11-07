@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import sys, os, errno
+import sys, time
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
@@ -39,20 +39,26 @@ def load_grammar(opt, default = None):
     g.load(u.find_path(file))
     return g
 
-def parse(opt):
+def parse(opt, conv=None):
     g = load_grammar(opt)
     parser = nez(g)
-    if len(opt['inputs']) == 0:
+    inputs = opt['inputs']
+    if len(inputs) == 0:
         try:
             version()
             while True:
                 s = readlines(bold('>>> '))
-                print(parser(s))
+                print(repr(parser(s, conv)))
         except EOFError:
             pass
+    elif len(inputs) == 1:
+        print(repr(parser(read_inputs(inputs[0]), conv)))
     else:
-        for input in opt['inputs']:
-            print(parser(read_inputs(input)))
+        for file in opt['inputs']:
+            st = time.time()
+            t = parser(read_inputs(file))
+            et = time.time()
+            print(file, str((et - st) * 1000.0) + "[ms]: ", t.tag)
 
 def tojson(opt):
     pass
