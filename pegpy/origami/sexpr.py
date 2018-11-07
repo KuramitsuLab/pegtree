@@ -107,21 +107,41 @@ class SExpr(object):
         return sexp[0]
 
 class AtomExpr(SExpr):
-    __slots__ = ['data', 'pos3', 'ty']
+    __slots__ = ['data', 'pos3', 'ty', 'code']
     def __init__(self, data, pos3 = None, ty = None):
         self.data = data
         self.pos3 = pos3
         self.ty = ty
+        self.code = None
     def __str__(self):
         return str(self.data)
+
     def keys(self):
         return [type(self.data).__name__, str(self.data)]
 
+    def typeCheck(self, ty):
+        self.ty = ty
+
+    def inferType(self, env):
+        if self.ty is None:
+            for iname in self.keys():
+                ty = env.getType(iname)
+                if ty is not None:
+                    self.typeCheck(ty)
+                    break
+        if self.code is None:
+            for iname in self.keys():
+                syn = env.getSyntax(iname)
+                if syn is not None:
+                    self.code = syn
+                    break
+
 class ListExpr(SExpr):
-    __slots__ = ['data', 'ty']
+    __slots__ = ['data', 'ty', 'code']
     def __init__(self, data, ty = None):
         self.data = tuple(data)
         self.ty = ty
+        self.code = None
     def __str__(self):
         return '(' + (' '.join(map(str, self.data))) + ')'
     def first(self):
@@ -132,6 +152,25 @@ class ListExpr(SExpr):
         if self.ty is not None:
             return self.ty.joinkeys(keys)
         return keys
+
+    def typeCheck(self, ty):
+        assert(ty.isFuncType())
+        for ty in ty.paramType():
+            self.data[1]
+            #TODO
+
+    def inferType(self, env):
+        if self.ty is None:
+            for e in self.data[1:]:
+                e.inferType(env)
+            for iname in self.keys():
+                ty = env.getType(iname)
+                if ty is not None:
+                    self.typeCheck(ty)
+                    break
+
+
+
 
 def sconv(t):
     intern = u.string_intern()
