@@ -72,7 +72,7 @@ example Type <km/h>
 
 Type =
 	PrimaryType (
-	    base:^ { "[" $params(Types) "]" #ParaType }
+	    base:^ { "[" $params(Types) "]" #ParamType }
 	    / base:^ { '->' _ type: Type #FuncType }
 	)*
 
@@ -116,7 +116,8 @@ UnitType = '<' {
 	#UnitType
 } '>' _
 
-DataType =  { "{"
+DataType =  {
+    "{"
 	($(Identifier) ("," $(Identifier))*)?
 	"}"
 	#DataType
@@ -416,3 +417,52 @@ TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
 FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
 NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'ULL' / 'othing' ) #NullExpr } _
 
+
+/* CodeMap */
+
+OrigamiFile = _ { ($Origami _)* #Block } EOF
+
+Origami =
+    / CodeInclude
+    / CodeRequire
+    / CodeMap
+
+CodeInclude = {
+    'include' __ file: Code
+    #Include
+}
+
+CodeRequire = {
+    'require' __ file: Code
+    #Require
+}
+
+CodeMap = {
+    name: Signature
+    (":" type: Type)?
+    (('->' / '=') _ expr: (StringExpr / Code))?
+    (delim: StringExpr)?
+    #CodeMap
+}
+
+Signature = {
+    (OPNAME / NAME )
+    ('@' DIGIT+ )?
+    #Name
+} _
+
+Code = {
+    ( !EOL . )*
+} EOL _
+
+example CodeMap +@2 : (Int,Int)->Int = (%1+%2)
+example CodeMap +@2 : (Int,Int)->Int
+example CodeMap +@2 = (%1+%2)
+example CodeMap + = (%1+%2)
+example CodeMap + = "(%*)" ","
+
+example OrigamiFile '''
++@2 : (Int,Int)->Int = (%1+%2)
++@2 : (Int,Int)->Int
++@2 = (%1+%2)
+'''

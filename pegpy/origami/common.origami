@@ -1,0 +1,12 @@
+// python origami
+
+require common.origami
+
+block           = "\f%*;\b" ";\n\t"
+
++               = "(%*)" "+"
++@2             = (%1+%2)
+*@2             = (%1*%2)
+
+if@3            = (%1 ? %2 : %3)
+

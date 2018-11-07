@@ -34,7 +34,7 @@ def emit_char(c):
     return curry
 
 # Str
-def emit_multi(s, slen):
+def emit_multi0(s, slen):
     def curry(px):
         pos = px.pos
         if pos + slen <= px.length:
@@ -42,6 +42,15 @@ def emit_multi(s, slen):
             while i < slen:
                 if px.inputs[pos + i] != s[i]: return False
                 i += 1
+            px.pos += slen
+            px.headpos = max(px.pos, px.headpos)
+            return True
+        return False
+    return curry
+
+def emit_multi(s, slen):
+    def curry(px):
+        if px.inputs.startswith(s,px.pos):
             px.pos += slen
             px.headpos = max(px.pos, px.headpos)
             return True
