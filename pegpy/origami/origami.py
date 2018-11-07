@@ -3,7 +3,7 @@ from pegpy.origami.sexpr import SExpr, AtomExpr
 import pegpy.utils as u
 
 g = Grammar('konoha6')
-g.load('grammar/konoha6.tpeg')
+g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
 def getkeys(stmt):
