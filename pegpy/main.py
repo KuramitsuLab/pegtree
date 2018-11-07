@@ -1,9 +1,12 @@
 #!/usr/local/bin/python
 import sys, os, errno
-#from pathlib import Path
-#sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
 import pegpy.utils as u
+
+def bold(s):
+    return '\033[1m' + str(s) + '\033[0m'
 
 def read_inputs(a):
     try:
@@ -14,20 +17,39 @@ def read_inputs(a):
     except:
         return a.encode()
 
+def readlines(prompt):
+    s = input(prompt)
+    if s != '':
+        return s
+    else:
+        l = []
+        while True:
+            prev = s
+            s = input()
+            l.append(s)
+            if prev == '' and s == '':
+                break
+        return '\n'.join(l)
+
 def load_grammar(opt, default = None):
     file = default if not 'grammar' in opt else opt['grammar']
     if file is None:
         raise CommandError(opt)
     g = Grammar(file)
-    g.load(u.findpath(file))
+    g.load(u.find_path(file))
     return g
 
 def parse(opt):
     g = load_grammar(opt)
     parser = nez(g)
     if len(opt['inputs']) == 0:
-        print('>>>')
-        pass
+        try:
+            version()
+            while True:
+                s = readlines(bold('>>> '))
+                print(parser(s))
+        except EOFError:
+            pass
     else:
         for input in opt['inputs']:
             print(parser(read_inputs(input)))
@@ -94,8 +116,11 @@ def parse_opt(argv):
         argv = parse_each(argv, d)
     return d
 
+def version():
+    print(bold('PEGPY - A PEG-based Parsering Tools for Python'))
+
 def usage(opt):
-    print("Usage: nez <command> options inputs");
+    print("Usage: pegpy <command> options inputs");
     print("  -g | --grammar <file>      specify a grammar file");
     print("  -s | --start <NAME>        specify a starting rule");
     print("  -D                         specify an optional value");
