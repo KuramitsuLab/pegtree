@@ -426,7 +426,6 @@ Origami =
     / CodeInclude
     / CodeRequire
     / CodeMap
-    / TypeMap
 
 CodeInclude = {
     'include' __ file: Code
@@ -438,38 +437,32 @@ CodeRequire = {
     #Require
 }
 
+CodeMap = {
+    name: Signature
+    (":" type: Type)?
+    (('->' / '=') _ expr: (StringExpr / Code))?
+    (delim: StringExpr)?
+    #CodeMap
+}
+
 Signature = {
     (OPNAME / NAME )
     ('@' DIGIT+ )?
     #Name
-}
-
-TypeMap = {
-    name: Signature
-    ('@' from: Type)?
-    ('@' to: Type)?
-    __ ":"
-    type: Type
-    #TypeMap
-}
-
-CodeMap = {
-    name: Signature
-    ('@' from: Type)?
-    ('@' to: Type)?
-    __ '->' _
-    expr: Code
-    #CodeMap
-}
+} _
 
 Code = {
     ( !EOL . )*
 } EOL _
 
-example TypeMap +@2@Int :  (Int,Int)->Int
-example CodeMap +@2@Int -> (%1+%2)
+example CodeMap +@2 : (Int,Int)->Int = (%1+%2)
+example CodeMap +@2 : (Int,Int)->Int
+example CodeMap +@2 = (%1+%2)
+example CodeMap + = (%1+%2)
+example CodeMap + = "(%*)" ","
 
 example OrigamiFile '''
-+@2@Int :  (Int,Int)->Int
-+@2@Int -> (%1+%2)
++@2 : (Int,Int)->Int = (%1+%2)
++@2 : (Int,Int)->Int
++@2 = (%1+%2)
 '''

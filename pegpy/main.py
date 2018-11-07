@@ -77,6 +77,7 @@ def origami(opt):
             while True:
                 s = readlines(bold('>>> '))
                 t = parser(s)
+                print(repr(t))
                 print(repr(transpile(t, origami_files)))
         except EOFError:
             pass

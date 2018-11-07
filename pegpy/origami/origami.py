@@ -6,21 +6,28 @@ g = Grammar('konoha6')
 g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
-def getkeys(stmt):
+def getkeys(stmt, ty):
     name = stmt['name'].asString()
-    expr = stmt['expr'].asString()
     keys = []
-    if 'from' in stmt:
-        fromty = SExpr.of(stmt['from'])
-        key = name + '@' + str(fromty)
-        if 'to' in stmt:
-            toty = SExpr.of(stmt['to'])
-            keys.append(key + '@' + str(toty))
+    if ty is not None and ty.isFuncType():
+        key = name + '@' + str(ty)
         keys.append(key)
     keys.append(name)
     if '@' in name:
         keys.append(name.split('@')[0])
     return keys
+
+class Def(object):
+    __slots__ = ['ty', 'libs', 'code', 'delim']
+    def __init__(self, ty, libs, code, delim):
+        self.ty = ty
+        self.libs = libs
+        self.code = code
+        self.delim = delim
+    def __str__(self):
+        return str(self.code)
+    def __repr__(self):
+        return repr(self.code)
 
 class Env(object):
     __slots__ = ['parent', 'nameMap']
@@ -46,12 +53,6 @@ class Env(object):
     def __setitem__(self, item, value):
         self.nameMap[item] = value
 
-    def getType(self, iname):
-        return self[iname]
-
-    def getSyntax(self, iname):
-        return self[iname]
-
     def load(self, path):
         f = u.find_path(path, 'origami').open()
         data = f.read()
@@ -61,23 +62,19 @@ class Env(object):
             er = t.getpos()
             print('SyntaxError ({}:{}:{}+{})'.format(er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
             return
+        libs = tuple([])
         for _, stmt in t:
             #print(stmt)
             if stmt == 'CodeMap':
-                keys = getkeys(stmt)
-                expr = u.unquote_string(stmt['expr'].asString())
-                self[keys[0]] = expr
+                ty = SExpr.of(stmt['type']) if 'type' in stmt else None
+                keys = getkeys(stmt, ty)
+                expr = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
+                delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else ' '
+                d = Def(ty, libs, expr, delim)
+                self[keys[0]] = d
                 for key in keys[1:]:
                     if not key in self:
-                        self[key] = expr
-            elif stmt == 'TypeMap':
-                keys = getkeys(stmt)
-                keys = list(map(lambda x: ' ' + x, keys))
-                ty = SExpr.of(stmt['type'])
-                self[keys[0]] = expr
-                for key in keys[1:]:
-                    if not key in self:
-                        self[key] = expr
+                        self[key] = d
         print('DEBUG', self.nameMap)
 
 
@@ -127,56 +124,51 @@ class SourceSection(object):
                 keys = e.keys()
                 for key in keys:
                     if key in env:
-                        rule = env[key]
-                        if hasattr(rule, 'emit'):
-                            rule.emit(env, e, self)
+                        d = env[key]
+                        if hasattr(d, 'emit'):
+                            d.emit(env, e, self)
                         else:
-                            self.pushFMT(env, rule, e.data)
+                            self.pushFMT(env, d.code, d.delim, e.data)
                         return
                 self.pushSTR(str(e))
         else:
             self.pushSTR(str(e))
 
-    def pushFMT(self, env, fmt: str, args: list):
+    def pushFMT(self, env, code: str, delim:str, args: list):
         index = 1
         start = 0
         i = 0
-        delim = ''
-        loc = fmt.find('\v')
-        if loc >= 0:
-            delim = fmt[loc+1:]
-            fmt = fmt[0: loc]
-        while i < len(fmt):
-            c = fmt[i]
+        while i < len(code):
+            c = code[i]
             i += 1
             if c == '\t' :
-                self.pushSTR(fmt[start: i - 1])
+                self.pushSTR(code[start: i - 1])
                 start = i
                 self.pushTAB()
                 continue
             if c == '\f' :
-                self.pushSTR(fmt[start: i - 1])
+                self.pushSTR(code[start: i - 1])
                 start = i
                 self.incIndent()
                 continue
             if c == '\b' :
-                self.pushSTR(fmt[start: i - 1])
+                self.pushSTR(code[start: i - 1])
                 start = i
                 self.decIndent()
                 continue
             if c == '\n':
-                self.pushSTR(fmt[start: i - 1])
+                self.pushSTR(code[start: i - 1])
                 start = i
                 self.pushLF()
                 continue
             if c == '%':
-                c = fmt[i] if i < len(fmt) else '%'
+                c = code[i] if i < len(code) else '%'
                 i += 1
                 if c == '%':
-                    self.pushSTR(fmt[start: i - 1])
+                    self.pushSTR(code[start: i - 1])
                     start = i
                     continue
-                self.pushSTR(fmt[start: i - 2])
+                self.pushSTR(code[start: i - 2])
                 start = i
                 if '0' <= c and c <= '9':
                     index = int(c)
@@ -195,7 +187,7 @@ class SourceSection(object):
                         cnt += 1
                     continue
         #end while
-        self.pushSTR(fmt[start:])
+        self.pushSTR(code[start:])
 
     def pushDELIM(self, fmt: str):
         for c in fmt:
