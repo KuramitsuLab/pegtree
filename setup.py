@@ -11,7 +11,7 @@ setup(
     description = 'Nez Parser for Python',
     install_requires = ['setuptools'],
 	packages = ['pegpy', 'pegpy.gparser', 'pegpy.origami'],
-	package_data = {'pegpy': ['../grammar/*.tpeg']},
+	package_data = {'pegpy': ['grammar/*.tpeg']},
 	entry_points = {
 		'console_scripts': [
 			'pegpy = pegpy.main:main',
