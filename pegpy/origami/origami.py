@@ -7,14 +7,15 @@ g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
 def getkeys(stmt, ty):
-    name = stmt['name'].asString()
+    iname = stmt['name'].asString()
+    name = iname.split('@')[0] if '@' in iname else iname
     keys = []
     if ty is not None and ty.isFuncType():
-        key = name + '@' + str(ty)
-        keys.append(key)
-    keys.append(name)
-    if '@' in name:
-        keys.append(name.split('@')[0])
+        iname = name + '@' + str(len(ty))
+        keys.append(iname + '@' + str(ty[0]))
+    keys.append(iname)
+    if iname != name:
+        keys.append(name)
     return keys
 
 class Def(object):
@@ -66,7 +67,7 @@ class Env(object):
         for _, stmt in t:
             #print(stmt)
             if stmt == 'CodeMap':
-                ty = SExpr.of(stmt['type']) if 'type' in stmt else None
+                ty = stmt.get('type', None, lambda t: SExpr.of(t))
                 keys = getkeys(stmt, ty)
                 expr = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
                 delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else ' '
@@ -75,7 +76,7 @@ class Env(object):
                 for key in keys[1:]:
                     if not key in self:
                         self[key] = d
-        print('DEBUG', self.nameMap)
+        #print('DEBUG', self.nameMap)
 
 
 class SourceSection(object):

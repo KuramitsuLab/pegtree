@@ -70,7 +70,7 @@ class SExpr(object):
                     flatadd(cons, SExpr.of(t[name], intern, rules))
             return ListExpr(cons)
         elif callable(lconv):
-            print('@DEBUG', type(lconv), lconv)
+            #print('@DEBUG', type(lconv), lconv)
             return lconv(t, intern, rules)
         else:
             cons = []
@@ -241,9 +241,12 @@ class FuncTypeExpr(ListExpr, TypeExpr):
         super().__init__(data, TypeType)
     def __str__(self):
         return 'Func['+ (','.join(map(str, self.data[1:])))+']'
-
     def isFuncType(self):
         return True
+    def __len__(self):
+        return len(self.data)-2
+    def __getitem__(self, item):
+        return self.data[item+1]
     def joinkeys(self, keys):
         return [keys[0]+'@'+str(self.data)] + keys
 

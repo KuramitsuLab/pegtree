@@ -3,6 +3,7 @@ import sys, time, readline
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
+from pegpy.gparser.gnez import nnez
 import pegpy.utils as u
 
 def bold(s):
@@ -39,9 +40,15 @@ def load_grammar(opt, default = None):
     g.load(u.find_path(file))
     return g
 
+def switch_generator(opt, default = 'math.tpeg'):
+    file = default if not 'grammar' in opt else opt['grammar']
+    if file.endswith('.gpeg'):
+        return nnez
+    return nez
+
 def parse(opt, conv=None):
     g = load_grammar(opt)
-    parser = nez(g)
+    parser = switch_generator(opt)(g)
     inputs = opt['inputs']
     if len(inputs) == 0:
         try:
@@ -60,16 +67,20 @@ def parse(opt, conv=None):
             print(file, str((et - st) * 1000.0) + "[ms]: ", t.tag)
 
 def json(opt):
-    pass
+    parse(opt, lambda t: t.asJSON())
 
 def example(opt):
     g = load_grammar(opt)
     g.testAll()
 
+def peg(opt):
+    g = load_grammar(opt)
+    print(g)
+
 def origami(opt):
     from pegpy.origami.origami import transpile
     g = load_grammar(opt, 'konoha6.tpeg')
-    parser = nez(g)
+    parser = switch_generator(opt, 'konoha6.tpeg')(g)
     origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
     source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
     if len(source_files) == 0:
@@ -136,7 +147,7 @@ def usage(opt):
 
     print("The most commonly used nez commands are:");
     print(" parse      run an interactive parser");
-    print(" nezcc      generate a nez parser");
+    print(" nezcc      generate a cross-language parser");
     print(" origami    transpiler")
     print(" bench      the bench mark")
     print(" json       output tree as json file")
