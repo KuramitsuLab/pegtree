@@ -37,8 +37,8 @@ EOL          = ('\r'? '\n') / EOF
 
 Identifier = { NAME [']* #NameExpr } _
            / '(' { OPNAME #NameExpr } ')' _
-W          = [a-zA-Z0-9_\x80-\xF7]
 NAME       = [a-zA-Z_\x80-\xF7] W*
+W          = [a-zA-Z0-9\x80-\xF7]
 
 OPNAME =
 	/ '++'  / '+'
@@ -68,7 +68,6 @@ example Type () -> int
 example Type int -> int -> int
 example Type (int, int)
 example Type {name, age}
-example Type <km/h>
 
 Type =
 	PrimaryType (
@@ -80,7 +79,6 @@ PrimaryType =
 	{ 'typeof' "(" expr: Expression ")" #ExprType }
 	/ TupleType
 	/ DataType
-	/ UnitType
 	/ BaseType
 
 BaseType = !TKEYWORD TypeName
@@ -90,7 +88,7 @@ TKEYWORD
 	/ 'let' !W
 
 TypeName = {
-	[A-Za-z_$\x80-\xF7]	[A-Za-z0-9_.\x80-\xF7]* [']*
+	[A-Za-z$\x80-\xF7]	[A-Za-z0-9/.\x80-\xF7]* [']*
 	#BaseType
 } _
 
@@ -99,22 +97,9 @@ TupleType = {
 	#TupleType
 }
 
-FuncType = {
-	"(" params: Types ")"
-	"->"
-	type: Type
-	#FuncType
-}
-
 Types = {
 	( $Type ("," $Type)* )?
 }
-
-UnitType = '<' {
-	[A-Za-z_\x80-\xF7]
-	[A-Za-z0-9*/^\x80-\xF7]*
-	#UnitType
-} '>' _
 
 DataType =  {
     "{"
@@ -126,10 +111,25 @@ DataType =  {
 /* Statement */
 
 Statement =
+    / Decorator
 	/ LetDecl
 	/ AssumeDecl
 	/ FuncDecl
 	/ Expression
+
+/* Decorator */
+
+example Decorator, Statement '''
+@contract(MyCoin)
+f(x) = x + 1
+'''
+
+Decorator = {
+    '@' name: Identifier
+    ("(" params: Params ")")?
+    body: Statement
+    #Decorator
+}
 
 /* AssumeDecl */
 
@@ -171,7 +171,7 @@ FuncDecl = {
 	"(" params: Params ")"
     (":" type: Type)?
     "="
-    right: Expression
+    body: (FuncCase / Expression)
 	#FuncDecl
 }
 
@@ -182,27 +182,27 @@ Params = {
 Param = {
 	name: Identifier
     (":" type: Type)?
+    #Param
+}
+
+example FuncDecl, Statement '''
+gcd(x,y) =
+    | x                 if y == 0
+    | gcd(y, x % y)
+'''
+
+FuncMatch = {
+    $FuncCase   ($(FuncCase))+
+    #FuncMatch
+}
+FuncCase = {
+    '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
+    #FuncCase
 }
 
 ReturnStmt = {
 	'return' __ expr: Expression
 	#ReturnStmt
-}
-
-/* Expression */
-
-BlockExpr = {
-	"{"
-	($Statement _)*
-	"}"
-	#BlockExpr
-}
-
-IfExpr = {
-    'if' _ cond: Expression
-    ('then' __)? then: Expression
-    ('else' __ else: Expression)?
-	#IfExpr
 }
 
 /* Expression */
@@ -224,7 +224,23 @@ Expression =
 	/ IfExpr
 	/ Operator
 
-// Lambda
+/* Expression */
+
+BlockExpr = {
+	"{"
+	($Statement _)*
+	"}"
+	#BlockExpr
+}
+
+IfExpr = {
+    'if' _ cond: Expression
+    ('then' __)? then: Expression
+    ('else' __ else: Expression)?
+	#IfExpr
+}
+
+/* FuncExpr */
 
 FuncExpr = {
   '\\'
@@ -271,7 +287,7 @@ SUM =
 	/ '|' !'|'
 
 ProdExpr =
-	CastExpr (left:^ { name: { PROD } _ right: CastExpr #Infix })*
+	UnaryExpr (left:^ { name: { PROD } _ right: UnaryExpr #Infix })*
 
 PROD =
 	/ '/'
@@ -282,12 +298,8 @@ PROD =
 	/ '>>'
 	/ '&' !'&'
 
-CastExpr =
-	{ "(" type: Type ")" expr: CastExpr #CastExpr }
-	/ UnaryExpr
-
 UnaryExpr
-	= { name: {PRE} _ expr: CastExpr #Unary }
+	= { name: {PRE} _ expr: UnaryExpr #Unary }
     / SuffixExpr
 
 PRE =
@@ -300,8 +312,9 @@ SuffixExpr =
 	Primary (
 	    recv:^ { '.' _ name: Identifier "(" $params(Expressions) ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
-	    / recv:^ { "(" $params(Expressions) ")" #ApplyExpr }
-	    / recv:^ { "[" $params(Expressions) "]" #IndexExpr }
+	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
+	    / recv:^ { '_(' _ params: Expressions "]" #IndexExpr }
+	    / recv:^ { "[" type: Type "]" #CastExpr }
 	)*
 
 Expressions = {
@@ -336,22 +349,20 @@ KeyValue = {
 	value: Expression
 }
 
+/* Literal */
+
 Constant =
     / TripleExpr
 	/ StringExpr
 	/ CharExpr
 	/ FloatExpr
-	/ RationalExpr  // from Racket
 	/ IntExpr
 	/ TrueExpr
 	/ FalseExpr
 	/ NullExpr
 
-/* Literal */
-
 example StringExpr, Expression "\n\u1234a\0"
 example CharExpr, Expression '\''
-example RationalExpr, Expression 4/5
 example IntExpr, Expression 0177
 example IntExpr, Expression 0b1010_1010
 example IntExpr, Expression 0xdeadbeaf
@@ -376,11 +387,6 @@ ESCAPE =
     / '\\' [0-7] [0-7]
     / '\\' [0-7]
 	/ '\\' 'u'+ HEX HEX HEX HEX
-
-RationalExpr = {
-	DECIMAL '/' DECIMAL
-	#RationalExpr
-} _
 
 IntExpr = {
 	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
@@ -446,6 +452,7 @@ CodeMap = {
 }
 
 Signature = {
+    '#'?
     (OPNAME / NAME )
     ('@' DIGIT+ )?
     #Name
