@@ -25,8 +25,11 @@ class SExpr(object):
     ORIGAMI = {
         'Unary': 'name expr',
         'Infix': 'name left right',
-        'IfExpr': '#if cond then else',
-        'FuncExpr' '#lambda params right'
+        'IfExpr': '#IfExpr cond then else',
+        'FuncExpr': '#FuncExpr params right',
+        'ApplyExpr': 'recv params',
+        'MethodExpr': 'name recv params',
+        'NameExpr' : lambda t: t.asString(),
         'IntExpr': lambda t: int(t.asString()),
         'DoubleExpr': lambda t: float(t.asString()),
         'StringExpr': lambda t: String(t.asString()),
@@ -49,11 +52,12 @@ class SExpr(object):
                 e = rules[key](t)
                 return e if isinstance(e, SExpr) else AtomExpr(rules[key](t), t.pos3())
             else:
-                return AtomExpr(intern(t.asString()), t.pos3())
+                return ListExpr([AtomExpr(intern(t.asString()), t.pos3())])
 
         lconv = rules[key] if key in rules else None
+        ##
         def flatadd(l, e):
-            if isinstance(e, ListExpr) and e.first() == '':
+            if isinstance(e, ListExpr) and e.first() == '#':
                 # flatten [# e e]
                 for e2 in e.data[1:]: l.append(e2)
             else:
@@ -65,7 +69,7 @@ class SExpr(object):
             cons = []
             for name in lconv:
                 if name.startswith('#'):
-                    cons.append(AtomExpr(intern(name[1:]), t.pos3()))
+                    cons.append(AtomExpr(intern(name), t.pos3()))
                 else:
                     flatadd(cons, SExpr.of(t[name], intern, rules))
             return ListExpr(cons)
@@ -74,7 +78,7 @@ class SExpr(object):
             return lconv(t, intern, rules)
         else:
             cons = []
-            cons.append(AtomExpr(intern(key.lower()), t.pos3()))
+            cons.append(AtomExpr(intern("#"+key), t.pos3()))
             for n, v in t:
                 flatadd(cons, SExpr.of(v, intern, rules))
             return ListExpr(cons)
@@ -116,6 +120,9 @@ class AtomExpr(SExpr):
         self.code = None
     def __str__(self):
         return str(self.data)
+
+    def first(self):
+        return self
 
     def keys(self):
         return [type(self.data).__name__, str(self.data)]
