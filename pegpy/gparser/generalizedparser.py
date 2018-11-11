@@ -17,7 +17,7 @@ def union(px, old, pos, mtree, mlink):
     result = {}
     new = px.result
     for pos in set(old) & set(new):
-        result[pos] = mtree("Ambiguity", px.inputs, pos, px.pos, mlink("", new[pos], mlink("", old[pos], None)))
+        result[pos] = mtree("?", px.inputs, pos, px.pos, mlink("", new[pos], mlink("", old[pos], None)))
     for pos in set(old) - set(new):
         result[pos] = old[pos]
     for pos in set(new) - set(old):
@@ -239,8 +239,11 @@ def gnot(pf):
         if not pf(px):
             px.pos = pos
             px.ast = ast
-            px.result = {pos:ast}
+            px.result = {pos: ast}
             return True
+        px.pos = pos
+        px.ast = ast
+        px.result = {}
         return False
     return curry
 

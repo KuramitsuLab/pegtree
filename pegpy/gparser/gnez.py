@@ -93,5 +93,5 @@ def generate_gparser(f, parser_context, conv=None):
                 return ParseTree("", px.inputs, pos, result_pos, None)
             else:
                 return result_ast
-        return ParseTree("Ambiguity", px.inputs, pos, px.pos, collect_amb(px.inputs, pos, px.result))
+        return ParseTree("?", px.inputs, pos, px.pos, collect_amb(px.inputs, pos, px.result))
     return parse
