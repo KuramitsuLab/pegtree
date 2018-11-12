@@ -2,12 +2,12 @@ import unittest
 from tree2vec import Tree2Vec
 from pegpy.peg import *
 import os
+import tensorflow as tf
 
 
 def parsetree(opt):
     g = Grammar('x')
-    path = os.path.join(os.path.dirname(os.path.abspath(
-        __file__)), '../..', 'grammar', opt['grammar'])
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.', 'test_grammar', opt['grammar'])
     g.load(path)
     print('')
     p = nez(g)
@@ -20,20 +20,19 @@ class TestTree2Vec(unittest.TestCase):
         print("test cases for ")
         inputstring_0 = "1+2+3"
         inputstring_1 = "1+2-3"
-        setOfTags = ["Infix", "Int"]
-        parseoption = {'grammar': "math.tpeg",
-                       'inputs': [inputstring_0, inputstring_1]}
+        setOfTags = ["Infix", "Int", "Plus", "Mul"]
+        parseoption = {'grammar': "math.tpeg",'inputs': [inputstring_0, inputstring_1]}
         self.parsetrees = parsetree(parseoption)
-        self.t2v = Tree2Vec(setoftags=setOfTags, leafencoder=(lambda x: x))
+        self.t2v = Tree2Vec(setoftags=setOfTags, leafencoder=(lambda x: 7.66))
 
     def test_ast2canonicalTree(self):
         for originalTree in self.parsetrees:
-            print(originalTree)
-            for label, subtree in originalTree:
-                print(subtree)
             #canotree = self.t2v.ast2canonicalTree(originalTree)
-            #self.assertEqual(canotree.positionInSiblings, 0)
-
+            #kerneltree = self.t2v.canonicalTree2KernelTree(canotree)
+            #convtree = self.t2v.tbcnn_layer(canotree)
+            vector = self.t2v.vectorRepresentation(originalTree,convolutionTimes=1)
+            print(vector.eval())
+    
     def tearDown(self):
         del self.parsetrees
         del self.t2v

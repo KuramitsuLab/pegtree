@@ -1,4 +1,5 @@
 import pegpy.ast as ast
+import numpy as np
 
 
 class CanonicalTree(object):
@@ -9,22 +10,24 @@ class CanonicalTree(object):
         , 'child'
     ]
 
-    def __init__(self):
+    def __init__(self, featuredetector):
         self.numberOfSiblings = 0
         self.positionInSiblings = 0
         self.code = None
         self.child = []
 
     def serialize(self):
-        raise NotImplementedError
+        nodelist = [self]
+        for childnode in self.child:
+            nodelist.extend(childnode.serialize())
+        return nodelist
 
 
 class TreeInKernel(CanonicalTree):
-    __slots__ = ['depth', 'code', 'numberOfSiblings',
-                 'positionInSiblings', 'child']
+    __slots__ = ['depth', 'code', 'numberOfSiblings', 'positionInSiblings', 'child']
 
-    def __init__(self):
-        super.__init__()
+    def __init__(self, featuredetector):
+        super().__init__(featuredetector)
         self.depth = 0
 
 
