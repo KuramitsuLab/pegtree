@@ -1,9 +1,0 @@
-# python origami
-
-#require common.origami
-
-block           = %*\v;\n
-+@2             = (%1+%2)
-*@2             = (%1*%2)
-
-+               = (%1+%2)

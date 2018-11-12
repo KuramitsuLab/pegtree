@@ -1,4 +1,5 @@
 #!/usr/local/bin/python
+import sys, os, errno
 
 # Source
 
@@ -7,7 +8,7 @@ def bytestr(b):
 
 def encode_source(inputs, urn = '(unknown)', pos = 0):
     if isinstance(inputs, bytes):
-        return bytes(urn, 'utf-8').ljust(256, b' ') + inputs, pos + 256
+        return bytes(str(urn), 'utf-8').ljust(256, b' ') + inputs, pos + 256
     return urn.ljust(256, ' ') + inputs, pos + 256
 
 def decode_source(inputs, spos, epos):
@@ -54,6 +55,10 @@ def unquote(s):
                 return '\r', s[2:]
             if s.startswith('\\v'):
                 return '\v', s[2:]
+            if s.startswith('\\f'):
+                return '\f', s[2:]
+            if s.startswith('\\b'):
+                return '\b', s[2:]
             if (s.startswith('\\x') or s.startswith('\\X')) and len(s) > 4:
                 c = int(s[2:4], 16)
                 return chr(c), s[4:]
@@ -70,8 +75,14 @@ def unquote(s):
                 return '\n', s[2:]
             if s.startswith(b'\\t'):
                 return '\t', s[2:]
+            if s.startswith(b'\\v'):
+                return '\v', s[2:]
             if s.startswith(b'\\r'):
                 return '\r', s[2:]
+            if s.startswith(b'\\f'):
+                return '\f', s[2:]
+            if s.startswith(b'\\b'):
+                return '\b', s[2:]
             if (s.startswith(b'\\x') or s.startswith(b'\\X')) and len(s) > 4:
                 c = bytes.fromhex(s[2:4])
                 return c, s[4:]
@@ -89,3 +100,17 @@ def unquote_string(s):
         c, s = unquote(s)
         l.append(c)
     return ''.join(l)
+
+#Path
+from pathlib import Path
+
+def find_path(file, subdir='grammar'):
+    path = Path(file)
+    if path.exists():
+        return path
+    else:
+        path = Path(__file__).resolve().parent / subdir / file
+        if path.exists():
+            return path
+        else:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)
