@@ -1,6 +1,7 @@
 
-S = { 'b' $S $S | $S1 #S }
-S1 = { 'b' $S | 'b' #S } 
+S = { ($B $S $S) | $S1 #S }
+S1 = { ($B $S) | $B #S1 } 
+B = {'b' #B}
 
 example S bb
 example S bbb

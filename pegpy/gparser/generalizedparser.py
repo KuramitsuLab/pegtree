@@ -1,5 +1,6 @@
 from pegpy.parser import *
 import functools
+import copy
 
 # generalized parse function
 
@@ -16,8 +17,9 @@ def mresult(pf):
 def union(px, old, pos, mtree, mlink):
     result = {}
     new = px.result
+    umtree = lambda tag, child: mtree(tag, px.inputs, pos, px.pos, child)
     for pos in set(old) & set(new):
-        result[pos] = mtree("?", px.inputs, pos, px.pos, mlink("", new[pos], mlink("", old[pos], None)))
+        result[pos] = mlink('', umtree('?', mlink('', umtree('?l', new[pos]), mlink('', umtree('?r', old[pos]), None))), None)
     for pos in set(old) - set(new):
         result[pos] = old[pos]
     for pos in set(new) - set(old):
@@ -101,8 +103,6 @@ def gseq(ls, mtree, mlink):
                 px.ast = ast
                 if p(px):
                     result = union(px, result, pos, mtree, mlink)
-                else:
-                    return False
             px.result = result
             result = {}
         return False if len(px.result) == 0 else True
