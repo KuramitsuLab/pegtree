@@ -1,6 +1,5 @@
 import pegpy.ast as ast
 import numpy as np
-import tensorflow as tf
 
 
 class CanonicalTree(object):
@@ -14,7 +13,7 @@ class CanonicalTree(object):
     def __init__(self, featuredetector):
         self.numberOfSiblings = 0
         self.positionInSiblings = 0
-        self.code = tf.placeholder(tf.float32, shape=[featuredetector])
+        self.code = None
         self.child = []
 
     def serialize(self):
@@ -25,8 +24,7 @@ class CanonicalTree(object):
 
 
 class TreeInKernel(CanonicalTree):
-    __slots__ = ['depth', 'code', 'numberOfSiblings',
-                 'positionInSiblings', 'child']
+    __slots__ = ['depth', 'code', 'numberOfSiblings', 'positionInSiblings', 'child']
 
     def __init__(self, featuredetector):
         super().__init__(featuredetector)
