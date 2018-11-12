@@ -9,44 +9,48 @@ import canonicaltree as ct
 class Tree2Vec(object):
 
     __slots__ = [
-        'leafEncoder'  # tag -> np.array[float ** featureDemention]
+        'leafEncoder'  # tag -> np.array[float ** featuredimension]
         , 'tagEncoder'  # Dict{tag, np.array}
-        , 'feature_demention'  # int
+        , 'feature_dimension'  # int
         , 'feature_detector'  # int
         , 'window_depth'  # int
         # model parameters
         , 'w_conv_l', 'w_conv_t', 'w_conv_r', 'b_conv', 'w_agg', 'w_agg_r', 'w_agg_l', 'b_agg'
     ]
 
-    def __init__(self, setoftags, leafencoder, featureDemention=100, featureDetector=80, windowDepth=2):
+    def __init__(self, setoftags, leafencoder, featureDetector=80, windowDepth=2):
         # generating tag encoder
         numberOfItems = len(setoftags)
-        onehotVecList = np.eye(numberOfItems, numberOfItems + 1)
+        self.feature_dimension = numberOfItems + 1
+        onehotVecList = tf.eye(numberOfItems, num_columns=numberOfItems + 1)
         encoder = {}
         for i in range(0, numberOfItems):
             encoder[setoftags[i]] = onehotVecList[i]
         self.tagEncoder = encoder
-        self.leafEncoder = leafencoder
-        self.feature_demention = featureDemention
+        leafUnitVector = tf.Variable(
+            [2 ** numberOfItems >> d & 1 for d in range(numberOfItems + 1)])
+        self.leafEncoder = lambda leaf: tf.scalar_mul(
+            leafencoder(leaf), leafUnitVector)
         self.feature_detector = featureDetector
         self.window_depth = windowDepth
         self.w_conv_l = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.w_conv_r = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.w_conv_t = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.b_conv = tf.Variable(tf.random_normal(
-            [featureDemention], stddev=0.01))
+            [self.feature_detector], stddev=0.01))
         self.w_agg = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.w_agg_l = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.w_agg_r = tf.Variable(tf.random_normal(
-            [featureDetector, featureDemention], stddev=0.01))
+            [featureDetector, featureDetector], stddev=0.01))
         self.b_agg = tf.Variable(tf.random_normal(
-            [featureDemention], stddev=0.01))
+            [self.feature_detector], stddev=0.01))
 
+    # tag -> tf.Variable(feature_dimension,1)
     def oneHotVector_coder(self, originalTag):
         if originalTag in self.tagEncoder:
             return self.tagEncoder[originalTag]
@@ -55,7 +59,7 @@ class Tree2Vec(object):
 
     # ast2canonicalTree :: AST -> CanonicalTree
     def ast2canonicalTree(self, ast, sibpos=0, sibnum=0):
-        topNode = ct.CanonicalTree()
+        topNode = ct.CanonicalTree(self.feature_dimension)
         topNode.code = self.oneHotVector_coder(ast.tag)
         topNode.numberOfSiblings = sibnum
         topNode.positionInSiblings = sibpos
@@ -64,34 +68,37 @@ class Tree2Vec(object):
             sibPosCounter = 0
             for label, subtree in ast:
                 topNode.child.append(self.ast2canonicalTree(
-                    subtree, sibpos=sibPosCounter, sibnum=sibNum))
+                    subtree, sibpos=sibPosCounter, sibnum=sibNum-1))
                 sibPosCounter += 1
         return topNode
 
     # canonicalTree2KernekTree :: CanonicalTree -> TreeInKernel
     def canonicalTree2KernelTree(self, canotree, depthcounter=0):
-        topNode = ct.TreeInKernel()
-        topNode.code = canotree.code
+        topNode = ct.TreeInKernel(self.feature_detector)
+        originalCode = canotree.code
+        topNode.code = tf.pad(
+            originalCode, [[0, self.feature_detector - self.feature_dimension]])
         topNode.numberOfSiblings = canotree.numberOfSiblings
         topNode.positionInSiblings = canotree.positionInSiblings
         topNode.depth = depthcounter
-        if depthcounter < self.window_depth:
+        if depthcounter < self.window_depth - 1:
             if canotree.child == []:
-                zeroNode = ct.CanonicalTree()
-                zeroNode.code = np.zeros(self.feature_demention)
-                topNode.child = self.canonicalTree2KernelTree(
-                    zeroNode, depthcounter=depthcounter + 1)
+                # zero padding
+                zeroNode = ct.CanonicalTree(self.feature_detector)
+                zeroNode.code = np.zeros(self.feature_dimension)
+                topNode.child = [self.canonicalTree2KernelTree(
+                    zeroNode, depthcounter=depthcounter + 1)]
             else:
-                topNode.child = map(lambda t: self.canonicalTree2KernelTree(
-                    t, depthcounter=depthcounter + 1), canotree.child)
-            return topNode
+                topNode.child = list(map(lambda t: self.canonicalTree2KernelTree(
+                    t, depthcounter=depthcounter + 1), canotree.child))
         else:
-            return topNode
+            topNode.child = []
+        return topNode
 
     # tbcnn :: TreeInKernel -> np.array
     def tbcnn(self, top):
         treeInKernel = top.serialize()
-        w_dot_X = np.zeros([self.feature_demention])
+        w_dot_X = tf.zeros([self.feature_detector, 1])
         for i in range(0, len(treeInKernel)):
             eta_t_i = (self.window_depth -
                        treeInKernel[i].depth) / self.window_depth
@@ -99,10 +106,12 @@ class Tree2Vec(object):
             eta_r_i = 0 if n == 0 else (
                 1 - eta_t_i) * treeInKernel[i].positionInSiblings / n
             eta_l_i = (1 - eta_r_i) * (1 - eta_t_i)
-            weight_conv = eta_t_i * self.w_conv_t + eta_r_i * \
-                self.w_conv_r + eta_l_i * self.w_conv_l
-            w_dot_X += weight_conv * treeInKernel[i].code
-        return np.tanh(w_dot_X + self.b_conv)
+            weight_conv = tf.scalar_mul(eta_t_i, self.w_conv_t) + tf.scalar_mul(
+                eta_r_i, self.w_conv_r) + tf.scalar_mul(eta_l_i, self.w_conv_l)
+            code_vector = treeInKernel[i].code
+            w_dot_X += tf.matmul(weight_conv,
+                                 tf.reshape(code_vector, [self.feature_detector, 1]))
+        return tf.tanh(w_dot_X + self.b_conv)
 
     # tbcnn_layer :: CononicalTree -> CanonicalTree
     def tbcnn_layer(self, top):
@@ -117,13 +126,21 @@ class Tree2Vec(object):
     def agg_layer(self, top):
         childNodes = top.child
         if childNodes == None:
-            return self.w_agg * top.code + self.b_agg
+            topCode = tf.reshape(top.code, [self.feature_detector, 1])
+            return tf.matmul(self.w_agg, topCode) + self.b_agg
         else:
-            sumUpAggChild = np.zeros([self.feature_demention])
+            sumUpAggChild = np.zeros([self.feature_dimension])
             for i in range(len(childNodes)):
                 vec = self.agg_layer(childNodes[i])
                 eta_l_i = (childNodes[i].positionInSiblings -
                            1) / (childNodes.numberOfSiblings - 1)
-                w_agg_i = eta_l_i * self.w_agg_l + (1 - eta_l_i) * self.w_agg_r
+                w_agg_i = tf.scalar_mul(
+                    eta_l_i, self.w_agg_l) + tf.scalar_mul(1-eta_l_i, self.w_agg_r)
                 sumUpAggChild += w_agg_i * vec
             return sumUpAggChild + self.w_agg * top.code + self.b_agg
+
+    def vectorRepresentation(self, ast, convolutionTimes=3):
+        ctree = self.ast2canonicalTree(ast)
+        for i in range(0, convolutionTimes):
+            ctree = self.tbcnn_layer(ctree)
+        return self.agg_layer(ctree)
