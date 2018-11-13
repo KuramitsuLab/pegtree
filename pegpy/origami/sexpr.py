@@ -10,6 +10,7 @@ class String(object):
     def __str__(self):
         return repr(self.value)
 
+'''
 class Type(object):
     __slots__ = ['name']
     def __init__(self, name):
@@ -18,6 +19,7 @@ class Type(object):
         return self is other
     def __str__(self):
         return self.name
+'''
 
 ## SExpression
 
@@ -111,6 +113,18 @@ class SExpr(object):
                 word += char
         return sexp[0]
 
+    def asType(self, env, ty = None):
+        if ty is not None:
+            return self.typeCheck(env, ty)
+
+        if self.ty is None:
+            for iname in self.keys():
+                tf = env.getType(iname)
+                if isinstance(tf, TypeExpr):
+                    return self.typeCheck(env, tf)
+                elif tf is not None:
+                    return tf(self, env)
+
 class AtomExpr(SExpr):
     __slots__ = ['data', 'pos3', 'ty', 'code']
     def __init__(self, data, pos3 = None, ty = None):
@@ -127,22 +141,11 @@ class AtomExpr(SExpr):
     def keys(self):
         return [type(self.data).__name__, str(self.data)]
 
-    def typeCheck(self, ty):
-        self.ty = ty
-
-    def inferType(self, env):
-        if self.ty is None:
-            for iname in self.keys():
-                ty = env.getType(iname)
-                if ty is not None:
-                    self.typeCheck(ty)
-                    break
-        if self.code is None:
-            for iname in self.keys():
-                syn = env.getSyntax(iname)
-                if syn is not None:
-                    self.code = syn
-                    break
+    def typeCheck(self, env, ty):
+        if self.ty == None or self.ty is ty:
+            self.ty = ty
+            return
+        ty.match(self.ty)
 
 class ListExpr(SExpr):
     __slots__ = ['data', 'ty', 'code']
@@ -181,10 +184,19 @@ def sconv(t):
     intern = u.string_intern()
     return SExpr.of(t, intern)
 
+
+
 ## Type
 
 class TypeExpr(object):
     def isFuncType(self): return False
+    def match(self, ty, vars = {}):
+        if self is ty: return True
+        if len(self.data) == len(ty.data) and self.data[0] == ty.data[0]:
+            for t1,t2 in zip(self.data[1:], ty.data[1:]):
+                if not t1.match(t2, vars): return False
+            return True
+        return False
 
 class BaseTypeExpr(AtomExpr, TypeExpr):
     __slots__ = ['data', 'pos3', 'ty']
@@ -192,30 +204,57 @@ class BaseTypeExpr(AtomExpr, TypeExpr):
         super().__init__(data, None, ty)
     def __str__(self):
         return str(self.data)
+    def __eq__(self, other):
+        return self is other or self.data == other
+
     def joinkeys(self, keys):
         return [keys[0]+'@'+str(self.data)] + keys
 
+    def isVarType(self):
+        return len(self.data) == 1 and self.data.islower()
+
+    def match(self, ty: TypeExpr, vars = {}):
+        if self is ty: return True
+        tname : str = self.data
+        if self.isVarType():
+            if tname in vars:
+                return vars[tname].match(ty, vars)
+            else:
+                vars[tname] = ty
+            return True
+        return tname == ty.data
+
+    def resolve(self, vars):
+        if self.isVarType():
+            return vars[self.data]
+        return self
+
 typeMap = {
-    'Type': BaseTypeExpr(Type('Type'))
+    'Type': BaseTypeExpr('Type')
 }
 
-TypeType =typeMap['Type']
+TypeType = typeMap['Type']
 TypeType.ty = TypeType
 
-def BaseType(n):
+def BaseType(n: str):
     if not n in typeMap:
-        typeMap[n] = BaseTypeExpr(Type(n), TypeType)
+        typeMap[n] = BaseTypeExpr(n, TypeType)
     return typeMap[n]
 
 def cBaseType(t):
     return BaseType(t.asString())
 
-IntType = BaseType('Int')
-
 def tyconv(ty):
     if isinstance(ty, SExpr):
         return ty
     return BaseType(str(ty))
+
+def resolve_curry(vars):
+    def f(ty):
+        if isinstance(ty, TypeExpr):
+            return ty.resolve(vars)
+        return ty
+    return f
 
 class ParamTypeExpr(ListExpr, TypeExpr):
     __slots__ = ['data', 'ty']
@@ -223,11 +262,16 @@ class ParamTypeExpr(ListExpr, TypeExpr):
         super().__init__(data, TypeType)
     def __str__(self):
         return str(self.data[1]) + '[' + (','.join(map(str, self.data[2:]))) + ']'
+    def __eq__(self, other):
+        return self.data[1] is other or self.data[1] == other
+
     def keys(self):
         m = str(self.data[1])
         return [ m + str(self.data[2]), m] + super().keys()[1:]
     def joinkeys(self, keys):
         return [keys[0]+'@'+str(self.data)] + keys
+    def resolve(self, vars):
+        ParamType(*map(resolve_curry(vars), self.data))
 
 def ParamType(*types):
     types = list(map(tyconv, types))
@@ -256,6 +300,8 @@ class FuncTypeExpr(ListExpr, TypeExpr):
         return self.data[item+1]
     def joinkeys(self, keys):
         return [keys[0]+'@'+str(self.data)] + keys
+    def resolve(self, vars):
+        FuncType(*map(resolve_curry(vars), self.data))
 
 def FuncType(*types):
     types = list(map(tyconv, types))
