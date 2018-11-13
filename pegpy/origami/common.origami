@@ -2,7 +2,11 @@
 
 require common.origami
 
-block           = "\f%*;\b" ";\n\t"
+#Block           = "\f%*;\b" ";\n\t"
+#FuncDecl        = "\def %1 (%*):\n" ","
+#Param           = %1
+
+#IfExpr : (Bool,a,a) -> a    = (%1 ? %2 : %3)
 
 +               = "(%*)" "+"
 +@2             = (%1+%2)
@@ -11,4 +15,3 @@ block           = "\f%*;\b" ";\n\t"
 +@2:(Int,Int)->Int      = (%1+%2)
 %:(Int,Int)->Int        = (%1%%%2)
 
-if : (Bool,a,a) -> a    = (%1 ? %2 : %3)

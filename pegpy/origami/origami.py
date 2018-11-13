@@ -19,12 +19,11 @@ def getkeys(stmt, ty):
     return keys
 
 class Def(object):
-    __slots__ = ['ty', 'libs', 'code', 'delim']
-    def __init__(self, ty, libs, code, delim):
+    __slots__ = ['ty', 'libs', 'code']
+    def __init__(self, ty, libs, code):
         self.ty = ty
         self.libs = libs
         self.code = code
-        self.delim = delim
     def __str__(self):
         return str(self.code)
     def __repr__(self):
@@ -69,14 +68,18 @@ class Env(object):
             if stmt == 'CodeMap':
                 ty = stmt.get('type', None, lambda t: SExpr.of(t))
                 keys = getkeys(stmt, ty)
-                expr = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
-                delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else ' '
-                d = Def(ty, libs, expr, delim)
+                code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else ''
+                if 'delim' in stmt:
+                    delim = u.unquote_string(stmt['delim'].asString())
+                    delim = split_code(delim)
+                    code = split_code(code, delim)
+                d = Def(ty, libs, code)
                 self[keys[0]] = d
                 for key in keys[1:]:
                     if not key in self:
                         self[key] = d
         #print('DEBUG', self.nameMap)
+
 
 
 class SourceSection(object):
@@ -117,25 +120,28 @@ class SourceSection(object):
         self.pushTAB()
         self.pushSTR(s)
 
-    def pushEXPR(self, env, e):
-        if isinstance(e, SExpr):
-            if e.code is not None:
-                self.pushFMT(e.code, e.data)
-            else:
-                keys = e.keys()
-                for key in keys:
-                    if key in env:
-                        d = env[key]
-                        if hasattr(d, 'emit'):
-                            d.emit(env, e, self)
-                        else:
-                            self.pushFMT(env, d.code, d.delim, e.data)
-                        return
-                self.pushSTR(str(e))
-        else:
+    def pushEXPR(self, env, e: SExpr):
+        code = e.code
+        if code is None:
+            keys = e.keys()
+            for key in keys:
+                if key in env:
+                    d = env[key]
+                    code = d.code
+                    if isinstance(code, str):
+                        code = split_code(code)
+                        d.code = code
+                    break
+        if code is None:
             self.pushSTR(str(e))
+        else:
+            self.exec(env, e, d.code)
 
-    def pushFMT(self, env, code: str, delim:str, args: list):
+    def exec(self, env, e, cmds):
+        for f, x in cmds:
+            f(env, e, x, self)
+
+    def pushFMT(self, env, code: str, delim: str, args: list):
         index = 1
         start = 0
         i = 0
@@ -203,6 +209,156 @@ class SourceSection(object):
             else:
                 self.pushSTR(c)
 
+#ORIGAMI
+
+codekeys = {
+    '\t': 'indent', '\f': 'indent++', '\b': 'indent--', '\n': 'newline'
+}
+
+esckeys = '*0123456789%'
+
+def STR(env, e, s, ss):
+    ss.pushSTR(s)
+
+def pINDENT(env, e, s, ss): ss.pushIndent()
+def pINC(env, e, s, ss): ss.incIndent()
+def pDEC(env, e, s, ss): ss.decIndent()
+def pLF(env, e, s, ss): ss.pushLF()
+
+commands = {
+    'indent': pINDENT,
+    'indent++': pINC,
+    'indent--': pDEC,
+    'newline': pLF,
+    '\t': pINDENT, '\f': pINC, '\b': pDEC, '\n': pLF,
+}
+
+def expr0(env, e): return e[0]
+def expr1(env, e): return e[1]
+def expr2(env, e): return e[2]
+def expr3(env, e): return e[3]
+def expr4(env, e): return e[4]
+def expr1r(env, e): return e[-1]
+def expr2r(env, e): return e[-2]
+def expr3r(env, e): return e[-3]
+def expr4r(env, e): return e[-4]
+
+def exprtype(env, e): return e.ty
+def definedexpr(name):
+    def curry(env, e):
+        print('@TODO', name)
+        return e
+    return curry
+
+def exprfunc(c):
+    if c.endswith(')'):
+        name, p = c[:-2].split('(')
+        f = exprfunc(p)
+        if name=='type':
+            return lambda env, e: exprtype(env, f(env, e))
+        return definedexpr(name)
+    if c == '1': return expr1
+    elif c == '2': return expr2
+    elif c == '3': return expr3
+    elif c == '4': return expr4
+    elif c == '-1': return expr1r
+    elif c == '-2': return expr2r
+    elif c == '-3': return expr3r
+    elif c == '-4': return expr4r
+    return expr0
+
+def EXPR(env, e, f, ss):
+    ss.pushEXPR(env, f(env, e))
+
+def findindex(s, n):
+    n = str(n)
+    if s.find('%' + n) >= 0: return True
+    if s.find('${' + n + '}') >= 0: return True
+    if s.find('(' + n + ')}') >= 0: return True
+    return False
+
+def startindex(code: str):
+    index = 1
+    if findindex(code, 1):
+        index = 2
+    if findindex(code, 2):
+        index = 3
+    if findindex(code, 3):
+        index = 4
+    return index
+
+def endindex(code: str):
+    index = -1
+    if findindex(code, -1):
+        index = -2
+    if findindex(code, -2):
+        index = -3
+    if findindex(code, -3):
+        index = -4
+    return index
+
+def delimfunc(start, end):
+    def curry(env, e, delim, ss):
+        if start < len(e):
+            ss.pushEXPR(env, e[start])
+            for se in e[start+1:end]:
+                ss.exec(env, e, delim)
+                ss.pushEXPE(env, se)
+    return curry
+
+def split_code(code: str, delim=None):
+    def append_string(l, c):
+        if len(c) > 0: l.append((STR, c))
+    def append_command(l, c):
+        if c.endswith(')') or c in '0123456789':
+            l.append((EXPR, exprfunc(c)))
+        elif ':' in c:
+            if c.startswith(':'):
+                c = str(startindex(code)) + c
+            if c.endswith(':'):
+                c = c + str(endindex(code))
+            s,e = map(int, c.split(':'))
+            l.append((delimfunc(s,e),None))
+        elif c == '*':
+            l.append((delimfunc(startindex(code), endindex(code)), None))
+        elif c in commands:
+            l.append((commands[c],None))
+    index = 1
+    start = 0
+    i = 0
+    l = []
+    while i < len(code):
+        if code[i] in codekeys:
+            append_string(l, code[start: i])
+            append_command(l, codekeys[code[i]])
+            start = i+1
+            i = start
+            continue
+        if code[i] == '%' and i+1 < len(code) and code[i+1] in esckeys:
+            append_string(l, code[start: i])
+            append_command(l, code[i+1])
+            start = i+2
+            i = start
+            continue
+
+        if not code.startswith('${',i):
+            i += 1
+            continue
+        j = code.find('}', i + 1)
+        if j == -1:
+            i += 1
+            continue
+        append_string(l, code[start: i])
+        cmd = code[i+2:j]
+        append_command(l, cmd)
+        start = j+1
+        i = start
+    append_string(l, code[start: i])
+    print('@', repr(code), l)
+    return tuple(l)
+
+#split_code('${indent}')
+#split_code('${indent}\t${}a%1a%2')
 
 def transpile(t, origami_files = ['common.origami']):
     env = Env()

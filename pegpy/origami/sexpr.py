@@ -135,6 +135,11 @@ class AtomExpr(SExpr):
     def __str__(self):
         return str(self.data)
 
+    def __len__(self):
+        return 0
+    def __getitem__(self, item):
+        return None
+
     def first(self):
         return self
 
@@ -155,6 +160,11 @@ class ListExpr(SExpr):
         self.code = None
     def __str__(self):
         return '(' + (' '.join(map(str, self.data))) + ')'
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, item):
+        return self.data[item]
+
     def first(self):
         return str(self.data[0])
     def keys(self):
