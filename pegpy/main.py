@@ -56,7 +56,7 @@ def parse(opt, conv=None):
             while True:
                 s = readlines(bold('>>> '))
                 print(repr(parser(s, conv)))
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
         print(repr(parser(read_inputs(inputs[0]), conv)))
@@ -91,7 +91,7 @@ def origami(opt):
                 t = parser(s)
                 print(repr(t))
                 print(repr(transpile(t, origami_files)))
-        except EOFError:
+        except (EOFError, KeyboardInterrupt):
             pass
     else :
         for input in source_files:
