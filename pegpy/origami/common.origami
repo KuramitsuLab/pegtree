@@ -2,16 +2,16 @@
 
 require common.origami
 
-#Block           = "\f%*;\b" ";\n\t"
-#FuncDecl        = "\def %1 (%*):\n" ","
+#Block           = "${*}" "\n\t"
+#FuncDecl        = "def ${1}(${*}):${indent++}\n\t${-1}${indent--}" ","
 #Param           = %1
 
-#IfExpr : (Bool,a,a) -> a    = (%1 ? %2 : %3)
+#IfExpr : (Bool,a,a) -> a    = (${1} ? ${2} : ${3})
 
-+               = "(%*)" "+"
-+@2             = (%1+%2)
-*@2             = (%1*%2)
++               = "(${*})" "+"
++@2             = (${1}+${1})
+*@2             = (${1}*${1})
 
-+@2:(Int,Int)->Int      = (%1+%2)
-%:(Int,Int)->Int        = (%1%%%2)
++@2:(Int,Int)->Int      = (${1}+${2})
+%:(Int,Int)->Int        = (${1}%${2})
 

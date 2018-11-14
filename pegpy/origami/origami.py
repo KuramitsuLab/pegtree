@@ -141,6 +141,7 @@ class SourceSection(object):
         for f, x in cmds:
             f(env, e, x, self)
 
+    '''
     def pushFMT(self, env, code: str, delim: str, args: list):
         index = 1
         start = 0
@@ -208,6 +209,7 @@ class SourceSection(object):
                 self.pushLF()
             else:
                 self.pushSTR(c)
+'''
 
 #ORIGAMI
 
@@ -220,7 +222,7 @@ esckeys = '*0123456789%'
 def STR(env, e, s, ss):
     ss.pushSTR(s)
 
-def pINDENT(env, e, s, ss): ss.pushIndent()
+def pINDENT(env, e, s, ss): ss.pushINDENT()
 def pINC(env, e, s, ss): ss.incIndent()
 def pDEC(env, e, s, ss): ss.decIndent()
 def pLF(env, e, s, ss): ss.pushLF()
@@ -290,27 +292,29 @@ def startindex(code: str):
 def endindex(code: str):
     index = -1
     if findindex(code, -1):
-        index = -2
+        index = -1
     if findindex(code, -2):
-        index = -3
+        index = -2
     if findindex(code, -3):
-        index = -4
+        index = -3
     return index
 
 def delimfunc(start, end):
     def curry(env, e, delim, ss):
+        if delim is None:
+            delim = [(STR, ',')]
         if start < len(e):
             ss.pushEXPR(env, e[start])
             for se in e[start+1:end]:
-                ss.exec(env, e, delim)
-                ss.pushEXPE(env, se)
+                ss.exec(env, se, delim)
+                ss.pushEXPR(env, se)
     return curry
 
 def split_code(code: str, delim=None):
     def append_string(l, c):
         if len(c) > 0: l.append((STR, c))
     def append_command(l, c):
-        if c.endswith(')') or c in '0123456789':
+        if c.endswith(')') or c in '0123456789-1-2-3-4':
             l.append((EXPR, exprfunc(c)))
         elif ':' in c:
             if c.startswith(':'):
@@ -354,11 +358,10 @@ def split_code(code: str, delim=None):
         start = j+1
         i = start
     append_string(l, code[start: i])
-    print('@', repr(code), l)
     return tuple(l)
 
 #split_code('${indent}')
-#split_code('${indent}\t${}a%1a%2')
+#split_code('def ${1}(${*}):\n\t${-1}')
 
 def transpile(t, origami_files = ['common.origami']):
     env = Env()
