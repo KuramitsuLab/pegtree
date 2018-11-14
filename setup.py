@@ -1,6 +1,7 @@
 from setuptools import setup
 import sys
-sys.path.append('./tests')
+from pathlib import Path
+sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
 	name = 'pegpy',
@@ -11,11 +12,11 @@ setup(
     description = 'Nez Parser for Python',
     install_requires = ['setuptools'],
 	packages = ['pegpy', 'pegpy.gparser', 'pegpy.origami'],
-	package_data = {'pegpy': ['grammar/*.tpeg']},
+	package_data = {'pegpy': ['grammar/*.tpeg', 'grammar/*.gpeg', 'origami/*.origami']},
 	entry_points = {
 		'console_scripts': [
-			'pegpy = pegpy.main:main',
+			'pegpy = pegpy.main:main'
 		]
 	},
-	test_suite='test_all.suite'
+	test_suite = 'test_all.suite'
 )
