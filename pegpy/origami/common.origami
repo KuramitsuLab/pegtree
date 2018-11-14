@@ -2,14 +2,19 @@
 
 require common.origami
 
-block           = "\f%*;\b" ";\n\t"
+#Block           = "${*}" "\n\t"
+#FuncDecl        = "def ${1}(${*}):${indent++}\n\t${@ret(-1)}${indent--}" ","
+#Param           = ${1}
+#Return@0        = return
+#Return@1        = return ${1}
 
-+               = "(%*)" "+"
-+@2             = (%1+%2)
-*@2             = (%1*%2)
+#IfExpr : (Bool,a,a) -> a    = (${1} ? ${2} : ${3})
 
-+@2:(Int,Int)->Int = (%1+%2)
-%:(Int,Int)->Int = (%1%%%2)
++               = "(${*})" "+"
++@2             = (${1}+${2})
+*@2             = (${1}*${2})
 
-if@3            = (%1 ? %2 : %3)
++@2:(Int,Int)->Int      = (${1}+${2})
+%:(Int,Int)->Int        = (${1}%${2})
 
+->:Int->Float           = float(${1})

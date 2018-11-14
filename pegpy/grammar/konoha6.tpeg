@@ -257,17 +257,17 @@ LParams = {
 /* Operator */
 
 Operator =
-	AndExpr (left:^ { name: { OR } _ right: AndExpr #Infix })*
+	AndExpr (left:^ { name: { OR #NameExpr } _ right: AndExpr #Infix })*
 
 OR = '||' !'|'
 
 AndExpr =
-	EqExpr (left:^ { name: { AND } _ right: EqExpr #Infix })*
+	EqExpr (left:^ { name: { AND #NameExpr } _ right: EqExpr #Infix })*
 
 AND = '&&' !'&'
 
 EqExpr =
-	SumExpr (left:^ { name: { EQ } _ right: SumExpr #Infix })*
+	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
 
 EQ =
 	/ '==' !'='
@@ -278,7 +278,7 @@ EQ =
 	/ '>'  !'>'
 
 SumExpr =
-	ProdExpr (left:^ { name: { SUM } _ right: ProdExpr #Infix })*
+	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
 
 SUM =
 	/ '++'
@@ -287,7 +287,7 @@ SUM =
 	/ '|' !'|'
 
 ProdExpr =
-	UnaryExpr (left:^ { name: { PROD } _ right: UnaryExpr #Infix })*
+	UnaryExpr (left:^ { name: { PROD #NameExpr } _ right: UnaryExpr #Infix })*
 
 PROD =
 	/ '/'
@@ -299,7 +299,7 @@ PROD =
 	/ '&' !'&'
 
 UnaryExpr
-	= { name: {PRE} _ expr: UnaryExpr #Unary }
+	= { name: {PRE #NameExpr} _ expr: UnaryExpr #Unary }
     / SuffixExpr
 
 PRE =

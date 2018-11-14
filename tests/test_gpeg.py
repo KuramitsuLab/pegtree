@@ -65,7 +65,7 @@ class TestGPEG(unittest.TestCase):
         g.example('Expression,Int', '123', "[#Int '123']")
         g.example('Expression', '1+2*3', "[#Infix left=[#Int '1'] name=[# '+'] right=[#Infix left=[#Int '2'] name=[# '*'] right=[#Int '3']]]")
         self.exTest(g, gnez)
-    
+
     def test_grammar(self):
         g = TestGrammar()
         self.exTest(g, gnez)
