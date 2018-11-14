@@ -3,8 +3,10 @@
 require common.origami
 
 #Block           = "${*}" "\n\t"
-#FuncDecl        = "def ${1}(${*}):${indent++}\n\t${-1}${indent--}" ","
-#Param           = %1
+#FuncDecl        = "def ${1}(${*}):${indent++}\n\t${@ret(-1)}${indent--}" ","
+#Param           = ${1}
+#Return@0        = return
+#Return@1        = return ${1}
 
 #IfExpr : (Bool,a,a) -> a    = (${1} ? ${2} : ${3})
 
@@ -15,3 +17,4 @@ require common.origami
 +@2:(Int,Int)->Int      = (${1}+${2})
 %:(Int,Int)->Int        = (${1}%${2})
 
+->:Int->Float           = float(${1})

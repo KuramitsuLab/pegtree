@@ -1,5 +1,5 @@
 from pegpy.peg import Grammar, nez
-from pegpy.origami.sexpr import SExpr, AtomExpr
+from pegpy.origami.sexpr import SExpr, ListExpr
 import pegpy.utils as u
 
 g = Grammar('konoha6')
@@ -135,81 +135,13 @@ class SourceSection(object):
         if code is None:
             self.pushSTR(str(e))
         else:
-            self.exec(env, e, d.code)
+            self.exec(env, e, code)
 
     def exec(self, env, e, cmds):
         for f, x in cmds:
             f(env, e, x, self)
 
-    '''
-    def pushFMT(self, env, code: str, delim: str, args: list):
-        index = 1
-        start = 0
-        i = 0
-        while i < len(code):
-            c = code[i]
-            i += 1
-            if c == '\t' :
-                self.pushSTR(code[start: i - 1])
-                start = i
-                self.pushTAB()
-                continue
-            if c == '\f' :
-                self.pushSTR(code[start: i - 1])
-                start = i
-                self.incIndent()
-                continue
-            if c == '\b' :
-                self.pushSTR(code[start: i - 1])
-                start = i
-                self.decIndent()
-                continue
-            if c == '\n':
-                self.pushSTR(code[start: i - 1])
-                start = i
-                self.pushLF()
-                continue
-            if c == '%':
-                c = code[i] if i < len(code) else '%'
-                i += 1
-                if c == '%':
-                    self.pushSTR(code[start: i - 1])
-                    start = i
-                    continue
-                self.pushSTR(code[start: i - 2])
-                start = i
-                if '0' <= c and c <= '9':
-                    index = int(c)
-                    self.pushEXPR(env, args[index])
-                    index +=1
-                    continue
-                if c == 's':
-                    self.pushEXPR(env, args[index])
-                    index += 1
-                    continue
-                if c == '*':
-                    cnt = 0
-                    for a in args[index:]:
-                        if cnt > 0 : self.pushDELIM(delim)
-                        self.pushEXPR(env, a)
-                        cnt += 1
-                    continue
-        #end while
-        self.pushSTR(code[start:])
-
-    def pushDELIM(self, fmt: str):
-        for c in fmt:
-            if c == '\t' :
-                self.pushTAB()
-            elif c == '\f' :
-                self.incIndent()
-            elif c == '\b' :
-                self.decIndent()
-            elif c == '\n':
-                self.pushLF()
-            else:
-                self.pushSTR(c)
-'''
+#ORIGAMI
 
 #ORIGAMI
 
@@ -244,8 +176,13 @@ def expr1r(env, e): return e[-1]
 def expr2r(env, e): return e[-2]
 def expr3r(env, e): return e[-3]
 def expr4r(env, e): return e[-4]
+def this(env, e): return e
 
 def exprtype(env, e): return e.ty
+
+def returnexpr(env, e):
+    return SExpr.new('#Return', e)
+
 def definedexpr(name):
     def curry(env, e):
         print('@TODO', name)
@@ -254,11 +191,16 @@ def definedexpr(name):
 
 def exprfunc(c):
     if c.endswith(')'):
-        name, p = c[:-2].split('(')
+        name, p = c[:-1].split('(')
         f = exprfunc(p)
         if name=='type':
             return lambda env, e: exprtype(env, f(env, e))
-        return definedexpr(name)
+        elif name=='@ret':
+            return lambda env, e: returnexpr(env, f(env, e))
+        elif name.startsWith('#'):
+            pass
+        return lambda env, e: definedexpr(name)(f(env, e))
+
     if c == '1': return expr1
     elif c == '2': return expr2
     elif c == '3': return expr3
@@ -267,9 +209,12 @@ def exprfunc(c):
     elif c == '-2': return expr2r
     elif c == '-3': return expr3r
     elif c == '-4': return expr4r
+    elif c == 'this': return this
     return expr0
 
 def EXPR(env, e, f, ss):
+    #assert(isinstance(e, SExpr))
+    #print('@', f, e, '->', f(env, e))
     ss.pushEXPR(env, f(env, e))
 
 def findindex(s, n):

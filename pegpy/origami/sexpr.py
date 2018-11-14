@@ -86,7 +86,17 @@ class SExpr(object):
             return ListExpr(cons)
 
     @classmethod
-    def new(cls, s):
+    def new(cls, *l):
+        cons = []
+        for e in l:
+            if isinstance(e, SExpr) :
+                cons.append(e)
+            else:
+                cons.append(AtomExpr(e))
+        return ListExpr(cons)
+
+    @classmethod
+    def new2(cls, s):
         """
         >>> parse_sexp("(+ 5 (+ 3 5))")
         [['+', '5', ['+', '3', '5']]]
@@ -225,7 +235,7 @@ class BaseTypeExpr(AtomExpr, TypeExpr):
 
     def match(self, ty: TypeExpr, vars = {}):
         if self is ty: return True
-        tname : str = self.data
+        tname = self.data
         if self.isVarType():
             if tname in vars:
                 return vars[tname].match(ty, vars)
