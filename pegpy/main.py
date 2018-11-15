@@ -3,7 +3,7 @@ import sys, time, readline, subprocess
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
-from pegpy.gparser.gnez import nnez
+from pegpy.gparser.gnez import gnez, nnez
 import pegpy.utils as u
 
 def bold(s):
@@ -43,8 +43,10 @@ def load_grammar(opt, default = None):
 
 def switch_generator(opt, default = 'math.tpeg'):
     file = default if not 'grammar' in opt else opt['grammar']
-    if file.endswith('.gpeg'):
+    if file.endswith('.npeg'):
         return nnez
+    elif file.endswith('.gpeg'):
+        return gnez
     return nez
 
 def parse(opt, conv=None):

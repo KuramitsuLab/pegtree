@@ -24,8 +24,8 @@ def TestGrammar(peg=None):
     peg.example('ManyAny', '123', "[# '123']")
     peg.example('NotAlpha', '123', "[# '1']")
     peg.example('ManyNotAlpha', '123a', "[# '123']")
-    peg.example('AMB_AB', 'ab', "[#Ambiguity [# 'a'] [# 'ab']]")
-    peg.example('AMB_ABB', 'abb', "[#Ambiguity [# 'ab'] [# 'abb']]")
+    peg.example('AMB_AB', 'ab', "[#? [# 'a'] [# 'ab']]")
+    peg.example('AMB_ABB', 'abb', "[#? [# 'ab'] [# 'abb']]")
     peg.example('Str', '"abc"')
     peg.example('Str2', '"abc"')
     return peg
@@ -70,10 +70,11 @@ class TestGPEG(unittest.TestCase):
         g = TestGrammar()
         self.exTest(g, gnez)
 
+    '''
     def test_amb(self):
         g = AmbGrammar()
         self.exTest(g, gnez)
-
+    '''
     def test_manyb(self):
         g = Grammar("manyb")
         g.load('manyb.gpeg')
