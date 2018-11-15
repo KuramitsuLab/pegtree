@@ -1,6 +1,5 @@
 from pegpy.parser import *
 import functools
-import copy
 
 # generalized parse function
 
