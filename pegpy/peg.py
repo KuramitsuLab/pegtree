@@ -4,16 +4,13 @@ import pegpy.parser as pg
 import unittest as ut
 
 def eval(p, conv = None):
-    pg.setting('eval')
-    return pg.generate_parser(pg.generate(p, 'eval'), conv)
+    return pg.generate2(p, method='eval', conv=conv)
 
 def nez(p, conv = None):
-    pg.setting('nez')
-    return pg.generate_parser(pg.generate(p, 'nez'), conv)
+    return pg.generate2(p, method='nez', conv=conv)
 
 def dasm(p, conv = None):
-    pg.setting('dasm')
-    return pg.generate_parser(pg.generate(p, 'dasm'), conv)
+    return pg.generate2(p, method='dasm', conv=conv)
 
 ## Grammar
 
