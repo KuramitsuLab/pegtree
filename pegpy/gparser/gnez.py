@@ -11,8 +11,8 @@ def gsetting(f: str):
     if not hasattr(Char, f):
         def emit(pe): return getattr(pe, f)()
 
-        setattr(Empty, f, lambda self: p_True)
-        setattr(Any, f, lambda self: gparser.mresult(p_Any))
+        setattr(Empty, f, lambda self: gparser.p_GTrue)
+        setattr(Any, f, lambda self: gparser.mresult(gparser.p_GAny))
         setattr(Char, f, gparser.emit_GByte)
         setattr(Range, f, gparser.emit_GByteRange)
 
@@ -31,7 +31,7 @@ def gsetting(f: str):
 
         # Ref
         memo = {}
-        setattr(Ref, f, lambda pe: gparser.emit_Ref(pe, memo, emit))
+        setattr(Ref, f, lambda pe: gparser.emit_GRef(pe, memo, emit))
         return True
     return False
 
