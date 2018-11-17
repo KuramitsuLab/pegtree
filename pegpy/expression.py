@@ -521,12 +521,11 @@ def load_tpeg(g):
               "[#Source [#Rule name=[#Name 'A'] inner=[#Ref 'a']] [#Rule name=[#Name 'B'] inner=[#Ref 'b']]]")
     g.example("Start", "A = a //hoge\nB = b",
               "[#Source [#Rule name=[#Name 'A'] inner=[#Ref 'a']] [#Rule name=[#Name 'B'] inner=[#Ref 'b']]]")
-
     return g
 
 # Expression loader
 
-def setup_loader(Grammar, pc):
+def setup_loader(Grammar, pgen):
     import pegpy.utils as u
     from pegpy.ast import ParseTreeConv
     class PEGConv(ParseTreeConv):
@@ -625,7 +624,7 @@ def setup_loader(Grammar, pc):
             return EMPTY
 
     PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
-    pegparser = pc(load_tpeg(Grammar('tpeg')))
+    pegparser = pgen(load_tpeg(Grammar('tpeg')))
 
     def load_grammar(g, path):
         f = u.find_path(path).open()

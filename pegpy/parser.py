@@ -8,304 +8,542 @@ class ParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
 
   def __init__(self, inputs, urn='(unknown)', pos=0):
-    s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-    self.inputs, self.pos = u.encode_source(s, urn, pos)
+    self.inputs, self.pos = u.encode_source(inputs, urn, pos)
     self.length = len(self.inputs)
     self.headpos = self.pos
     self.ast = None
 
-def p_True(px): return True
-def p_False(px): return False
+class ParserOption(object):
+    def __init__(self):
+        self.isByte = False
+        self.isOptimized = False
+        self.treeFunc = ParseTree
+        self.linkFunc = TreeLink
 
-def p_Any(px):
-    if px.pos < px.length:
-        px.pos += 1
-        px.headpos = max(px.pos, px.headpos)
-        return True
-    return False
+# Empty
+def empty(px): return True
 
-def emit_char(c):
-    def curry(px):
-        if px.pos < px.length and px.inputs[px.pos] == c:
-            px.pos += 1
-            px.headpos = max(px.pos, px.headpos)
-            return True
-        return False
-    return curry
+def ggen_Empty(emit, option: ParserOption):
+    def gen(pe):
+        return empty
+    return gen
 
-# Str
-def emit_multi0(s, slen):
-    def curry(px):
-        pos = px.pos
-        if pos + slen <= px.length:
-            i = 0
-            while i < slen:
-                if px.inputs[pos + i] != s[i]: return False
-                i += 1
-            px.pos += slen
-            px.headpos = max(px.pos, px.headpos)
-            return True
-        return False
-    return curry
+def fail(px): return False
 
-def emit_multi(s, slen):
-    def curry(px):
-        if px.inputs.startswith(s,px.pos):
-            px.pos += slen
-            px.headpos = max(px.pos, px.headpos)
-            return True
-        return False
-    return curry
+def gen_NotEmpty(pe: Empty):
+    return fail
 
-pf_char = {}
+# Char
 
-def emit_Char(pe):
-    if len(pe.a) > 1:
-        return emit_multi(pe.a, len(pe.a))
-    if not pe.a in pf_char:
-        pf_char[pe.a] = emit_char(pe.a)
-    return pf_char[pe.a]
+def nop(px): pass
+def inc(px): px.pos += 1
 
-def emit_Byte(pe):
-    if len(pe.a) > 1:
+def charlen(pe: Char, isByte: bool):
+    if isByte:
         b = bytes(pe.a, 'utf-8')
-        return emit_multi(b, len(b))
-    c = ord(pe.a)
-    key = str(c)
-    if not key in pf_char:
-        pf_char[key] = emit_char(c)
-    return pf_char[key]
+        return b, len(b)
+    else:
+        return pe.a, len(pe.a)
 
-def bits(n):
-    def curry(px) :
-        if px.pos < px.length and (n & (1 << px.inputs[px.pos])) != 0:
+def ggen_Char(emit, option: ParserOption):
+    def multichar(s, slen):
+        def matched(px):
+            if px.inputs.startswith(s, px.pos):
+                px.pos += slen
+                return True
+            return False
+        return matched
+
+    return lambda pe: multichar(*charlen(pe, option.isByte))
+
+def gen_AndChar(pe: Char, isByte: bool):
+    def andmultichar(s, slen):
+        def andchar(px):
+            return px.inputs.startswith(s, px.pos)
+        return andchar
+    return andmultichar(*charlen(pe, isByte))
+
+def gen_NotChar(pe: Char, isByte: bool):
+    def notmultichar(s, slen):
+        def notchar(px):
+            return not px.inputs.startswith(s, px.pos)
+        return notchar
+    return notmultichar(*charlen(pe, isByte))
+
+def gen_ManyChar(pe: Char, isByte: bool):
+    def manymultichar(s, slen):
+        def manychar(px):
+            while (px.inputs.startswith(s, px.pos)):
+                px.pos += slen
+            return True
+        return manychar
+    return manymultichar(*charlen(pe, isByte))
+
+def gen_Many1Char(pe: Char, isByte: bool):
+    def many1multichar(s, slen):
+        def many1char(px):
+            c = 0
+            while (px.inputs.startswith(s, px.pos)):
+                px.pos += slen
+                c += 1
+            return c > 0
+        return many1char
+    return many1multichar(*charlen(pe, isByte))
+
+# Any
+
+def ggen_Any(emit, option: ParserOption):
+    def any(px):
+        if px.pos < px.length:
             px.pos += 1
-            px.headpos = max(px.pos, px.headpos)
             return True
         return False
-    return curry
+    return lambda pe: any
 
-def emit_ByteRange(pe):
+def gen_AndAny():
+    def andany(px):
+        return px.pos < px.length
+    return andany
+
+def gen_NotAny():
+    def notany(px):
+        return px.pos >= px.length
+    return notany
+
+def gen_ManyAny():
+    def manyany(px):
+        px.pos = px.length
+        return True
+    return manyany
+
+def gen_Many1Any():
+    def many1any(px):
+        if px.pos < px.length:
+            px.pos = px.length
+            return True
+        return False
+    return many1any
+
+# Range
+
+def isbitset(pe):
+    for c in pe.chars:
+        if ord(c) > 255: return False
+    for r in pe.ranges:
+        if ord(r[1]) > 255: return False
+    return True
+
+def encode_bitset(pe):
     n = 0
     for c in pe.chars:
         n |= (1 << ord(c))
     for r in pe.ranges:
         for c in range(ord(r[0]), ord(r[1])+1):
             n |= (1 << c)
-    return bits(n)
+    return n
 
-def isCharRange(c, ranges, chars):
+def decode_char(inputs, pos):
+    try:
+        return inputs[pos:pos + 4].decode('utf-8', 'replace')[0]
+    except IndexError:
+        return '\0'
+
+def isRangeChar(c, ranges, chars):
     for r in ranges:
         if r[0] <= c and c <= r[1]: return True
-    for c2 in chars:
-        if c == c2: return True
+    return c in chars and chars != ''
+
+def isRange(c, ranges):
+    for r in ranges:
+        if r[0] <= c and c <= r[1]: return True
     return False
 
-def emit_CharRange(pe):
+def gen_BRange(pe):
+    if isbitset(pe):
+        n = encode_bitset(pe)
+        def bitmatch(px):
+            if px.pos < px.length and (n & (1 << px.inputs[px.pos])) != 0:
+                px.pos += 1
+                return True
+            return False
+        return bitmatch
+    # urange
     chars = pe.chars
     ranges = pe.ranges
-    def curry(px) :
-        if px.pos < px.length and isCharRange(px.inputs[px.pos], ranges, chars):
+    def urange(px):
+        c = decode_char(px.inputs, px.pos)
+        if isRangeChar(c, ranges, chars):
             px.pos += 1
-            px.headpos = max(px.pos, px.headpos)
             return True
         return False
-    return curry
+    return urange
+
+def gen_CRange(chars, ranges):
+    def crange(px) :
+        if px.pos < px.length and isRangeChar(px.inputs[px.pos], ranges, chars):
+            px.pos += 1
+            return True
+        return False
+    return crange
+
+def gen_CRange2(chars, ranges, mov):
+    clen = len(chars)
+    rlen = len(ranges)
+    if clen == 0:
+        if rlen == 0:
+            return lambda px: False
+        elif rlen == 1:
+            s1 = ranges[0][0]
+            e1 = ranges[0][1]
+            def range1(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if s1 <= c <= e1:
+                        mov(px)
+                        return True
+                return False
+            return range1
+        elif rlen == 2:
+            s1 = ranges[0][0]
+            e1 = ranges[0][1]
+            s2 = ranges[1][0]
+            e2 = ranges[1][1]
+            def range2(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if s1 <= c <= e1 or s2 <= c <= e2:
+                        mov(px)
+                        return True
+                return False
+            return range2
+        else:
+            #print('@range', rlen, clen, repr(chars))
+            def crange(px):
+                if px.pos < px.length and isRange(px.inputs[px.pos], ranges):
+                    mov(px)
+                    return True
+                return False
+            return crange
+    else: # clen > 0
+        if rlen == 0:
+            def range0(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if c in chars:
+                        mov(px)
+                        return True
+                return False
+            return range0
+        elif rlen == 1:
+            s1 = ranges[0][0]
+            e1 = ranges[0][1]
+            def range1(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if s1 <= c <= e1 or c in chars:
+                        mov(px)
+                        return True
+                return False
+            return range1
+        elif rlen == 2:
+            s1 = ranges[0][0]
+            e1 = ranges[0][1]
+            s2 = ranges[1][0]
+            e2 = ranges[1][1]
+            def range2(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if s1 <= c <= e1 or s2 <= c <= e2 or c in chars:
+                        mov(px)
+                        return True
+                return False
+            return range2
+        else:
+            #print('@range', rlen, clen, repr(chars))
+            def crange(px):
+                if px.pos < px.length:
+                    c = px.inputs[px.pos]
+                    if isRange(c, ranges) or c in chars:
+                        mov(px)
+                    return True
+                return False
+            return crange
+
+def ggen_Range(emit, option: ParserOption):
+    if option.isByte:
+        return lambda pe: gen_BRange(pe)
+    else:
+        return lambda pe: gen_CRange2(pe.chars, pe.ranges, mov=inc)
+
+def gen_AndRange(pe: Range, isByte):
+    pass
+
+def gen_NotRange(pe: Range, isByte):
+    pass
+
+def gen_ManyRange(pe: Range, isByte):
+    pass
+
+def gen_Many1Range(pe: Range):
+    pass
 
 # Seq
 
-def emit_Seq2(left, right):
-    return lambda px: left(px) and right(px)
+def seq2(pfl, pfr):
+    return lambda px: pfl(px) and pfr(px)
 
-def emit_Seq(pe, emit):
-    ls = tuple(map(emit, pe.flatten([])))
-    if len(ls) == 2:
-        return emit_Seq2(ls[0], ls[1])
-    def curry(px):
-        for p in ls:
-            if not p(px): return False
-        return True
-    return curry
+def seq3(pfa, pfb, pfc):
+    return lambda px: pfa(px) and pfb(px) and pfc(px)
 
-# OrElse
+def seq4(pfa, pfb, pfc, pfd):
+    return lambda px: pfa(px) and pfb(px) and pfc(px) and pfd(px)
 
-def emit_Or2(left, right):
-    def curry(px):
-        pos = px.pos
-        ast = px.ast
-        if not left(px):
-            px.pos = pos
-            px.ast = ast
-            return right(px)
-        return True
-    return curry
-
-def emit_Or(pe, emit):
-    ls = tuple(map(emit, pe.flatten([])))
-    if len(ls) == 2:
-        return emit_Or2(ls[0], ls[1])
-    def curry(px):
-        pos = px.pos
-        ast = px.ast
-        for p in ls:
-            if p(px): return True
-            px.pos = pos
-            px.ast = ast
-        return False
-    return curry
-
-#Not
-def _not(pf):
-    def curry(px):
-        pos = px.pos
-        ast = px.ast
-        if not pf(px):
-            px.pos = pos
-            px.ast = ast
+def ggen_Seq(emit, option: ParserOption):
+    def gen(pe):
+        pfs = tuple(map(emit, pe.flatten([])))
+        flen = len(pfs)
+        if flen == 2:
+            return seq2(pfs[0], pfs[1])
+        elif flen == 3:
+            return seq3(pfs[0], pfs[1], pfs[2])
+        elif flen == 4:
+            return seq4(pfs[0], pfs[1], pfs[2], pfs[3])
+        #print('@seq', len(pfs))
+        def seq(px):
+            for pf in pfs:
+                if not pf(px): return False
             return True
-        return False
+        return seq
+    return gen
+
+# Ore
+
+def ore2(pfl, pfr):
+    def curry(px):
+        pos = px.pos
+        ast = px.ast
+        if not pfl(px):
+            px.headpos = max(px.pos, px.headpos)
+            px.pos = pos
+            px.ast = ast
+            return pfr(px)
+        return True
     return curry
 
-def emit_Not(pe, emit):
-    return _not(emit(pe.inner))
+def ggen_Ore(emit, option: ParserOption):
+    def gen(pe):
+        pfs = tuple(map(emit, pe.flatten([])))
+        if len(pfs) == 2:
+            return ore2(pfs[0], pfs[1])
+        #print('@ore', len(pfs), pe)
+        def ore(px):
+            pos = px.pos
+            ast = px.ast
+            for pf in pfs:
+                if pf(px): return True
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
+            return False
+        return ore
+    return gen
 
 # And
-def _and(pf):
-    def curry(px):
-        pos = px.pos
-        if pf(px):
-            px.pos = pos
-            return True
-        return False
-    return curry
+def ggen_And(emit, option: ParserOption):
+    def gen(pe):
+        if option.isOptimized:
+            if isinstance(pe.inner, Char):
+                return gen_AndChar(pe.inner)
+            pass
+        pf = emit(pe.inner)
+        def andp(px):
+            pos = px.pos
+            if pf(px):
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                return True
+            return False
+        return andp
+    return gen
 
-def emit_And(pe, emit):
-    return _and(emit(pe.inner))
+# Not
+
+def ggen_Not(emit, option: ParserOption):
+    def gen(pe):
+        if option.isOptimized:
+            if isinstance(pe.inner, Char):
+                return gen_NotChar(pe.inner)
+            pass
+        pf = emit(pe.inner)
+        def notp(px):
+            pos = px.pos
+            ast = px.ast
+            if not pf(px):
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
+                return True
+            return False
+        return notp
+    return gen
 
 # Many
 
-def many(pf):
-    def curry(px):
-        pos = px.pos
-        ast = px.ast
-        while pf(px) and pos < px.pos:
+def ggen_Many(emit, option: ParserOption):
+    def gen(pe):
+        if option.isOptimized:
+            if isinstance(pe.inner, Char):
+                return gen_ManyChar(pe.inner)
+            pass
+        pf = emit(pe.inner)
+        def many(px):
             pos = px.pos
             ast = px.ast
-        px.pos = pos
-        px.ast = ast
-        return True
-    return curry
+            while pf(px) and pos < px.pos:
+                pos = px.pos
+                ast = px.ast
+            px.headpos = max(px.pos, px.headpos)
+            px.pos = pos
+            px.ast = ast
+            return True
+        return many
+    return gen
 
-def emit_Many(pe, emit):
-    return many(emit(pe.inner))
+def ggen_Many1(emit, option: ParserOption):
+    def gen(pe):
+        if option.isOptimized:
+            if isinstance(pe.inner, Char):
+                return gen_Many1Char(pe.inner)
+            pass
+        pf = emit(pe.inner)
+        def many1(px):
+            pos = px.pos
+            ast = px.ast
+            c = 0
+            while pf(px) and pos < px.pos:
+                pos = px.pos
+                ast = px.ast
+                c += 1
+            px.headpos = max(px.pos, px.headpos)
+            px.pos = pos
+            px.ast = ast
+            return c > 0
+        return many1
+    return gen
 
-def emit_Many1(pe, emit):
-    return emit_Seq2(emit(pe.inner), many(emit(pe.inner)))
+
+# Many1
 
 # Tree
 
-def tree(tag, pf, mtree):
-    def curry(px):
-        pos = px.pos
-        px.ast = None
-        if pf(px):
-            px.ast = mtree(tag, px.inputs, pos, px.pos, px.ast)
-            return True
-        return False
-    return curry
+def ggen_TreeAs(emit, option: ParserOption):
+    def gen(pe):
+        tag = pe.name
+        pf = emit(pe.inner)
+        mtree = option.treeFunc
+        def tree(px):
+            pos = px.pos
+            px.ast = None
+            if pf(px):
+                px.ast = mtree(tag, px.inputs, pos, px.pos, px.ast)
+                return True
+            return False
+        return tree
+    return gen
 
-def emit_TreeAs(pe, emit, mtree):
-    return tree(pe.name, emit(pe.inner), mtree)
+def ggen_LinkAs(emit, option: ParserOption):
+    def gen(pe):
+        tag = pe.name
+        pf = emit(pe.inner)
+        mlink = option.linkFunc
+        def link(px):
+            ast = px.ast
+            if pf(px):
+                px.ast = mlink(tag, px.ast, ast)
+                return True
+            return False
+        return link
+    return gen
 
-def link(tag, pf, mlink):
-    def curry(px):
-        ast = px.ast
-        if pf(px):
-            px.ast = mlink(tag, px.ast, ast)
-            return True
-        return False
-    return curry
+def ggen_FoldAs(emit, option):
+    def gen(pe):
+        ltag = pe.left
+        tag = pe.name
+        pf = emit(pe.inner)
+        mtree = option.treeFunc
+        mlink = option.linkFunc
 
-def emit_LinkAs(pe, emit, mlink):
-    return link(pe.name, emit(pe.inner), mlink)
+        def fold(px):
+            pos = px.pos
+            px.ast = mlink(ltag, px.ast, None)
+            if pf(px):
+                px.ast = mtree(tag, px.inputs, pos, px.pos, px.ast)
+                return True
+            return False
+        return fold
+    return gen
 
-def fold(ltag, tag, pf, mtree, mlink):
-    def curry(px):
-        pos = px.pos
-        px.ast = mlink(ltag, px.ast, None)
-        if pf(px):
-            px.ast = mtree(tag, px.inputs, pos, px.pos, px.ast)
-            return True
-        return False
-    return curry
+def ggen_Detree(emit, option):
+    def gen(pe):
+        pf = emit(pe.inner)
+        def unit(px):
+            ast = px.ast
+            if pf(px):
+                px.ast = ast
+                return True
+            return False
+        return unit
+    return gen
 
-def emit_FoldAs(pe, emit, mtree, mlink):
-    return fold(pe.left, pe.name, emit(pe.inner), mtree, mlink)
-
-def emit_Detree(pe, emit):
-    pf = emit(pe.inner)
-    def curry(px):
-        ast = px.ast
-        if pf(px):
-            px.ast = ast
-            return True
-        return False
-    return curry
-
-def emit_trace(ref: Ref, pf):
-    key = ref.uname()
-    def curry(px):
-        print("+", key, px.pos)
-        return pf(px)
-    return curry
 
 # Ref
-def emit_Ref(ref: Ref, memo: dict, emit):
-    key = ref.uname()
-    if not key in memo:
-        memo[key] = lambda px: memo[key](px)
-        memo[key] = emit(ref.deref())
-        #memo[key] = emit_trace(ref, emit(ref.deref()))
-    return memo[key]
+def ggen_Ref(emit, memo: dict, option: ParserOption):
+    def gen(ref):
+        key = ref.uname()
+        if not key in memo:
+            memo[key] = lambda px: memo[key](px)
+            memo[key] = emit(ref.deref())
+            #memo[key] = emit_trace(ref, emit(ref.deref()))
+        return memo[key]
+    return gen
 
-# Setting Parser
 
-def setting(f: str):
-    if not hasattr(Char, f):
-        def emit(pe): return getattr(pe, f)()
+def setting(method, option: ParserOption):
+    def emit(pe): return getattr(pe, method)()
+    setattr(Empty, method, ggen_Empty(emit, option))
+    setattr(Any, method, ggen_Any(emit, option))
+    setattr(Char, method, ggen_Char(emit, option))
+    setattr(Range, method, ggen_Range(emit, option))
 
-        setattr(Empty,f, lambda self: p_True)
-        setattr(Any, f, lambda self: p_Any)
-        setattr(Char, f, emit_Byte)
-        setattr(Range, f, emit_ByteRange)
+    setattr(Seq, method, ggen_Seq(emit, option))
+    setattr(Ore, method, ggen_Ore(emit, option))
+    setattr(Alt, method, ggen_Ore(emit, option))
+    setattr(Not, method, ggen_Not(emit, option))
+    setattr(And, method, ggen_And(emit, option))
+    setattr(Many, method, ggen_Many(emit, option))
+    setattr(Many1, method, ggen_Many1(emit, option))
 
-        setattr(Seq, f, lambda pe: emit_Seq(pe, emit))
-        setattr(Ore, f, lambda pe: emit_Or(pe, emit))
-        setattr(Alt, f, lambda pe: emit_Or(pe, emit))
-        setattr(Not, f, lambda pe: emit_Not(pe, emit))
-        setattr(And, f, lambda pe: emit_And(pe, emit))
-        setattr(Many, f, lambda pe: emit_Many(pe, emit))
-        setattr(Many1, f, lambda pe: emit_Many1(pe, emit))
+    setattr(TreeAs, method, ggen_TreeAs(emit, option))
+    setattr(LinkAs, method, ggen_LinkAs(emit, option))
+    setattr(FoldAs, method, ggen_FoldAs(emit, option))
+    setattr(Detree, method, ggen_Detree(emit, option))
 
-        setattr(TreeAs, f, lambda pe: emit_TreeAs(pe, emit, ParseTree))
-        setattr(LinkAs, f, lambda pe: emit_LinkAs(pe, emit, TreeLink))
-        setattr(FoldAs, f, lambda pe: emit_FoldAs(pe, emit, ParseTree, TreeLink))
-        setattr(Detree, f, lambda pe: emit_Detree(pe, emit))
+    # Ref
+    memo = {}
+    setattr(Ref, method, ggen_Ref(emit, memo, option))
 
-        # Ref
-        memo = {}
-        setattr(Ref, f, lambda pe: emit_Ref(pe, memo, emit))
-        return True
-    return False
-
-def generate(p, f = 'dasm'):
-    setting(f)
+def generate2(p, method = 'eval', isByte=False, conv = None):
+    if not hasattr(Char, method):
+        option = ParserOption()
+        option.isByte = isByte
+        setting(method, option)
     if not isinstance(p, ParsingExpression): # Grammar
         p = Ref(p.start().name, p)
-    return getattr(p, f)()
+    f = getattr(p, method)()
 
-def generate_parser(f, conv = None):
     def parse(s, urn = '(unknown)', pos = 0):
+        if isByte:
+            s = bytes(s, 'utf-8') if isinstance(s, str) else bytes(s)
         px = ParserContext(s, urn, pos)
         pos = px.pos
         result = None
@@ -315,3 +553,4 @@ def generate_parser(f, conv = None):
             result = px.ast if px.ast is not None else ParseTree("", px.inputs, pos, px.pos, None)
         return conv(result) if conv is not None else result
     return parse
+
