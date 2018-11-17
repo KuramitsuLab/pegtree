@@ -1,6 +1,8 @@
 from pegpy.parser import *
 import functools
 
+check_header = [1] * 0xc0 + [2] * (0xe0 - 0xc0) + [3] * (0xf0 - 0xe0) + [4] * (0xff - 0xf0 + 1)
+
 # generalized parse function
 
 def mresult(pf):
@@ -25,6 +27,14 @@ def union(px, old, pos, mtree, mlink):
         result[pos] = new[pos]
     return result
 
+#GAny
+
+def p_GAny(px):
+    if px.pos < px.length:
+        px.pos += check_header[px.inputs[px.pos]]
+        px.headpos = max(px.pos, px.headpos)
+        return True
+    return False
 
 #GChar
 
@@ -57,6 +67,18 @@ def emit_GByteRange(pe):
         for c in range(ord(r[0]), ord(r[1])+1):
             n |= (1 << c)
     return mresult(bits(n)) if n < (1 << 0xc0) else mresult(multi_bits(n))
+
+
+def multi_bits(n):
+    def curry(px):
+        if px.pos < px.length:
+            move = px.pos + check_header[px.inputs[px.pos]]
+            if (n & (1 << ord(str(px.inputs[px.pos:move], 'utf-8')))) != 0:
+                px.pos = move
+                px.headpos = max(px.pos, px.headpos)
+                return True
+        return False
+    return curry
 
 def emit_GCharRange(pe):
     chars = pe.chars
