@@ -56,7 +56,7 @@ def emit_GByteRange(pe):
     for r in pe.ranges:
         for c in range(ord(r[0]), ord(r[1])+1):
             n |= (1 << c)
-    return mresult(bits(n))
+    return mresult(bits(n)) if n < (1 << 0xc0) else mresult(multi_bits(n))
 
 def emit_GCharRange(pe):
     chars = pe.chars

@@ -4,6 +4,8 @@ from pegpy.expression import *
 from pegpy.ast import *
 import pegpy.utils as u
 
+check_header = [1] * 0xc0 + [2] * (0xe0 - 0xc0) + [3] * (0xf0 - 0xe0) + [4] * (0xff - 0xf0 + 1)
+
 class ParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
 
@@ -17,9 +19,18 @@ class ParserContext:
 def p_True(px): return True
 def p_False(px): return False
 
+'''
 def p_Any(px):
     if px.pos < px.length:
         px.pos += 1
+        px.headpos = max(px.pos, px.headpos)
+        return True
+    return False
+'''
+
+def p_Any(px):
+    if px.pos < px.length:
+        px.pos += check_header[px.inputs[px.pos]]
         px.headpos = max(px.pos, px.headpos)
         return True
     return False
@@ -67,10 +78,10 @@ def emit_Char(pe):
     return pf_char[pe.a]
 
 def emit_Byte(pe):
-    if len(pe.a) > 1:
-        b = bytes(pe.a, 'utf-8')
+    b = bytes(pe.a, 'utf-8')
+    if len(b) > 1:
         return emit_multi(b, len(b))
-    c = ord(pe.a)
+    c = ord(b)
     key = str(c)
     if not key in pf_char:
         pf_char[key] = emit_char(c)
@@ -85,6 +96,17 @@ def bits(n):
         return False
     return curry
 
+def multi_bits(n):
+    def curry(px):
+        if px.pos < px.length:
+            move = px.pos + check_header[px.inputs[px.pos]]
+            if (n & (1 << ord(str(px.inputs[px.pos:move], 'utf-8')))) != 0:
+                px.pos = move
+                px.headpos = max(px.pos, px.headpos)
+                return True
+        return False
+    return curry
+
 def emit_ByteRange(pe):
     n = 0
     for c in pe.chars:
@@ -92,7 +114,7 @@ def emit_ByteRange(pe):
     for r in pe.ranges:
         for c in range(ord(r[0]), ord(r[1])+1):
             n |= (1 << c)
-    return bits(n)
+    return bits(n) if n < (1 << 0xc0) else multi_bits(n)
 
 def isCharRange(c, ranges, chars):
     for r in ranges:

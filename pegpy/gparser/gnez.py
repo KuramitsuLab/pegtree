@@ -5,11 +5,7 @@ from pegpy.peg import *
 
 def gnez(p, conv=None):
     gsetting('gnez')
-    return generate_gparser(ggenerate(p, 'gnez'), GParserContext, conv)
-
-def nnez(p, conv=None):
-    gsetting('nnez')
-    return generate_gparser(ggenerate(p, 'nnez'), NParserContext,conv)
+    return generate_gparser(ggenerate(p, 'gnez'), conv)
 
 def gsetting(f: str):
     if not hasattr(Char, f):
@@ -17,8 +13,8 @@ def gsetting(f: str):
 
         setattr(Empty, f, lambda self: p_True)
         setattr(Any, f, lambda self: gparser.mresult(p_Any))
-        setattr(Char, f, gparser.emit_GByte) if f == "gnez" else setattr(Char, f, gparser.emit_GChar)
-        setattr(Range, f, gparser.emit_GByteRange) if f == "gnez" else setattr(Range, f, gparser.emit_GCharRange)
+        setattr(Char, f, gparser.emit_GByte)
+        setattr(Range, f, gparser.emit_GByteRange)
 
         setattr(Seq, f, lambda pe: gparser.emit_GSeq(pe, emit, ParseTree, TreeLink))
         setattr(Ore, f, lambda pe: gparser.emit_GOr(pe, emit))
@@ -56,17 +52,6 @@ class GParserContext:
     self.ast = None
     self.result = {}
 
-class NParserContext:
-  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
-
-  def __init__(self, inputs, urn='(unknown)', pos=0):
-    self.inputs = inputs
-    self.pos = pos
-    self.length = len(self.inputs)
-    self.headpos = self.pos
-    self.ast = None
-    self.result = {}
-
 def collect_amb(s, pos, result):
     is_first = True
     for result_pos, r in result.items():
@@ -79,9 +64,9 @@ def collect_amb(s, pos, result):
             prev = TreeLink("", r, prev)
     return prev
 
-def generate_gparser(f, parser_context, conv=None):
+def generate_gparser(f, conv=None):
     def parse(s, urn='(unknown)', pos=0):
-        px = parser_context(s, urn, pos)
+        px = GParserContext(s, urn, pos)
         pos = px.pos
         if not f(px):
             return ParseTree("err", px.inputs, px.headpos, len(s), None)
