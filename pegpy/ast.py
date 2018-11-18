@@ -4,9 +4,9 @@ import pegpy.utils as u
 
 class SourcePosition(object):
     def __init__(self, inputs, spos, epos):
-        self.pos = (inputs, spos, epos)
+        self.pos3 = (inputs, spos, epos)
 
-    def getpos(self):
+    def err(self):
         return u.decode_source(self.pos[0], self.pos[1], self.pos[2])
 
 class ParseTree(object):
@@ -174,8 +174,8 @@ class ParseTreeConv(object):
         for c in args: self.dict[c.__name__] = c
 
     def setpos(self, s, t):
-        if isinstance(s, SourcePosition):
-            s.pos = (t.inputs, t.spos, t.epos)
+        if hasattr(s, 'pos3'):
+            s.pos3 = (t.inputs, t.spos, t.epos)
         return s
 
     def conv(self, t: ParseTree):

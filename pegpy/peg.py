@@ -55,6 +55,10 @@ class Grammar(object):
         self.rules.append(x)
         self.rulemap[key] = x
 
+    def foreach(self, f):
+        for rule in self.rules[:]:
+            f(rule)
+
     def map(self, f):
         for rule in self.rules[:]:
             #before = str(rule.inner)

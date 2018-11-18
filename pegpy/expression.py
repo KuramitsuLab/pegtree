@@ -321,7 +321,6 @@ class Meta(ParsingExpression):
         arg = ', ' + repr(self.opt) if self.opt != None else ''
         return self.tag + '(' + str(self.inner) + arg + ')'
 
-
 # Rule
 
 #class Ref(ParsingExpression, ast.SourcePosition):
@@ -342,7 +341,7 @@ class Ref(ParsingExpression):
         self.peg = peg
 
     def isNonTerminal(self):
-        return self.peg.isDefined(self.name)
+        return self.name in self.peg
 
     def deref(self):
         return self.peg[self.name].inner
@@ -402,8 +401,7 @@ def isAlwaysConsumed(pe: ParsingExpression):
 
         @addmethod(Seq, method)
         def seq(pe):
-            if not isAlwaysConsumed(pe.left): return False
-            return isAlwaysConsumed(pe.right)
+            return isAlwaysConsumed(pe.left) or isAlwaysConsumed(pe.right)
 
         @addmethod(Ore, Alt, method)
         def ore(pe):
@@ -422,6 +420,7 @@ def isAlwaysConsumed(pe: ParsingExpression):
                 memoed = isAlwaysConsumed(pe.deref())
                 pe.setmemo('nonnull', memoed)
             return memoed
+
     return pe.isAlwaysConsumed()
 
 ## TreeState
@@ -486,6 +485,51 @@ def treeState(pe):
 
     return pe.treeState()
 
+def checkTree(pe, inside):
+    if not hasattr(LinkAs, 'checkTree'):
+        method = 'checkTree'
+
+        @addmethod(Empty, Char, Any, Range, method)
+        def term(pe, inside):
+            return pe
+
+        @addmethod(And, Not, Many, Many1, Rule, method)
+        def unary(pe, inside):
+            pe.inner = checkTree(pe.inner, inside)
+            return pe
+
+        @addmethod(Seq, Ore, Alt, method)
+        def binary(pe, inside):
+            pe.left = checkTree(pe.left, inside)
+            pe.right = checkTree(pe.right, inside)
+            return pe
+
+        @addmethod(TreeAs, method)
+        def tree(pe, inside):
+            pe.inner = checkTree(pe.inner, TreeAs)
+            return LinkAs('', pe) if inside == TreeAs else pe
+
+        @addmethod(FoldAs, method)
+        def tree(pe, inside):
+            pe.inner = checkTree(pe.inner, TreeAs)
+            return pe
+
+        @addmethod(LinkAs, method)
+        def fold(pe, inside):
+            ts = treeState(pe.inner)
+            if ts != T.Tree:
+                pe.inner = TreeAs('', pe.inner)
+            checkTree(pe.inner, LinkAs)
+            return pe
+
+        @addmethod(Ref, method)
+        def ref(pe, inside):
+            ts = treeState(pe)
+            if ts == T.Tree and inside == TreeAs:
+                return LinkAs('', pe)
+            return pe
+
+    return pe.checkTree(inside)
 
 ## Setup
 
@@ -720,51 +764,34 @@ def setup_loader(Grammar, pgen):
             print('@TODO', name)
             return EMPTY
 
-    def checkTree(pe, inside):
-        if not hasattr(LinkAs, 'checkTree'):
-            method = 'checkTree'
-
-            @addmethod(Empty, Char, Any, Range, method)
-            def term(pe, inside):
+    def checkRef(pe, consumed: bool, name: str, visited: dict):
+        if isinstance(pe, Seq):
+            pe.left = checkRef(pe.left, consumed, name, visited)
+            if not consumed:
+                consumed = isAlwaysConsumed(pe.left)
+            pe.right = checkRef(pe.right, consumed, name, visited)
+            return pe
+        if isinstance(pe, Ore) or isinstance(pe, Alt):
+            pe.left = checkRef(pe.left, consumed, name, visited)
+            pe.right = checkRef(pe.right, consumed, name, visited)
+            return pe
+        if hasattr(pe, 'inner'):
+            pe.inner = checkRef(pe.inner, consumed, name, visited)
+            return pe
+        if isinstance(pe, Ref):
+            if not consumed and pe.name == name:
+                u.perror(pe.pos3, msg='Left Recursion')
                 return pe
+            if not pe.isNonTerminal():
+                u.perror(pe.pos3, msg='Undefined Name')
+                return Char(pe.name)
+            if not pe.name in visited:
+                visited[pe.name] = True
+                checkRef(pe.deref(), consumed, name, visited)
+        return pe
 
-            @addmethod(And, Not, Many, Many1, Rule, method)
-            def unary(pe, inside):
-                pe.inner = checkTree(pe.inner, inside)
-                return pe
-
-            @addmethod(Seq, Ore, Alt, method)
-            def binary(pe, inside):
-                pe.left = checkTree(pe.left, inside)
-                pe.right = checkTree(pe.right, inside)
-                return pe
-
-            @addmethod(TreeAs, method)
-            def tree(pe, inside):
-                pe.inner = checkTree(pe.inner, TreeAs)
-                return LinkAs('', pe) if inside == TreeAs else pe
-
-            @addmethod(FoldAs, method)
-            def tree(pe, inside):
-                pe.inner = checkTree(pe.inner, TreeAs)
-                return pe
-
-            @addmethod(LinkAs, method)
-            def fold(pe, inside):
-                ts = treeState(pe.inner)
-                if ts != T.Tree:
-                    pe.inner = TreeAs('', pe.inner)
-                checkTree(pe.inner, LinkAs)
-                return pe
-
-            @addmethod(Ref, method)
-            def ref(pe, inside):
-                ts = treeState(pe)
-                if ts == T.Tree and inside == TreeAs:
-                    return LinkAs('', pe)
-                return pe
-
-        return pe.checkTree(inside)
+    def checkRule(rule):
+        rule.inner = checkRef(rule.inner, False, rule.name, {})
 
     PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
     pegparser = pgen(load_tpeg(Grammar('tpeg')))
@@ -775,8 +802,7 @@ def setup_loader(Grammar, pgen):
         f.close()
         t = pegparser(data, path)
         if t == 'err':
-            er = t.getpos()
-            print('SyntaxError ({}:{}:{}+{})'.format(er[0],er[2],er[3],er[1]), '\n', er[4], '\n', er[5])
+            u.perror(t.pos3())
         # load
         for stmt in t.asArray():
             if stmt == 'Rule':
@@ -790,6 +816,7 @@ def setup_loader(Grammar, pgen):
                 doc = stmt['inner'].asString()
                 for n in stmt['name'].asArray():
                     g.example(n.asString(), doc)
+        g.foreach(checkRule)
         g.map(lambda pe: checkTree(pe, None))
 
     Grammar.load = load_grammar

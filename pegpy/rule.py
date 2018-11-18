@@ -13,26 +13,6 @@ def isRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
         return rec if rec else isRec(pe.right, name, visited)
     return False
 
-def checkRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
-    if hasattr(pe, 'left'):
-        if isinstance(pe, Seq):
-            return checkRec(pe.left, name, visited) and checkRec(pe.right, name, visited)
-        else: #Ore, Alt
-            c0 = checkRec(pe.left, name, visited)
-            c1 = checkRec(pe.right, name, visited)
-            return c0 or c1
-    if hasattr(pe, 'inner'):
-        rec = checkRec(pe.inner, name, visited)
-        return True if isinstance(pe, Not) or isinstance(pe, Many) or isinstance(pe, And) else rec
-    if isinstance(pe, Ref):
-        if pe.name == name:
-            print("TODO left recursion", name)
-        if not pe.name in visited:
-            visited[pe.name] = True
-            checkRec(pe.deref(), name, visited)
-        return not pe.prop().isConsumed()
-    return isinstance(pe, Empty) # False if (Char,Range,Any)
-
 def addmethod(*ctags):
     def _match(func):
         name = ctags[-1]
