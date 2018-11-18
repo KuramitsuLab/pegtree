@@ -71,24 +71,9 @@ class Grammar(object):
     def dump(self):
         for r  in self.rules: print(r)
 
-    def testAll(self, combinator = nez, unittest = None):
+    def testAll(self, combinator = nez):
 
         p = {}
-
-        if isinstance(unittest, ut.TestCase):
-            for testcase in self.examples:
-                name, input, output = testcase
-                if not name in p:
-                    p[name] = combinator(pe.Ref(name, self))
-                res = p[name](input)
-                t = str(res).replace(" b'", " '")
-                with unittest.subTest(example = name):
-                    if output == None:
-                        unittest.assertNotEqual(res, 'err')
-                    else:
-                        unittest.assertEqual(t, output)
-            return 
-
         test = 0
         ok = 0
         for testcase in self.examples:
