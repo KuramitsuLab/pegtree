@@ -1,8 +1,8 @@
 #!/usr/local/bin/python
 
+import pegpy.utils as u
 from pegpy.expression import *
 from pegpy.ast import *
-import pegpy.utils as u
 
 class ParserOption(object):
     def __init__(self):
@@ -693,6 +693,7 @@ def generate2(p, method = 'eval', isByte=False, conv = None):
         option = ParserOption()
         option.isByte = isByte
         setting(method, option)
+
     if not isinstance(p, ParsingExpression): # Grammar
         p = Ref(p.start().name, p)
     f = getattr(p, method)()

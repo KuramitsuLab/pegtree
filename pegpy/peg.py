@@ -24,13 +24,9 @@ class Grammar(object):
         self.memo = {}
         self.examples = []
 
-    def __getitem__(self, item):
-        return self.rulemap[item]
-
     def __setattr__(self, key, value):
         if isinstance(value, pe.ParsingExpression):
             self.add(key, value)
-            #print(key, '=', value)
         else:
             super().__setattr__(key, value)
 
@@ -42,13 +38,15 @@ class Grammar(object):
     def __contains__(self, item):
         return item in self.rulemap
 
+    def __getitem__(self, item):
+        return self.rulemap[item]
+
     def namespace(self):
         return 'g'+id(self) if self.ns is None else self.ns
 
     def start(self):
         if len(self.rules) > 0: return self.rules[0]
         return pe.EMPTY
-
 
     def add(self, key: str, x: pe.ParsingExpression):
         x.setpeg(self)
@@ -57,9 +55,14 @@ class Grammar(object):
         self.rules.append(x)
         self.rulemap[key] = x
 
-    def generate(self, algo = 'eval', conv = None):
-        pg.setting(algo)
-        return pg.generate_parser(pg.generate(self.start().deref(), 'dasm'), conv)
+    def map(self, f):
+        for rule in self.rules[:]:
+            #before = str(rule.inner)
+            rule.inner = f(rule.inner)
+            #after = str(rule.inner)
+            #if before != after:
+            #    print('@BEFORE', before)
+            #    print('@AFTER ', after)
 
     def hasmemo(self, key): return key in self.memo
     def getmemo(self, key): return self.memo[key] if key in self.memo else None
@@ -73,7 +76,6 @@ class Grammar(object):
         for r  in self.rules: print(r)
 
     def testAll(self, combinator = nez):
-
         p = {}
         test = 0
         ok = 0

@@ -1,5 +1,4 @@
 from pegpy.expression import *
-from enum import Enum
 
 def isRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
     if isinstance(pe, Ref):
@@ -152,38 +151,3 @@ def testRules(g):
         p = getattr(g, name)
         p.checkRule()
 
-# Rule
-
-class Rule(Ref):
-    __slots__ = ['peg', 'name', 'pos3', 'inner', 'checked']
-    def __init__(self, peg, name, inner):
-        super().__init__(name, peg)
-        self.inner = ParsingExpression.new(inner)
-        self.checked = False
-
-    def __str__(self):
-        return self.name + ' = ' + str(self.inner)
-
-    def deref(self):
-        return self.inner
-
-    def isConsumed(self):
-        if not hasattr(self, 'nonnull'):
-            self.nonnull = isAlwaysConsumed(self.inner)
-        return self.nonnull
-
-    def treeState(self):
-        if not hasattr(self, 'ts'):
-            self.ts = treeState(self.inner)
-        return self.ts
-
-    def checkRule(self):
-        if not self.checked:
-            s0 = str(self.inner)
-            if isRec(self.inner, self.name, {}):
-                checkRec(self.inner, self.name, {})
-            ts = treeState(self.inner)
-            ts = treeCheck(self.inner, ts)
-            s1 = str(self.inner)
-            if s0 != s1:
-                print(self.name, s0, s1)

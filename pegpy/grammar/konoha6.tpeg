@@ -7,7 +7,7 @@
 
 /* Starting Point */
 
-File = _  { ($Statement _)* #Block } EOF
+File = _  { (Statement _)* #Block } EOF
 
 /* Code Layout (Whitespace) */
 
@@ -71,7 +71,7 @@ example Type {name, age}
 
 Type =
 	PrimaryType (
-	    base:^ { "[" $params(Types) "]" #ParamType }
+	    base:^ { "[" params: Types "]" #ParamType }
 	    / base:^ { '->' _ type: Type #FuncType }
 	)*
 
@@ -93,17 +93,17 @@ TypeName = {
 } _
 
 TupleType = {
-	"(" ( $Type ("," $Type)* )? ")"
+	"(" ( Type ("," Type)* )? ")"
 	#TupleType
 }
 
 Types = {
-	( $Type ("," $Type)* )?
+	( Type ("," Type)* )?
 }
 
 DataType =  {
     "{"
-	($(Identifier) ("," $(Identifier))*)?
+	(Identifier ("," Identifier)*)?
 	"}"
 	#DataType
 }
@@ -146,7 +146,7 @@ AssumeDecl = {
 }
 
 Names = {
-  $Identifier ("," $Identifier)*
+  Identifier ("," Identifier)*
 }
 
 /* LetDecl */
@@ -176,7 +176,7 @@ FuncDecl = {
 }
 
 Params = {
-	($Param ( "," $Param )* )?
+	(Param ( "," Param )* )?
 }
 
 Param = {
@@ -192,7 +192,7 @@ gcd(x,y) =
 '''
 
 FuncMatch = {
-    $FuncCase   ($(FuncCase))+
+    FuncCase   FuncCase+
     #FuncMatch
 }
 FuncCase = {
@@ -228,7 +228,7 @@ Expression =
 
 BlockExpr = {
 	"{"
-	($Statement _)*
+	(Statement _)*
 	"}"
 	#BlockExpr
 }
@@ -251,7 +251,7 @@ FuncExpr = {
 }
 
 LParams = {
-  ($(Param) ('\\' $Param)* / '()')
+  (Param ('\\' Param)* / '()')
 }
 
 /* Operator */
@@ -310,7 +310,7 @@ PRE =
 
 SuffixExpr =
 	Primary (
-	    recv:^ { '.' _ name: Identifier "(" $params(Expressions) ")" #MethodExpr }
+	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
 	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
 	    / recv:^ { '_(' _ params: Expressions "]" #IndexExpr }
@@ -318,7 +318,7 @@ SuffixExpr =
 	)*
 
 Expressions = {
-	($Expression)? ( "," $Expression )*
+	Expression? ( "," Expression )*
 }
 
 /* Primary */
@@ -337,11 +337,11 @@ Primary =
   / Constant
   / Identifier
 
-GroupExpr = { "(" ($Expression ("," $Expression)*)?  ")" #TupleExpr }
+GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #TupleExpr }
 
-ListExpr = { "[" ($Expression ("," $Expression)*)? ","?  "]" #ListExpr }
+ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #ListExpr }
 
-DataExpr = { "{" ($KeyValue ("," $KeyValue)*) / (':' _) ","? "}" #DataExpr }
+DataExpr = { "{" (KeyValue ("," KeyValue)*) / (':' _) ","? "}" #DataExpr }
 
 KeyValue = {
 	name: (Identifier/StringExpr)
@@ -371,7 +371,7 @@ example FloatExpr, Expression 1.1e-9
 example TrueExpr, Expression true
 
 TripleExpr =
-	'\'\'\'' { $(TemplateContent)* #TemplateExpr } '\'\'\''
+	'\'\'\'' { TemplateContent* #TemplateExpr } '\'\'\''
 
 TemplateContent =
 	'${' Expression '}'
@@ -391,7 +391,7 @@ ESCAPE =
 IntExpr = {
 	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
 	#IntExpr
-} (left:^ { $right(Var1) #MulExpr })* _
+} (left:^ { right: Var1 #MulExpr })* _
 
 DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
 HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
@@ -403,7 +403,7 @@ LONG_SUFFIX = [lL]
 
 FloatExpr = {
 	FLOAT #DoubleExpr
-} (left:^ { $right(Var1) #MulExpr })* _
+} (left:^ { right: Var1 #MulExpr })* _
 
 Var1  = { [A-Za-z] [0-9]? [']* #NameExpr }  // xy => x * y
       / '(' _ Expression ')'                // 2(n+1) => 2 * (n+1)
@@ -426,7 +426,7 @@ NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'ULL' / 'othing' ) #NullExpr } _
 
 /* CodeMap */
 
-OrigamiFile = _ { ($Origami _)* #Block } EOF
+OrigamiFile = _ { (Origami _)* #Block } EOF
 
 Origami =
     / CodeInclude
