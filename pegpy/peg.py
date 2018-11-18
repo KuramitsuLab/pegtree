@@ -39,6 +39,9 @@ class Grammar(object):
             return self.rulemap[key]
         return super().__getattr__(key)
 
+    def __contains__(self, item):
+        return item in self.rulemap
+
     def namespace(self):
         return 'g'+id(self) if self.ns is None else self.ns
 
@@ -46,8 +49,6 @@ class Grammar(object):
         if len(self.rules) > 0: return self.rules[0]
         return pe.EMPTY
 
-    def isDefined(self, name):
-        return name in self.rulemap
 
     def add(self, key: str, x: pe.ParsingExpression):
         x.setpeg(self)

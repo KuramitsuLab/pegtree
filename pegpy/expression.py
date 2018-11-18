@@ -75,8 +75,12 @@ def lfold(ltag,e):
         return FoldAs(ltag, e.name, ParsingExpression.new(e.inner))
     return e
 
-def grouping(e, f): return '(' + str(e) + ')' if f(e) else str(e)
-def inSeq(e): return isinstance(e, Ore) or isinstance(e, Alt)
+def grouping(e, f):
+    return '(' + str(e) + ')' if f(e) else str(e)
+
+def inSeq(e):
+    return isinstance(e, Ore) or isinstance(e, Alt)
+
 def inUnary(e):
     return (isinstance(e, Ore) and e.right != EMPTY) \
            or isinstance(e, Seq) or isinstance(e, Alt) \
@@ -134,12 +138,13 @@ class Any(ParsingExpression):
 ANY = Any()
 
 #class Ref(ParsingExpression, ast.SourcePosition):
+
 class Ref(ParsingExpression):
     __slots__ = ['peg', 'name', 'pos3']
     def __init__(self, name, peg = None):
         self.name = name
         self.peg = peg
-        self.pos = None
+        self.pos3 = None
     def __str__(self):
         return str(self.name)
 
@@ -157,11 +162,19 @@ class Ref(ParsingExpression):
 
     def prop(self):
         return getattr(self.peg, self.name)
-    def getmemo(self,prefix):
-        return self.peg.getmemo(prefix+self.name)
-    def setmemo(self,prefix,value):
-        return self.peg.setmemo(prefix+self.name,value)
 
+    def getmemo(self, prefix: str, default = None):
+        if self.name in self.peg:
+            rule = self.peg[self.name]
+            if hasattr(rule, prefix):
+                return getattr(rule,prefix)
+            return None
+        else:
+            return default
+
+    def setmemo(self, prefix, value):
+        rule = self.peg[self.name]
+        setattr(rule, prefix, value)
 
 class Seq(ParsingExpression):
     __slots__ = ['left', 'right']
@@ -299,58 +312,15 @@ class Detree(ParsingExpression):
 
 ## Symbol
 
-# @scope(e)
-class Scope(ParsingExpression):
-    __slots__ = ['inner']
-    def __init__(self, inner):
+class State(ParsingExpression):
+    __slots__ = ['func', 'name', 'inner', 'opt']
+    def __init__(self, func, inner, opt = None):
+        self.func = func
         self.inner = ParsingExpression.new(inner)
+        self.name = str(self.inner) if opt is None else opt
+        self.opt = opt
     def __str__(self):
-        return  '@scope(' + str(self.inner) + ')'
-
-# @symbol(A)
-class Symbol(ParsingExpression):
-    __slots__ = ['name', 'inner']
-    def __init__(self, name, inner):
-        self.name = str(inner) if name is None else name
-        self.inner = ParsingExpression.new(inner)
-    def __str__(self):
-        return  '@symbol(' + str(self.inner) + ')'
-
-# @match(A)
-class Match(ParsingExpression):
-    __slots__ = ['name', 'inner']
-    def __init__(self, name, inner):
-        self.name = str(inner) if name is None else name
-        self.inner = ParsingExpression.new(inner)
-    def __str__(self):
-        return  '@match(' + str(self.inner) + ')'
-
-# @exists(A)
-class Exists(ParsingExpression):
-    __slots__ = ['name', 'inner']
-    def __init__(self, name, inner):
-        self.name = str(inner) if name is None else name
-        self.inner = ParsingExpression.new(inner)
-    def __str__(self):
-        return  '@exists(' + str(self.inner) + ')'
-
-# @equals(A)
-class Equals(ParsingExpression):
-    __slots__ = ['name', 'inner']
-    def __init__(self, name, inner):
-        self.name = str(inner) if name is None else name
-        self.inner = ParsingExpression.new(inner)
-    def __str__(self):
-        return  '@contains(' + str(self.inner) + ')'
-
-# @contains(A)
-class Contains(ParsingExpression):
-    __slots__ = ['name', 'inner']
-    def __init__(self, name, inner):
-        self.name = str(inner) if name is None else name
-        self.inner = ParsingExpression.new(inner)
-    def __str__(self):
-        return  '@contains(' + str(self.inner) + ')'
+        return  self.func + '(' + str(self.inner) + ')'
 
 # @on(flag, e)
 class On(ParsingExpression):
@@ -389,6 +359,115 @@ class Meta(ParsingExpression):
     def __str__(self):
         arg = ', ' + repr(self.opt) if self.opt != None else ''
         return self.tag + '(' + str(self.inner) + arg + ')'
+
+## Properties
+
+def addmethod(*ctags):
+    def _match(func):
+        name = ctags[-1]
+        for ctag in ctags[:-1]:
+            setattr(ctag, name, func)
+        return func
+    return _match
+
+def isAlwaysConsumed(pe: ParsingExpression):
+    if not hasattr(Char, 'isAlwaysConsumed'):
+        method = 'isAlwaysConsumed'
+        @addmethod(Char, Any, Range, method)
+        def consumed(pe): return True
+
+        @addmethod(Many, Not, And, Empty, method)
+        def consumed(pe): return False
+
+        @addmethod(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
+        def unary(pe):
+            return isAlwaysConsumed(pe.inner)
+
+        @addmethod(Seq, method)
+        def seq(pe):
+            if not isAlwaysConsumed(pe.left): return False
+            return isAlwaysConsumed(pe.right)
+
+        @addmethod(Ore, Alt, method)
+        def ore(pe):
+            return isAlwaysConsumed(pe.left) and isAlwaysConsumed(pe.right)
+
+        @addmethod(State, method)
+        def state(pe):
+            if pe.func == '@exists': return False
+            return isAlwaysConsumed(pe.inner)
+
+        @addmethod(Ref, method)
+        def memo(pe: Ref):
+            memoed = pe.getmemo('nonnull', True)
+            if memoed == None:
+                pe.setmemo('nonnull', True)
+                memoed = isAlwaysConsumed(pe.deref())
+                pe.setmemo('nonnull', memoed)
+            return memoed
+    return pe.isAlwaysConsumed()
+
+## TreeState
+from enum import Enum
+
+class T(Enum):
+    Unit = 0
+    Tree = 1
+    Mut = 2
+    Fold = 3
+
+def treeState(pe):
+    if not hasattr(Char, 'treeState'):
+        method = 'treeState'
+        @addmethod(Char, Any, Range, Not, Detree, method)
+        def stateUnit(pe):
+            return T.Unit
+
+        @addmethod(TreeAs, method)
+        def stateTree(pe):
+            return T.Tree
+
+        @addmethod(LinkAs, method)
+        def stateMut(pe):
+            return T.Mut
+
+        @addmethod(FoldAs, method)
+        def stateFold(pe):
+            return T.Fold
+
+        @addmethod(Seq, method)
+        def stateSeq(pe):
+            ts0 = treeState(pe.left)
+            return ts0 if ts0 != T.Unit else treeState(pe.right)
+
+        @addmethod(Ore, Alt, method)
+        def stateAlt(pe):
+            ts0 = treeState(pe.left)
+            if ts0 != T.Unit: return ts0
+            ts1 = treeState(pe.right)
+            return T.Mut if ts1 == T.Tree else ts1
+
+        @addmethod(Many, Many1, And, method)
+        def stateMany(pe):
+            ts0 = treeState(pe.inner)
+            return T.Mut if ts0 == T.Tree else ts0
+
+        @addmethod(State, method)
+        def state(pe):
+            if pe.func == '@exists' or pe.func == '@match': return T.Unit
+            return treeState(pe.inner)
+
+
+        @addmethod(Ref, method)
+        def stateRef(pe: Ref):
+            memoed = pe.getmemo(method, T.Unit)
+            if memoed == None:
+                pe.setmemo(method, T.Unit)
+                memoed = treeState(pe.deref())
+                pe.setmemo(method, memoed)
+            return memoed
+
+    return pe.treeState()
 
 ## Setup
 
@@ -609,17 +688,17 @@ def setup_loader(Grammar, pgen):
             elif name == '@off' and len(a) > 2:
                 return Off(a[1].asString(), self.conv(a[2]))
             elif name == '@scope' and len(a) > 1:
-                return Scope(self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             elif name == '@symbol' and len(a) > 1:
-                return Symbol(None, self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             elif name == '@match' and len(a) > 1:
-                return Match(None, self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             elif name == '@exists' and len(a) > 1:
-                return Exists(None, self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             elif name == '@equals' and len(a) > 1:
-                return Equals(None, self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             elif name == '@contains' and len(a) > 1:
-                return Equals(None, self.conv(a[1]))
+                return State(name, self.conv(a[1]))
             print('@TODO', name)
             return EMPTY
 

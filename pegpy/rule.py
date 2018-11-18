@@ -1,12 +1,5 @@
 from pegpy.expression import *
-
-def match(*ctags):
-    def _match(func):
-        name = ctags[-1]
-        for ctag in ctags[:-1]:
-            setattr(ctag, name, func)
-        return func
-    return _match
+from enum import Enum
 
 def isRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
     if isinstance(pe, Ref):
@@ -41,196 +34,117 @@ def checkRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
         return not pe.prop().isConsumed()
     return isinstance(pe, Empty) # False if (Char,Range,Any)
 
-def isAlwaysConsumed(pe: ParsingExpression):
-    if not hasattr(pe, 'cc'):
-        @match(Char, Any, Range, 'cc')
-        def consumed(pe): return True
-
-        @match(Many, Not, And, Empty, 'cc')
-        def consumed(pe): return False
-
-        @match(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, 'cc')
-        def unary(pe):
-            return isAlwaysConsumed(pe.inner)
-
-        @match(Seq, 'cc')
-        def seq(pe):
-            if not isAlwaysConsumed(pe.left): return False
-            return isAlwaysConsumed(pe.right)
-
-        @match(Ore, Alt, 'cc')
-        def ore(pe):
-            return isAlwaysConsumed(pe.left) and isAlwaysConsumed(pe.right)
-
-        @match(Ref, 'cc')
-        def memo(pe: Ref):
-            if not pe.isNonTerminal():
-                return True
-            key = 'null' + pe.name
-            memoed = pe.getmemo('null')
-            if memoed == None:
-                pe.setmemo('null', True)
-                memoed = isAlwaysConsumed(pe.deref())
-                pe.setmemo('null', memoed)
-            return memoed
-    return pe.cc()
-
-## TreeState
-TUnit = 0
-TTree = 1
-TMut = 2
-TFold = 3
-
-def treeState(pe):
-    if not hasattr(pe, 'ts'):
-        @match(Char, Any, Range, Not, Detree, 'ts')
-        def stateUnit(pe):
-            return TUnit
-
-        @match(TreeAs, 'ts')
-        def stateTree(pe):
-            return TTree
-
-        @match(LinkAs, 'ts')
-        def stateMut(pe):
-            return TMut
-
-        @match(FoldAs, 'ts')
-        def stateFold(pe):
-            return TFold
-
-        @match(Seq, 'ts')
-        def stateSeq(pe):
-            ts0 = treeState(pe.left)
-            return ts0 if ts0 != TUnit else treeState(pe.right)
-
-        @match(Ore, Alt, 'ts')
-        def stateAlt(pe):
-            ts0 = treeState(pe.left)
-            if ts0 != TUnit: return ts0
-            ts1 = treeState(pe.right)
-            return TMut if ts1 == TTree else ts1
-
-        @match(Many, Many1, And, 'ts')
-        def stateAlt(pe):
-            ts0 = treeState(pe.inner)
-            return TMut if ts0 == TTree else ts0
-
-        @match(Ref, 'ts')
-        def memo(pe: Ref):
-            if not pe.isNonTerminal(): return TUnit
-            memoed = pe.getmemo('ts')
-            if memoed == None:
-                pe.setmemo('ts', TUnit)
-                memoed = treeState(pe.deref())
-                pe.setmemo('ts', memoed)
-            return memoed
-    return pe.ts()
+def addmethod(*ctags):
+    def _match(func):
+        name = ctags[-1]
+        for ctag in ctags[:-1]:
+            setattr(ctag, name, func)
+        return func
+    return _match
 
 def treeCheck(pe, ts):
     if not hasattr(pe, 'tc'):
-        @match(ParsingExpression, 'tc')
+        @addmethod(ParsingExpression, 'tc')
         def checkEmpty(pe, ts): return pe
 
-        @match(TreeAs, 'tc')
+        @addmethod(TreeAs, 'tc')
         def checkTree(pe, ts):
-            if ts == TUnit:
-                return treeCheck(pe.inner, TUnit)
-            if ts == TTree:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Unit:
+                return treeCheck(pe.inner, T.Unit)
+            if ts == T.Tree:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return pe
-            if ts == TMut:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Mut:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return LinkAs('', pe)
-            if ts == TFold:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Fold:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return FoldAs('', pe.tag, pe.inner)
 
-        @match(LinkAs, 'tc')
+        @addmethod(LinkAs, 'tc')
         def checkLink(pe, ts):
-            if ts == TUnit or ts == TFold:
-                return treeCheck(pe.inner, TUnit)
-            if ts == TTree:
-                return treeCheck(pe.inner, TTree)
-            if ts == TMut:
+            if ts == T.Unit or ts == T.Fold:
+                return treeCheck(pe.inner, T.Unit)
+            if ts == T.Tree:
+                return treeCheck(pe.inner, T.Tree)
+            if ts == T.Mut:
                 ts0 = treeState(pe.inner)
-                if ts0 == TUnit or ts0 == TFold: pe.inner = TreeAs('', treeCheck(pe.inner, TUnit))
-                if ts0 == TTree: pe.inner = treeCheck(pe.inner, TTree)
-                if ts0 == TMut: pe.inner = TreeAs('', treeCheck(pe.inner, TMut))
+                if ts0 == T.Unit or ts0 == T.Fold: pe.inner = TreeAs('', treeCheck(pe.inner, T.Unit))
+                if ts0 == T.Tree: pe.inner = treeCheck(pe.inner, T.Tree)
+                if ts0 == T.Mut: pe.inner = TreeAs('', treeCheck(pe.inner, T.Mut))
                 return pe
 
-        @match(FoldAs, 'tc')
+        @addmethod(FoldAs, 'tc')
         def checkFold(pe, ts):
-            if ts == TUnit:
-                return treeCheck(pe.inner, TUnit)
-            if ts == TTree:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Unit:
+                return treeCheck(pe.inner, T.Unit)
+            if ts == T.Tree:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return TreeAs(pe.tag, pe.inner)
-            if ts == TMut:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Mut:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return LinkAs(pe.ltag, pe.inner)
-            if ts == TFold:
-                pe.inner = treeCheck(pe.inner, TMut)
+            if ts == T.Fold:
+                pe.inner = treeCheck(pe.inner, T.Mut)
                 return pe
 
-        @match(Seq, 'tc')
+        @addmethod(Seq, 'tc')
         def checkSeq(pe, ts):
-            if ts == TUnit or ts == TMut or ts == TFold:
+            if ts == T.Unit or ts == T.Mut or ts == T.Fold:
                 pe.left = treeCheck(pe.left, ts)
                 pe.right = treeCheck(pe.right, ts)
                 return pe
             ts0 = treeState(pe.left)
-            if ts0 == TUnit:
-                pe.left = treeCheck(pe.left, TUnit)
+            if ts0 == T.Unit:
+                pe.left = treeCheck(pe.left, T.Unit)
                 pe.right = treeCheck(pe.right, ts)
                 return pe
-            if ts0 == TTree:
-                pe.left = treeCheck(pe.left, TTree)
-                pe.right = treeCheck(pe.right, TFold)
+            if ts0 == T.Tree:
+                pe.left = treeCheck(pe.left, T.Tree)
+                pe.right = treeCheck(pe.right, T.Fold)
                 return pe
 
-        @match(Ore, Alt, 'tc')
+        @addmethod(Ore, Alt, 'tc')
         def checkAlt(pe, ts):
             pe.left = treeCheck(pe.left, ts)
             pe.right = treeCheck(pe.right, ts)
             return pe
 
-        @match(Many, Many1, 'tc')
+        @addmethod(Many, Many1, 'tc')
         def checkMany(pe, ts):
-            if ts == TUnit:
-                pe.inner = treeCheck(pe.inner, TUnit)
+            if ts == T.Unit:
+                pe.inner = treeCheck(pe.inner, T.Unit)
                 return pe
-            if ts == TTree:
-                pe.inner = treeCheck(pe.inner, TUnit)
+            if ts == T.Tree:
+                pe.inner = treeCheck(pe.inner, T.Unit)
                 return TreeAs('', pe)
-            if ts == TMut:
+            if ts == T.Mut:
                 ts0 = treeState(pe.inner)
-                if ts0 == TUnit or ts0 == TFold: pe.inner = treeCheck(pe.inner, TUnit)
-                if ts0 == TTree or ts0 == TMut: pe.inner = treeCheck(pe.inner, TMut)
+                if ts0 == T.Unit or ts0 == T.Fold: pe.inner = treeCheck(pe.inner, T.Unit)
+                if ts0 == T.Tree or ts0 == T.Mut: pe.inner = treeCheck(pe.inner, T.Mut)
                 return pe
-            if ts == TFold:
-                pe.inner = treeCheck(pe.inner, TFold)
+            if ts == T.Fold:
+                pe.inner = treeCheck(pe.inner, T.Fold)
                 return pe
 
-        @match(Ref, 'tc')
+        @addmethod(Ref, 'tc')
         def checkRef(pe: Ref, ts):
             if not pe.isNonTerminal(): return pe
             ts0 = treeState(pe)
             if ts == ts0: return pe
-            if ts == TUnit: Detree(pe)
-            if ts == TTree:
-                if ts0 == TUnit or ts0 == TMut: return TreeAs('', pe)
-                if ts0 == TFold: return seq(TreeAs('', EMPTY), pe)
-            if ts == TMut:
-                if ts0 == TUnit: return pe
-                if ts0 == TTree: return LinkAs('', pe)
-                if ts0 == TFold: return LinkAs('', seq(TreeAs('', EMPTY), pe))
-            if ts == TFold:
-                if ts0 == TUnit: return pe
-                if ts0 == TTree: return FoldAs('', '', pe)
-                if ts0 == TMut: return FoldAs('', '', TreeAs('', pe))
+            if ts == T.Unit: Detree(pe)
+            if ts == T.Tree:
+                if ts0 == T.Unit or ts0 == T.Mut: return TreeAs('', pe)
+                if ts0 == T.Fold: return seq(TreeAs('', EMPTY), pe)
+            if ts == T.Mut:
+                if ts0 == T.Unit: return pe
+                if ts0 == T.Tree: return LinkAs('', pe)
+                if ts0 == T.Fold: return LinkAs('', seq(TreeAs('', EMPTY), pe))
+            if ts == T.Fold:
+                if ts0 == T.Unit: return pe
+                if ts0 == T.Tree: return FoldAs('', '', pe)
+                if ts0 == T.Mut: return FoldAs('', '', TreeAs('', pe))
     return pe.tc(ts)
-
 
 def testRules(g):
     for name in dir(g):
@@ -246,8 +160,10 @@ class Rule(Ref):
         super().__init__(name, peg)
         self.inner = ParsingExpression.new(inner)
         self.checked = False
+
     def __str__(self):
         return self.name + ' = ' + str(self.inner)
+
     def deref(self):
         return self.inner
 
@@ -255,10 +171,12 @@ class Rule(Ref):
         if not hasattr(self, 'nonnull'):
             self.nonnull = isAlwaysConsumed(self.inner)
         return self.nonnull
+
     def treeState(self):
         if not hasattr(self, 'ts'):
             self.ts = treeState(self.inner)
         return self.ts
+
     def checkRule(self):
         if not self.checked:
             s0 = str(self.inner)

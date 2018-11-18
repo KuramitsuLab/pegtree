@@ -4,15 +4,6 @@ from pegpy.expression import *
 from pegpy.ast import *
 import pegpy.utils as u
 
-class ParserContext:
-  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
-
-  def __init__(self, inputs, urn='(unknown)', pos=0):
-    self.inputs, self.pos = u.encode_source(inputs, urn, pos)
-    self.length = len(self.inputs)
-    self.headpos = self.pos
-    self.ast = None
-
 class ParserOption(object):
     def __init__(self):
         self.isByte = False
@@ -495,8 +486,162 @@ def ggen_Detree(emit, option):
         return unit
     return gen
 
+# SymbolTable
+
+class State(object):
+    __slots__ = ['nameid', 'val', 'sprev']
+
+    def __init__(self, nameid, val, sprev):
+        self.nameid = nameid
+        self.val = val
+        self.sprev = sprev
+
+STATEIDs = {}
+def state_id(name):
+    if not name in STATEIDs:
+        STATEIDs[name] = len(STATEIDs)
+    return STATEIDs[name]
+
+def getstate(state, nameid):
+    while state is not None:
+        if state.nameid == nameid: return state
+        state = state.sprev
+    return None
+
+def ggen_State(emit, option):
+    def gen(pe):
+        if pe.func == '@scope':
+            pf = emit(pe.inner)
+            def scope(px):
+                state = px.state
+                if pf(px):
+                    px.state = state
+                    return True
+                return False
+            return scope
+
+        elif pe.func == '@newscope':
+            pf = emit(pe.inner)
+            def scope(px):
+                state = px.state
+                state = None
+                if pf(px):
+                    px.state = state
+                    return True
+                return False
+            return scope
+
+        elif pe.func == '@symbol':
+            pf = emit(pe.inner)
+            nid = state_id(pe.name)
+            def symbol(px):
+                pos = px.pos
+                if pf(px):
+                    px.state = State(nid, px.inputs[pos:px.pos], px.state)
+                    return True
+                return False
+            return symbol
+
+        elif pe.func == '@exists':
+            nid = state_id(pe.name)
+            return lambda px: getstate(px.state, nid) != None
+
+        elif pe.func == '@match':
+            nid = state_id(pe.name)
+            def match(px):
+                state = getstate(px.state, nid)
+                return state is not None and px.inputs.startswith(state.val, px.pos)
+            return match
+
+        elif pe.func == '@equals':
+            pf = emit(pe.inner)
+            nid = state_id(pe.name)
+            def equals(px):
+                pos = px.pos
+                state = getstate(px.state, nid)
+                return state is not None and pf(px) and px.inputs[pos:px:pos] == state.val
+            return equals
+
+        elif pe.func == '@contains':
+            pf = emit(pe.inner)
+            nid = state_id(pe.name)
+            def contains(px):
+                pos = px.pos
+                state = getstate(px.state, nid)
+                if state is not None and pf(px):
+                    val = px.inputs[pos:px:pos]
+                    while state is not None:
+                        if state.val == val : return True
+                        state = getstate(state)
+                return False
+            return contains
+
+        else:
+            def unknown(px):
+                print('unknown', pe)
+                return False
+            return unknown
+
+    return gen
+
 
 # Ref
+
+class MemoEntry(object):
+    __slots__ = ['key', 'matched', 'mpos', 'mtree', 'mstate']
+    def __init__(self):
+        self.key = -1
+        self.matched = False
+        self.mpos = -1
+        self.mtree = None
+        self.mstate = None
+
+class MemoPoint(object):
+    __slots__ = ['name', 'nid', 'nterms', 'isTree']
+    def __init__(self, name, nid, nterms, isTree):
+        self.name = name
+        self.nid = nid
+        self.nterms = nterms
+        self.isTree = isTree
+
+def memoize(mp, pf):
+    msize = mp.size
+    mid = mp.mp
+    if mp.isTree:
+        def tmemo(px):
+            if mp is None:
+                return pf(px)
+            else:
+                key = msize * px.pos + mid
+                memo = px.memos[key % 127]
+                if memo.key == key and px.state is memo.state:
+                    px.pos = memo.pos
+                    px.ast = memo.ast
+                    return memo.result
+                memo.result = pf(px)
+                memo.key = key
+                memo.pos = px.pos
+                memo.ast = px.ast
+                memo.state = px.state
+                return memo.result
+        return tmemo
+    else:
+        def pmemo(px):
+            if mp is None:
+                return pf(px)
+            else:
+                key = msize * px.pos + mid
+                memo = px.memos[key % 127]
+                if memo.key == key and px.state is memo.state:
+                    px.pos = memo.pos
+                    return memo.result
+                memo.result = pf(px)
+                memo.key = key
+                memo.pos = px.pos
+                memo.state = px.state
+                return memo.result
+        return pmemo
+
 def ggen_Ref(emit, memo: dict, option: ParserOption):
     def gen(ref):
         key = ref.uname()
@@ -506,7 +651,6 @@ def ggen_Ref(emit, memo: dict, option: ParserOption):
             #memo[key] = emit_trace(ref, emit(ref.deref()))
         return memo[key]
     return gen
-
 
 def setting(method, option: ParserOption):
     def emit(pe): return getattr(pe, method)()
@@ -528,9 +672,21 @@ def setting(method, option: ParserOption):
     setattr(FoldAs, method, ggen_FoldAs(emit, option))
     setattr(Detree, method, ggen_Detree(emit, option))
 
+    # State
+    setattr(State, method, ggen_State(emit, option))
+
     # Ref
     memo = {}
     setattr(Ref, method, ggen_Ref(emit, memo, option))
+
+class ParserContext:
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
+
+  def __init__(self, inputs, urn='(unknown)', pos=0):
+    self.inputs, self.pos = u.encode_source(inputs, urn, pos)
+    self.length = len(self.inputs)
+    self.headpos = self.pos
+    self.ast = None
 
 def generate2(p, method = 'eval', isByte=False, conv = None):
     if not hasattr(Char, method):
