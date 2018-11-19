@@ -1,0 +1,2 @@
+Prod = Val (left:^ { name: { [*%/] } right: Val #Prod })*
+Val = { [0-9]+ #Int }
