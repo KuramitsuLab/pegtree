@@ -6,7 +6,7 @@ from functools import reduce
 def inference(p):
     setting()
     type_set = E()
-    generate(p)(E())
+    generate(p)(type_set)
     return type_set
 
 
@@ -40,7 +40,7 @@ class E(object):
 
 def Tempty():
   def curry(type_set):
-    return RETEmpty
+    return RETEmpty()
   return curry
 
 
