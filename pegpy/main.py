@@ -49,17 +49,17 @@ def switch_generator(opt, default = 'math.tpeg'):
 
 def parse(opt, conv=None):
     g = load_grammar(opt)
-    parser = switch_generator(opt)(g)
+    parser = switch_generator(opt)(g, conv)
     inputs = opt['inputs']
     if len(inputs) == 0:
         try:
             while True:
                 s = readlines(bold('>>> '))
-                print(repr(parser(s, conv)))
+                print(repr(parser(s)))
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        print(repr(parser(read_inputs(inputs[0]), conv)))
+        print(repr(parser(read_inputs(inputs[0]))))
     else:
         for file in opt['inputs']:
             st = time.time()
