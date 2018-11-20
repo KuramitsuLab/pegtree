@@ -54,21 +54,24 @@ def emit_multi(s, slen):
 pf_char = {}
 
 
-def bits(n):
+def bits(n, offset=0):
     def curry(px):
-        if px.pos < px.length and (n & (1 << px.inputs[px.pos])) != 0:
-            px.pos += 1
-            px.headpos = max(px.pos, px.headpos)
-            return True
+        if px.pos < px.length:
+            shift = px.inputs[px.pos] - offset
+            if shift >= 0 and (n & (1 << shift)) != 0:
+                px.pos += 1
+                px.headpos = max(px.pos, px.headpos)
+                return True
         return False
     return curry
 
 
-def multi_bits(n):
+def multi_bits(n, offset=0):
     def curry(px):
         if px.pos < px.length:
             move = px.pos + check_header[px.inputs[px.pos]]
-            if (n & (1 << ord(str(px.inputs[px.pos:move], 'utf-8')))) != 0:
+            shift = ord(str(px.inputs[px.pos:move], 'utf-8')) - offset
+            if shift >= 0 and (n & (1 << shift)) != 0:
                 px.pos = move
                 px.headpos = max(px.pos, px.headpos)
                 return True
@@ -119,12 +122,13 @@ def emit_GByte(pe):
 
 def emit_GByteRange(pe):
     n = 0
+    offset = min(list(map(lambda c: ord(c), pe.chars)) + [ord(x[0]) for x in pe.ranges])
     for c in pe.chars:
-        n |= (1 << ord(c))
+        n |= (1 << (ord(c) - offset))
     for r in pe.ranges:
-        for c in range(ord(r[0]), ord(r[1])+1):
+        for c in range(ord(r[0])-offset, ord(r[1])+1-offset):
             n |= (1 << c)
-    return mresult(bits(n)) if n < (1 << 0xc0) else mresult(multi_bits(n))
+    return mresult(bits(n, offset)) if offset < 0x80 and n < (1 << (0x80 - offset)) else mresult(multi_bits(n, offset))
 
 
 def emit_GCharRange(pe):
@@ -138,7 +142,7 @@ def emit_GCharRange(pe):
             return True
         return False
     return mresult(curry)
-        
+
 # GSeq
 
 def gseq2(left, right, mtree, mlink):
@@ -244,7 +248,7 @@ def alt(ls, mtree, mlink):
         for p in ls:
             pos = px.pos
             ast = px.ast
-            if not p(px): 
+            if not p(px):
                 px.pos = pos
                 px.ast = ast
                 continue
