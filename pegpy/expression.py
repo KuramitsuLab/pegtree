@@ -24,10 +24,11 @@ class ParsingExpression(object):
         return And(self)
     def setpeg(self, peg):
         if hasattr(self, 'inner'):
-            self.inner.setpeg(peg)
+            self.inner = self.inner.setpeg(peg)
         if hasattr(self, 'right'):
-            self.left.setpeg(peg)
-            self.right.setpeg(peg)
+            self.left = self.left.setpeg(peg)
+            self.right = self.right.setpeg(peg)
+        return self
     def deref(self):
         return self.inner
     @classmethod
@@ -339,6 +340,10 @@ class Ref(ParsingExpression):
 
     def setpeg(self, peg):
         self.peg = peg
+        if self.name[0].islower() and self.name in peg:  # inlining
+            print('@inline', self.name)
+            return peg[self.name].inner
+        return self
 
     def isNonTerminal(self):
         return self.name in self.peg
@@ -785,6 +790,8 @@ def setup_loader(Grammar, pgen):
             if not pe.isNonTerminal():
                 u.perror(pe.pos3, msg='Undefined Name')
                 return Char(pe.name)
+            if pe.name[0].islower(): # inlining
+                return pe.deref()
             if not pe.name in visited:
                 visited[pe.name] = True
                 checkRef(pe.deref(), consumed, name, visited)

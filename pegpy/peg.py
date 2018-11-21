@@ -52,7 +52,8 @@ class Grammar(object):
         x.setpeg(self)
         if not isinstance(x, pe.Rule):
             x = pe.Rule(self, key, x)
-        self.rules.append(x)
+        if not key[0].islower():
+            self.rules.append(x)
         self.rulemap[key] = x
 
     def foreach(self, f):
