@@ -488,7 +488,7 @@ def ggen_Detree(emit, option):
 
 # SymbolTable
 
-class State(object):
+class StateTable(object):
     __slots__ = ['nameid', 'val', 'sprev']
 
     def __init__(self, nameid, val, sprev):
@@ -537,7 +537,7 @@ def ggen_State(emit, option):
             def symbol(px):
                 pos = px.pos
                 if pf(px):
-                    px.state = State(nid, px.inputs[pos:px.pos], px.state)
+                    px.state = StateTable(nid, px.inputs[pos:px.pos], px.state)
                     return True
                 return False
             return symbol
@@ -680,13 +680,14 @@ def setting(method, option: ParserOption):
     setattr(Ref, method, ggen_Ref(emit, memo, option))
 
 class ParserContext:
-  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast']
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state']
 
   def __init__(self, inputs, urn='(unknown)', pos=0):
-    self.inputs, self.pos = u.encode_source(inputs, urn, pos)
-    self.length = len(self.inputs)
-    self.headpos = self.pos
-    self.ast = None
+      self.inputs, self.pos = u.encode_source(inputs, urn, pos)
+      self.length = len(self.inputs)
+      self.headpos = self.pos
+      self.ast = None
+      self.state = None
 
 def generate2(p, method = 'eval', isByte=False, conv = None):
     if not hasattr(Char, method):
