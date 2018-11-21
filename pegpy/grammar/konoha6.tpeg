@@ -171,7 +171,7 @@ FuncDecl = {
 	"(" params: Params ")"
     (":" type: Type)?
     "="
-    body: (FuncCase / Expression)
+    body: (FuncMatch / Expression)
 	#FuncDecl
 }
 
@@ -313,7 +313,7 @@ SuffixExpr =
 	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
 	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
-	    / recv:^ { '_(' _ params: Expressions "]" #IndexExpr }
+	    / recv:^ { '_(' _ params: Expressions ")" #IndexExpr }
 	    / recv:^ { "[" type: Type "]" #CastExpr }
 	)*
 
@@ -421,7 +421,7 @@ EXPONENT =
 
 TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
 FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
-NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'ULL' / 'othing' ) #NullExpr } _
+NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
 
 
 /* CodeMap */
