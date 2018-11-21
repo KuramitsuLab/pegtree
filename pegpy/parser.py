@@ -256,7 +256,7 @@ def gen_CRange2(chars, ranges, mov):
                     c = px.inputs[px.pos]
                     if isRange(c, ranges) or c in chars:
                         mov(px)
-                    return True
+                        return True
                 return False
             return crange
 

@@ -446,6 +446,7 @@ PropertyName                    = StringLiteral
                                 / IdentifierName
 
 /* Identifier */
+
 Identifier       = !KEYWORD IdentifierName
 
 IdentifierName   = { IDENTIFIER_START IDENTIFIER_PART* #NameExpr }
@@ -473,6 +474,7 @@ UNICODE_LETTER   = UC_LU
                  / UC_LM
                  / UC_LO
                  / UC_NL
+
 UNICODE_COMBINING_MARK          = UC_MN
                  / UC_MC
 UNICODE_DIGIT    = UC_ND
@@ -567,7 +569,6 @@ REGEX_CLASS_CHAR = ![\x5d\\] REGEX_NON_TERMINATOR
                  / REGEX_BACKSLASH_SEQUENCE
 REGEX_FLAGS      = [gimsy]*
 
-/* Example */
 example FunctionDeclaration, SourceElement '''
 function func(){}
 '''
@@ -736,4 +737,3 @@ v = 2;
 
 getValue(); // 1
 '''
-
