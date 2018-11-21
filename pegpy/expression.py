@@ -341,7 +341,7 @@ class Ref(ParsingExpression):
     def setpeg(self, peg):
         self.peg = peg
         if self.name[0].islower() and self.name in peg:  # inlining
-            print('@inline', self.name)
+            # print('@inline', self.name)
             return peg[self.name].inner
         return self
 
