@@ -24,10 +24,11 @@ class ParsingExpression(object):
         return And(self)
     def setpeg(self, peg):
         if hasattr(self, 'inner'):
-            self.inner.setpeg(peg)
+            self.inner = self.inner.setpeg(peg)
         if hasattr(self, 'right'):
-            self.left.setpeg(peg)
-            self.right.setpeg(peg)
+            self.left = self.left.setpeg(peg)
+            self.right = self.right.setpeg(peg)
+        return self
     def deref(self):
         return self.inner
     @classmethod
@@ -339,6 +340,10 @@ class Ref(ParsingExpression):
 
     def setpeg(self, peg):
         self.peg = peg
+        if self.name[0].islower() and self.name in peg:  # inlining
+            # print('@inline', self.name)
+            return peg[self.name].inner
+        return self
 
     def isNonTerminal(self):
         return self.name in self.peg
@@ -363,7 +368,7 @@ class Ref(ParsingExpression):
         setattr(rule, prefix, value)
 
 class Rule(Ref):
-    __slots__ = ['peg', 'name', 'pos3', 'inner', 'checked']
+    __slots__ = ['peg', 'name', 'inner', 'pos3']
     def __init__(self, peg, name, inner):
         super().__init__(name, peg)
         self.inner = ParsingExpression.new(inner)
@@ -522,6 +527,11 @@ def checkTree(pe, inside):
             checkTree(pe.inner, LinkAs)
             return pe
 
+        @addmethod(State, method)
+        def state(pe, inside):
+            pe.inner = checkTree(pe.inner, inside)
+            return pe
+
         @addmethod(Ref, method)
         def ref(pe, inside):
             ts = treeState(pe)
@@ -597,7 +607,7 @@ def load_tpeg(g):
     g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':^') & _ & N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag')
     g.Var = TreeAs('Name', Range('a-z', '$') & Range('A-Z', 'a-z', '0-9', '_')*0)
 
-    g.Func = TreeAs('Func', N%'$Identifier' & '(' & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression _' & ')')
+    g.Func = TreeAs('Func', N%'$Identifier' & '(' & __ & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression __' & ')')
     g.Ref = TreeAs('Ref', N%'NAME')
     g.NAME = '"' & (ParsingExpression.new(r'\"') | ~Range('\\"\n') & ANY)* 0 & '"' | (~Range(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)+0
 
@@ -785,6 +795,8 @@ def setup_loader(Grammar, pgen):
             if not pe.isNonTerminal():
                 u.perror(pe.pos3, msg='Undefined Name')
                 return Char(pe.name)
+            if pe.name[0].islower(): # inlining
+                return pe.deref()
             if not pe.name in visited:
                 visited[pe.name] = True
                 checkRef(pe.deref(), consumed, name, visited)

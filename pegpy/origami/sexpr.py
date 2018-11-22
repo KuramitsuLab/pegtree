@@ -27,8 +27,6 @@ class SExpr(object):
     ORIGAMI = {
         'Unary': 'name expr',
         'Infix': 'name left right',
-        'IfExpr': '#IfExpr cond then else',
-        'FuncExpr': '#FuncExpr params right',
         'ApplyExpr': 'recv params',
         'MethodExpr': 'name recv params',
         'NameExpr' : lambda t: t.asString(),
@@ -404,4 +402,3 @@ class SyntaxMapper(object):
                 #print('@', key, value)
                 self.addSyntax(key, value)
         f.close()
-

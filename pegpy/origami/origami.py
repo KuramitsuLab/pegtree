@@ -235,7 +235,7 @@ def startindex(code: str):
     return index
 
 def endindex(code: str):
-    index = -1
+    index = 0
     if findindex(code, -1):
         index = -1
     if findindex(code, -2):
@@ -250,9 +250,14 @@ def delimfunc(start, end):
             delim = [(STR, ',')]
         if start < len(e):
             ss.pushEXPR(env, e[start])
-            for se in e[start+1:end]:
-                ss.exec(env, se, delim)
-                ss.pushEXPR(env, se)
+            if end == 0:
+                for se in e[start+1:]:
+                    ss.exec(env, se, delim)
+                    ss.pushEXPR(env, se)
+            else:
+                for se in e[start+1:end]:
+                    ss.exec(env, se, delim)
+                    ss.pushEXPR(env, se)
     return curry
 
 def split_code(code: str, delim=None):
@@ -315,7 +320,7 @@ def transpile(t, origami_files = ['common.origami']):
     else:
         for file in origami_files:
             env.load(file)
-    
+
     e = SExpr.of(t)
     # TODO typecheck is HERE
     ss = SourceSection()
