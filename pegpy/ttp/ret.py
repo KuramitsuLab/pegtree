@@ -10,6 +10,12 @@ class RETEmpty(RET):
     return 'Empty'
 
 
+class RETString(RET):
+
+  def __str__(self):
+    return 'String'
+
+
 class RETSeq(RET):
   __slots__ = ['left', 'right']
 
@@ -54,7 +60,7 @@ class RETLabel(RET):
 
 
 class RETVar(RET):
-  __slots__ = ['name', 'inner']
+  __slots__ = ['name']
 
   def __init__(self, name: str):
     self.name = name
