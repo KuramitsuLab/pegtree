@@ -329,7 +329,7 @@ EnumDeclaration = {
 	(anno: AModifiers)?
 	"enum"
 	name: Identifier
-	(impl: SuperInterfaces)?
+	(impl: "implements" ClassOrInterfaceTypes)?
 	"{"
 	list: EnumeratorList ","?
 	(";" body: ClassBody / ";"?)
@@ -511,6 +511,8 @@ ConstructorBody = {
 	"}"
 	#BlockStmt
 }
+
+addArgumentExpressionList = Expression ( "," Expression )*
 
 ExplicitConstructorInvocation = {
 	(type: TypeArguments)?
