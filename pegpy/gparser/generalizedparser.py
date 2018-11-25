@@ -380,8 +380,8 @@ def emit_GLinkAs(pe, emit, mlink):
 def gfold(ltag, tag, pf, mtree, mlink):
     def curry(px):
         ppos = px.pos
-        px.ast = mlink(ltag, px.ast, None)
         past = px.ast
+        px.ast = mlink(ltag, px.ast, None)
         if pf(px):
             for pos, ast in px.result.items():
                 px.result[pos] = mtree(tag, px.inputs, ppos, pos, ast)
