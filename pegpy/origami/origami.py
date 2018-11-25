@@ -1,5 +1,5 @@
 from pegpy.peg import Grammar, nez
-from pegpy.origami.sexpr import SExpr, ListExpr
+from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, String, Char
 import pegpy.utils as u
 
 g = Grammar('konoha6')
@@ -80,7 +80,7 @@ class Env(object):
                         self[key] = d
         #print('DEBUG', self.nameMap)
 
-
+keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
 
 class SourceSection(object):
     __slots__ = ['sb', 'indent', 'tab', 'lf']
@@ -121,17 +121,40 @@ class SourceSection(object):
         self.pushSTR(s)
 
     def pushEXPR(self, env, e: SExpr):
+        def ef(key):
+            if key in env:
+                d = env[key]
+                code = d.code
+                if isinstance(code, str):
+                    code = split_code(code)
+                    d.code = code
+                return code
+            return None
+
         code = e.code
         if code is None:
             keys = e.keys()
             for key in keys:
-                if key in env:
-                    d = env[key]
-                    code = d.code
-                    if isinstance(code, str):
-                        code = split_code(code)
-                        d.code = code
+                code = ef(key)
+                if code is not None:
                     break
+
+        if code is None:
+            if isinstance(e, AtomExpr):
+                if isinstance(e.data, String):
+                    for k in keyList:
+                        key = k.format('String')
+                        code = ef(key)
+                        if code is not None:
+                            break
+
+                elif isinstance(e.data, Char):
+                    for k in keyList:
+                        key = k.format('Char')
+                        code = ef(key)
+                        if code is not None:
+                            break
+
         if code is None:
             self.pushSTR(str(e))
         else:
@@ -177,6 +200,7 @@ def expr2r(env, e): return e[-2]
 def expr3r(env, e): return e[-3]
 def expr4r(env, e): return e[-4]
 def this(env, e): return e
+def exprdata(env, e): return e.data
 
 def exprtype(env, e): return e.ty
 
@@ -210,6 +234,7 @@ def exprfunc(c):
     elif c == '-3': return expr3r
     elif c == '-4': return expr4r
     elif c == 'this': return this
+    elif c == 's': return exprdata
     return expr0
 
 def EXPR(env, e, f, ss):
@@ -264,7 +289,7 @@ def split_code(code: str, delim=None):
     def append_string(l, c):
         if len(c) > 0: l.append((STR, c))
     def append_command(l, c):
-        if c.endswith(')') or c in '0123456789-1-2-3-4':
+        if c.endswith(')') or c in '0123456789-1-2-3-4this':
             l.append((EXPR, exprfunc(c)))
         elif ':' in c:
             if c.startswith(':'):

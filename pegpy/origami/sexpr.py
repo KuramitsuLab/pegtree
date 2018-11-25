@@ -4,11 +4,46 @@ import pegpy.utils as u
 ## Value
 
 class String(object):
-    __slots__ = ['value']
-    def __init__(self, value):
-        self.value = value
+    __slots__ = ['data', 'code']
+    def __init__(self, data):
+        self.data = data
+        self.code = None
     def __str__(self):
-        return repr(self.value)
+        return str(self.data)
+    def __len__(self):
+        return 0
+    def __getitem__(self, item):
+        return None
+    def first(self):
+        return self
+    def keys(self):
+        return []
+    def typeCheck(self, env, ty):
+        if self.ty == None or self.ty is ty:
+            self.ty = ty
+            return
+        ty.match(self.ty)
+
+class Char(object):
+    __slots__ = ['data', 'code']
+    def __init__(self, data):
+        self.data = data
+        self.code = None
+    def __str__(self):
+        return str(self.data)
+    def __len__(self):
+        return 0
+    def __getitem__(self, item):
+        return None
+    def first(self):
+        return self
+    def keys(self):
+        return []
+    def typeCheck(self, env, ty):
+        if self.ty == None or self.ty is ty:
+            self.ty = ty
+            return
+        ty.match(self.ty)
 
 '''
 class Type(object):
@@ -33,7 +68,7 @@ class SExpr(object):
         'IntExpr': lambda t: int(t.asString()),
         'DoubleExpr': lambda t: float(t.asString()),
         'StringExpr': lambda t: String(t.asString()),
-        'CharExpr': lambda t: t.asString(),
+        'CharExpr': lambda t: Char(t.asString()),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
     }
