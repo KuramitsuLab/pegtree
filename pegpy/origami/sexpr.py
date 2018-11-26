@@ -60,6 +60,7 @@ class SExpr(object):
         'CharExpr': lambda t: Char(t.asString()),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
+        'NullExpr': lambda t: 'null',
     }
 
     @classmethod
