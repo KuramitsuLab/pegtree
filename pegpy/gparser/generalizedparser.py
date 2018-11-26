@@ -195,7 +195,7 @@ def gor2(left, right):
         if not left(px):
             px.pos = pos
             px.ast = ast
-            px.result = {pos:ast}
+            px.result = {}
             return right(px)
         return True
     return curry
@@ -208,7 +208,7 @@ def gor(ls):
             if p(px): return True
             px.pos = pos
             px.ast = ast
-            px.result = {pos:ast}
+            px.result = {}
         return False
     return curry
 
