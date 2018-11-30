@@ -99,6 +99,23 @@ def origami(opt):
             t = parser(read_inputs(input))
             print(repr(transpile(env, t)))
 
+def macaron(opt):
+    g = load_grammar(opt, 'macaron.tpeg')
+    parser = switch_generator(opt, 'macaron.tpeg')(g)
+    inputs = opt['inputs']
+    if len(inputs) == 0:
+        try:
+            while True:
+                s = readlines(bold('>>> '))
+                t = parser(s)
+                print(repr(t))
+        except (EOFError, KeyboardInterrupt):
+            pass
+    else :
+        for input in inputs:
+            t = parser(read_inputs(input))
+            print(repr(t))
+
 def nezcc(opt):
     pass
 
