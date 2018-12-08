@@ -4,103 +4,99 @@ class Shape(object):
   pass
 
 
-class HasTreeShape(Shape):
+class NullableShape(Shape):
   pass
 
 
-class SBranchList(HasTreeShape):
-  __slots__ = ['inners']
+class NonNullableShape(Shape):
+  pass
 
-  def __init__(self, inners):
-    self.inners = inners
+
+class Array(NullableShape):
+  __slots__ = ['s']
+
+  def __init__(self, s:NullableShape):
+    self.s = s
+  
+
+  def __str__(self):
+    return str(self.s) + '[]'
+
+
+class Nullable(NullableShape):
+  __slots__ = ['s']
+
+  def __init__(self, s: NonNullableShape):
+    self.s = s
+
+  def __str__(self):
+    return f'nullable<{str(self.s)}>'
+
+
+class Null(NullableShape):
   
   def __str__(self):
-    s = '{'
-    first = True
-    for key, val in self.inners.items():
-      if not first:
-        s += ', '
-      s += key + ' -> ' + str(val)
-    return s + '}'
+    return 'null'
 
 
-class SRecode(HasTreeShape):
-  __slots__ = ['tag', 'branch_list']
+class Record(NonNullableShape):
+  __slots__ = ['b']
 
-  def __init__(self, tag, branch_list):
-    self.tag = tag
-    self.branch_list = branch_list
+  def __init__(self, b):
+    self.b = b
+
   
   def __str__(self):
-    return self.tag + str(self.branch_list)
+    st = '{'
+    f = True
+    for l, s in self.b.items():
+      if f:
+        f = False
+        st += f'{l} = {s}'
+        continue
+      st += f', {l} = {s}'
+    return st + '}'
 
 
-class SArray(Shape):
-  __slots__ = ['inner']
+class Common(NonNullableShape):
+  __slots__ = ['b']
 
-  def __init__(self, inner):
-    self.inner = inner
+  def __init__(self, l, r):
+    self.b = [l, r]
+
+  def __str__(self):
+    st = ''
+    f = True
+    for s in self.b:
+      if f:
+        f = False
+        st += f'{s}'
+        continue
+      st += f' | {s}'
+    return st
+
+
+class Value(NonNullableShape):
+
+  def __str__(self):
+    return 'value'
+
+
+class Error(Exception):
+
+  def __init__(self):
+    self.message = "error"
+
+  def __str__(self):
+    return self.message
+
+
+class Variable(NonNullableShape):
+  __slots__ = ['X']
+
+  def __init__(self, X:str):
+    self.X = X
   
-  def __str__(self):
-    return str(self.inner) + '[]'
-
-
-class SOption(Shape):
-  __slots__ = ['inner']
-
-  def __init__(self, inner):
-    self.inner = inner
-  
-  def __str__(self):
-    return 'Option<' + str(self.inner) + '>'
-
-
-class SCommon(Shape):
-  __slots__ = ['inners']
-
-  def __init__(self, inners):
-    self.inners = inners
-  
-  def __str__(self):
-    s = ''
-    first = True
-    for inner in self.inners:
-      if not first:
-        s += ' | '
-      s += str(inner)
-      first = False
-    return s
-
-
-class Value(HasTreeShape):
-  __slots__ = ['name', 'inner']
-
-  def __init__(self, name, inner):
-    self.inner = inner
-    self.name = name
 
   def __str__(self):
-    return self.name + ': ' + self.inner
-
-
-class SVariable(Shape):
-  __slots__ = ['name']
-
-  def __init__(self, name):
-    self.name = name
-  
-  def __str__(self):
-    return self.name
-
-
-class SString(Shape):
-  
-  def __str__(self):
-    return 'String'
-
-
-class SEmpty(Shape):
-  
-  def __str__(self):
-    return 'Empty'
-
+    return self.X
