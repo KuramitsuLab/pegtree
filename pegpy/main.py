@@ -79,24 +79,25 @@ def peg(opt):
     print(g)
 
 def origami(opt):
-    from pegpy.origami.origami import transpile
+    from pegpy.origami.origami import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
     parser = switch_generator(opt, 'konoha6.tpeg')(g)
     origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
     source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
+    env = transpile_init(origami_files)
     if len(source_files) == 0:
         try:
             while True:
                 s = readlines(bold('>>> '))
                 t = parser(s)
                 print(repr(t))
-                print(repr(transpile(t, origami_files)))
+                print(repr(transpile(env, t)))
         except (EOFError, KeyboardInterrupt):
             pass
     else :
         for input in source_files:
             t = parser(read_inputs(input))
-            print(repr(transpile(t, origami_files)))
+            print(repr(transpile(env, t)))
 
 def nezcc(opt):
     pass

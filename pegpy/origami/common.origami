@@ -23,6 +23,8 @@ require common.origami
 #TupleExpr       = "(${*})" ","
 #ListExpr        = "[${*}]" ","
 
++@2:(Int,Int) -> Int = (${1}+${2})
+
 +                = "(${*})" "+"
 +@2              = (${1}+${2})
 -@2              = (${1}-${2})
@@ -56,3 +58,5 @@ TODO
 #CharExpr        = '${s}'
 
 ->:Int->Float    = float(${1})
+
+Void@1           = ${1}
