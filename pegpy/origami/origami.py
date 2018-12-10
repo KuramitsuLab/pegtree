@@ -6,28 +6,38 @@ g = Grammar('konoha6')
 g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
-def getkeys(stmt, ty):
-    iname = stmt['name'].asString()
-    name = iname.split('@')[0] if '@' in iname else iname
-    keys = []
-    if ty is not None and ty.isFuncType():
-        iname = name + '@' + str(len(ty))
-        keys.append(iname + '@' + str(ty[0]))
-    keys.append(iname)
-    if iname != name:
-        keys.append(name)
-    return keys
-
 class Def(object):
     __slots__ = ['ty', 'libs', 'code']
+
     def __init__(self, ty, libs, code):
-        self.ty = ty
         self.libs = libs
+        self.ty = ty
         self.code = code
+
     def __str__(self):
         return str(self.code)
+
     def __repr__(self):
         return repr(self.code)
+
+    def getcode(self):
+        if isinstance(self.code, str):
+            self.code = split_code(self.code)
+        return self.code
+
+    @classmethod
+    def getkeys(cls, stmt, ty):
+        iname = stmt['name'].asString()
+        name = iname.split('@')[0] if '@' in iname else iname
+        keys = []
+        if ty is not None and ty.isFuncType():
+            iname = name + '@' + str(len(ty))
+            keys.append(iname + '@' + str(ty[0]))
+        keys.append(iname)
+        if iname != name:
+            keys.append(name)
+        return keys
+
 
 class Env(object):
     __slots__ = ['parent', 'nameMap']
@@ -67,7 +77,7 @@ class Env(object):
             #print(stmt)
             if stmt == 'CodeMap':
                 ty = stmt.get('type', None, lambda t: SExpr.of(t))
-                keys = getkeys(stmt, ty)
+                keys = Def.getkeys(stmt, ty)
                 code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else ''
                 if 'delim' in stmt:
                     delim = u.unquote_string(stmt['delim'].asString())
@@ -80,10 +90,86 @@ class Env(object):
                         self[key] = d
         #print('DEBUG', self.nameMap)
 
+## Typing
+
+class Typer(object):
+    def __init__(self):
+        pass
+
+    def asType(self, env, expr, ty):
+        if expr.isUntyped():
+            expr = self.tryType(env, expr, ty)
+        if ty is None or expr.ty is ty:
+            return expr
+        keys = SExpr.makekeys(str(ty), 1, expr.ty)
+        for key in keys:
+            defined = env[key]
+            if defined is None: continue
+            expr = SExpr.new('#Cast', expr)
+            expr.setType(ty)
+            expr.setCode(defined.getcode())
+            return expr
+        print('@type error', ty, expr, expr.ty, keys)
+        return expr
+
+    def typeAt(self, env, expr, n, ty):
+        expr.data[n] = self.asType(env, expr.data[n],ty)
+
+    def tryType(self, env, expr, ty):
+        key = expr.asSymbol()
+        if key.startswith('#'):
+            try:
+                f = getattr(self, key[1:])
+                return f(env, expr, ty)
+            except AttributeError:
+                print('@TODO', key)
+                pass
+        if isinstance(expr, AtomExpr):
+            return self.Var(env, expr, ty)
+        else:
+            return self.Apply(env, expr, ty)
+
+    def Block(self, env, expr, ty):
+        voidTy = expr.ofType('Void')
+        for n in range(1, len(expr)):
+            self.typeAt(env, expr, n, voidTy)
+        return expr
+
+    def Var(self, env, expr, ty):
+        key = expr.asSymbol()
+        defined = env[key]
+        if defined is not None:
+            expr.setType(defined.ty)
+            expr.setCode(defined.getcode())
+            return expr
+        return expr.err('Undefined')
+
+    def Apply(self, env, expr, ty):
+        for n in range(1, len(expr)):
+            self.typeAt(env, expr, n, None)
+        #print('@keys', expr.keys())
+        for key in expr.keys():
+            defined = env[key]
+            #print(key, defined)
+            if defined is None: continue
+            expr.setCode(defined.getcode())
+            if expr.isUntyped() and defined.ty is not None:
+                expr.setType(defined.ty.ret())
+                for n in range(1, len(expr)):
+                    self.typeAt(env, expr, n, defined.ty[n-1])
+            if not expr.isUntyped() and not expr.isUncode():
+                return expr
+        return expr.err('Undefined')
+
+    def Vint(self, env, expr, ty):
+        return expr.setType('Int')
+
 keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
 
 class SourceSection(object):
+
     __slots__ = ['sb', 'indent', 'tab', 'lf']
+
     def __init__(self, indent = 0, tab = '   ', lf = '\n'):
         self.sb = []
         self.indent = indent
@@ -163,10 +249,6 @@ class SourceSection(object):
     def exec(self, env, e, cmds):
         for f, x in cmds:
             f(env, e, x, self)
-
-#ORIGAMI
-
-#ORIGAMI
 
 codekeys = {
     '\t': 'indent', '\f': 'indent++', '\b': 'indent--', '\n': 'newline'
@@ -338,16 +420,20 @@ def split_code(code: str, delim=None):
 #split_code('${indent}')
 #split_code('def ${1}(${*}):\n\t${-1}')
 
-def transpile(t, origami_files = ['common.origami']):
+def transpile_init(origami_files = ['common.origami']):
     env = Env()
     if len(origami_files) == 0:
         env.load('common.origami')
     else:
         for file in origami_files:
             env.load(file)
+    return env
 
+def transpile(env, t):
+    if env is None: env = transpile_init()
     e = SExpr.of(t)
-    # TODO typecheck is HERE
+    Typer().asType(env, e, None)
     ss = SourceSection()
-    ss.pushEXPR(env, e)
+    if not e.perror():
+        ss.pushEXPR(env, e)
     return ss
