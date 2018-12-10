@@ -60,6 +60,7 @@ class SExpr(object):
         'CharExpr': lambda t: Char(t.asString()),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
+        'NullExpr': lambda t: 'null',
     }
 
     @classmethod
@@ -81,7 +82,7 @@ class SExpr(object):
         lconv = rules[key] if key in rules else None
         ##
         def flatadd(l, e):
-            if isinstance(e, ListExpr) and e.first() == '#':
+            if isinstance(e, ListExpr) and len(e) > 1 and e.first() == '#':
                 # flatten [# e e]
                 for e2 in e.data[1:]: l.append(e2)
             else:
