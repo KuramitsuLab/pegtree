@@ -1,4 +1,8 @@
-File = _  { Statements _ #Block } EOF
+File = _  { Statements #Block } _ EOF
+Statements = Statement (^ { _ Statement })*
+Statement = {Sections #Statement} / {JavaScript #JS}
+Sections = Section (^ { "、" Section })* "。"?
+JavaScript = '---' '-'* _ {.*}
 
 /* Code Layout (Whitespace) */
 
@@ -11,16 +15,17 @@ EOL          = ('\r'? '\n') / EOF
 
 /* Identifier */
 
+"。"       = ('。' / '．') _
+"、"       = ('、' / '，') _
+
 Identifier = {NAME+ #NameExpr}
 NAME       = [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜！？・＾＝]
 HIRAGANA   = [ぁ-ゖ]
-MODIFIER   = '少し' / 'めっちゃ' / 'ごっつ' / 'すこし' / 'すごく' / 'ぐーんと' / 'がくっと' / 'ぐぐーんと' / 'がくーん' / 'さいだいまで' / 'さいしょうまで' / '最大まで' / '最小まで'
+ALPHABET   = [a-zａ-ｚA-ZＡ-Ｚ]
+MODIFIER   = '少し' / 'ちょっと' / 'めっちゃ' / 'ごっつ' / 'すこし' / 'すごく' / 'ぐーんと' / 'がくっと' / 'ぐぐーんと' / 'がくーん' / '超' / '大分' / 'だいぶ' / '結構' / 'けっこう'
 PLACE      = '真ん中'
 SUBJECT    = '跳ね返り係数'
-
-Statements = Statement (^ { '、' _ Statement })* '。'?
-
-//( Type ("," Type)* )?
+DIRECTIVE  = 'あれ' / 'これ' / 'それ' / 'あ' / 'そ' / 'こ'
 
 /* Statement */
 
@@ -34,100 +39,120 @@ example Statement ボールAの色は赤。
 example Statement ボールAが真ん中より少し上にある。
 example Statements ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
 
-Statement =
-	(	{subject: Subject object: Object direction: Direct mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {subject: Subject object: Object mod: (Modifier / Expression) direction: Direct verb: Verb #Statement}
-	/ {subject: Subject direction: Direct object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {subject: Subject direction: Direct object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {subject: Subject mod: (Modifier / Expression) object: Object direction: Direct verb: Verb #Statement}
-	/ {subject: Subject mod: (Modifier / Expression) direction: Direct object: Object verb: Verb #Statement}
-	/ {object: Object subject: Subject direction: Direct mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {object: Object subject: Subject mod: (Modifier / Expression) direction: Direct verb: Verb #Statement}
-	/ {object: Object direction: Direct subject: Subject mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {object: Object direction: Direct mod: (Modifier / Expression) subject: Subject verb: Verb #Statement}
-	/ {object: Object mod: (Modifier / Expression) subject: Subject direction: Direct verb: Verb #Statement}
-	/ {object: Object mod: (Modifier / Expression) direction: Direct subject: Subject verb: Verb #Statement}
-	/ {direction: Direct subject: Subject object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {direction: Direct subject: Subject mod: (Modifier / Expression) object: Object verb: Verb #Statement}
-	/ {direction: Direct object: Object subject: Subject mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {direction: Direct object: Object mod: (Modifier / Expression) subject: Subject verb: Verb #Statement}
-	/ {direction: Direct mod: (Modifier / Expression) subject: Subject object: Object verb: Verb #Statement}
-	/ {direction: Direct mod: (Modifier / Expression) object: Object subject: Subject verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) subject: Subject object: Object direction: Direct verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) subject: Subject direction: Direct object: Object verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) object: Object subject: Subject direction: Direct verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) object: Object direction: Direct subject: Subject verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) direction: Direct subject: Subject object: Object verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) direction: Direct object: Object subject: Subject verb: Verb #Statement}
-	/ {subject: Subject object: Object direction: Direct verb: Verb #Statement}
-	/ {subject: Subject direction: Direct object: Object verb: Verb #Statement}
-	/ {object: Object subject: Subject direction: Direct verb: Verb #Statement}
-	/ {object: Object direction: Direct subject: Subject verb: Verb #Statement}
-	/ {direction: Direct subject: Subject object: Object verb: Verb #Statement}
-	/ {direction: Direct object: Object subject: Subject verb: Verb #Statement}
-	/ {subject: Subject object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {subject: Subject mod: (Modifier / Expression) object: Object verb: Verb #Statement}
-	/ {object: Object subject: Subject mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {object: Object mod: (Modifier / Expression) subject: Subject verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) subject: Subject object: Object verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) object: Object subject: Subject verb: Verb #Statement}
-	/ {subject: Subject direction: Direct mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {subject: Subject mod: (Modifier / Expression) direction: Direct verb: Verb #Statement}
-	/ {direction: Direct subject: Subject mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {direction: Direct mod: (Modifier / Expression) subject: Subject verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) subject: Subject direction: Direct verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) direction: Direct subject: Subject verb: Verb #Statement}
-	/ {object: Object direction: Direct mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {object: Object mod: (Modifier / Expression) direction: Direct verb: Verb #Statement}
-	/ {direction: Direct object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {direction: Direct mod: (Modifier / Expression) object: Object verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) object: Object direction: Direct verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) direction: Direct object: Object verb: Verb #Statement}
-	/ {subject: Subject object: Object verb: Verb #Statement}
-	/ {object: Object subject: Subject verb: Verb #Statement}
-	/ {subject: Subject direction: Direct verb: Verb #Statement}
-	/ {direction: Direct subject: Subject verb: Verb #Statement}
-	/ {subject: Subject mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) subject: Subject verb: Verb #Statement}
-	/ {object: Object direction: Direct verb: Verb #Statement}
-	/ {direction: Direct object: Object verb: Verb #Statement}
-	/ {object: Object mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) object: Object verb: Verb #Statement}
-	/ {direction: Direct mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) direction: Direct verb: Verb #Statement}
-	/ {subject: Subject verb: Verb #Statement}
-	/ {object: Object verb: Verb #Statement}
-	/ {direction: Direct verb: Verb #Statement}
-	/ {mod: (Modifier / Expression) verb: Verb #Statement}
-	/ {expr: (Expression / (Identifier !HIRAGANA)) #Statement}
-	/ {verb: Verb #Statement}
+Section =
+	(	{subject: Subjects object: Objects direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
+	/ {subject: Subjects object: Objects mod: (Modifier / Expression) direction: Direct verb: Verb #Section}
+	/ {subject: Subjects direction: Direct object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {subject: Subjects direction: Direct object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {subject: Subjects mod: (Modifier / Expression) object: Objects direction: Direct verb: Verb #Section}
+	/ {subject: Subjects mod: (Modifier / Expression) direction: Direct object: Objects verb: Verb #Section}
+	/ {object: Objects subject: Subjects direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
+	/ {object: Objects subject: Subjects mod: (Modifier / Expression) direction: Direct verb: Verb #Section}
+	/ {object: Objects direction: Direct subject: Subjects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {object: Objects direction: Direct mod: (Modifier / Expression) subject: Subjects verb: Verb #Section}
+	/ {object: Objects mod: (Modifier / Expression) subject: Subjects direction: Direct verb: Verb #Section}
+	/ {object: Objects mod: (Modifier / Expression) direction: Direct subject: Subjects verb: Verb #Section}
+	/ {direction: Direct subject: Subjects object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {direction: Direct subject: Subjects mod: (Modifier / Expression) object: Objects verb: Verb #Section}
+	/ {direction: Direct object: Objects subject: Subjects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {direction: Direct object: Objects mod: (Modifier / Expression) subject: Subjects verb: Verb #Section}
+	/ {direction: Direct mod: (Modifier / Expression) subject: Subjects object: Objects verb: Verb #Section}
+	/ {direction: Direct mod: (Modifier / Expression) object: Objects subject: Subjects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) subject: Subjects object: Objects direction: Direct verb: Verb #Section}
+	/ {mod: (Modifier / Expression) subject: Subjects direction: Direct object: Objects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) object: Objects subject: Subjects direction: Direct verb: Verb #Section}
+	/ {mod: (Modifier / Expression) object: Objects direction: Direct subject: Subjects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) direction: Direct subject: Subjects object: Objects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) direction: Direct object: Objects subject: Subjects verb: Verb #Section}
+	/ {subject: Subjects object: Objects direction: Direct verb: Verb #Section}
+	/ {subject: Subjects direction: Direct object: Objects verb: Verb #Section}
+	/ {object: Objects subject: Subjects direction: Direct verb: Verb #Section}
+	/ {object: Objects direction: Direct subject: Subjects verb: Verb #Section}
+	/ {direction: Direct subject: Subjects object: Objects verb: Verb #Section}
+	/ {direction: Direct object: Objects subject: Subjects verb: Verb #Section}
+	/ {subject: Subjects object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {subject: Subjects mod: (Modifier / Expression) object: Objects verb: Verb #Section}
+	/ {object: Objects subject: Subjects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {object: Objects mod: (Modifier / Expression) subject: Subjects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) subject: Subjects object: Objects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) object: Objects subject: Subjects verb: Verb #Section}
+	/ {subject: Subjects direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
+	/ {subject: Subjects mod: (Modifier / Expression) direction: Direct verb: Verb #Section}
+	/ {direction: Direct subject: Subjects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {direction: Direct mod: (Modifier / Expression) subject: Subjects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) subject: Subjects direction: Direct verb: Verb #Section}
+	/ {mod: (Modifier / Expression) direction: Direct subject: Subjects verb: Verb #Section}
+	/ {object: Objects direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
+	/ {object: Objects mod: (Modifier / Expression) direction: Direct verb: Verb #Section}
+	/ {direction: Direct object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {direction: Direct mod: (Modifier / Expression) object: Objects verb: Verb #Section}
+	/ {mod: (Modifier / Expression) object: Objects direction: Direct verb: Verb #Section}
+	/ {mod: (Modifier / Expression) direction: Direct object: Objects verb: Verb #Section}
+	/ {subject: Subjects object: Objects verb: Verb #Section}
+	/ {object: Objects subject: Subjects verb: Verb #Section}
+	/ {subject: Subjects direction: Direct verb: Verb #Section}
+	/ {direction: Direct subject: Subjects verb: Verb #Section}
+	/ {subject: Subjects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {mod: (Modifier / Expression) subject: Subjects verb: Verb #Section}
+	/ {object: Objects direction: Direct verb: Verb #Section}
+	/ {direction: Direct object: Objects verb: Verb #Section}
+	/ {object: Objects mod: (Modifier / Expression) verb: Verb #Section}
+	/ {mod: (Modifier / Expression) object: Objects verb: Verb #Section}
+	/ {direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
+	/ {mod: (Modifier / Expression) direction: Direct verb: Verb #Section}
+	/ {subject: Subjects verb: Verb #Section}
+	/ {object: Objects verb: Verb #Section}
+	/ {direction: Direct verb: Verb #Section}
+	/ {mod: (Modifier / Expression) verb: Verb #Section}
+	/ {expr: (Expression / (Identifier !HIRAGANA)) #Section}
+	/ {verb: Verb #Section}
 	)
 
+Subjects = {Subject ('と' Subject)* #Subjects} [がは]
+
 Subject  =
-	( {modifier: Identifier 'い' subname: Identifier 'の' mainname: SIdentifier #Subject}
-	/ {subname: Identifier 'の' modifier: Identifier 'い' mainname: SIdentifier #Subject}
-	/ {subname: Identifier 'の' mainname: SIdentifier #Subject}
-	/ {modifier: Identifier 'い' name: SIdentifier #Subject}
-	/ {name: SIdentifier #Subject}
-	) [がは]
+	( {modifier: Identifier 'い' subname: DIdentifier 'の' mainname: SIdentifier #Subject}
+	/ {subname: DIdentifier 'の' modifier: Identifier 'い' mainname: SIdentifier #Subject}
+	/ {subname: DIdentifier 'の' mainname: SIdentifier #Subject}
+	/ {modifier: Identifier 'い' mainname: SIdentifier #Subject}
+	/ {mainname: SIdentifier #Subject}
+	)
+
+Objects = {Object ('と' Object)* #Objects} 'を'
 
 Object   =
-	( {modifier: Identifier 'い' subname: Identifier 'の' mainname: Identifier #Object}
-	/ {subname: Identifier 'の' modifier: Identifier 'い' mainname: Identifier #Object}
-	/ {subname: Identifier 'の' mainname: Identifier #Object}
-	/ {modifier: Identifier 'い' name: Identifier #Object}
-	/ {name: Identifier #Object}
-	) 'を'
+	( {modifier: Identifier 'い' subname: DIdentifier 'の' mainname: Identifier #Object}
+	/ {subname: DIdentifier 'の' modifier: Identifier 'い' mainname: Identifier #Object}
+	/ {subname: DIdentifier 'の' mainname: Identifier #Object}
+	/ {modifier: Identifier 'い' mainname: Identifier #Object}
+	/ {mainname: Identifier #Object}
+	)
 
 Direct   =
-	( {subname: Identifier 'の' mainname: PIdentifier #Direction}
-	/ {name: PIdentifier #Direction}
+	( {subname: DPIdentifier 'の' modifier: Modifier mainname: PIdentifier #Direction}
+	/ {modifier: Modifier subname: DPIdentifier 'の' mainname: PIdentifier #Direction}
+	/ {subname: DPIdentifier 'の' mainname: PIdentifier #Direction}
+	/ {modifier: Modifier mainname: PIdentifier #Direction}
+	/ {mainname: PIdentifier #Direction}
 	) ([へに] / 'まで')
 
 SIdentifier = {(SUBJECT / NAME+) #NameExpr}
+
+DIdentifier = {('半径' / '一辺') length: Expression unit: Unit #Radius}
+						/ {'直径' length: Expression unit: Unit #DRadius}
+						/ {'縦' vertical: Expression vunit: Unit '横' horizontal: Expression hunit: Unit #RectSize}
+						/ {'横' horizontal: Expression hunit: Unit '縦' vertical: Expression vunit: Unit #RectSize}
+						/ {(DIRECTIVE / NAME+) #NameExpr}
+						
 PIdentifier = {(PLACE / NAME+) #NameExpr}
+
+DPIdentifier = {(DIRECTIVE / PLACE / NAME+) #NameExpr}
+
 Modifier = {MODIFIER #Modifier}
-Verb     = {(HIRAGANA / NAME)+ #Verb}
+
+Verb = {(HIRAGANA / NAME)+ #Verb}
+
+Unit = {ALPHABET* #NameExpr}
 
 /* Operator */
 
@@ -160,5 +185,5 @@ example FloatExpr 10.
 IntExpr = { DIGIT+ #IntExpr } _
 FloatExpr = { FLOAT #DoubleExpr } _
 
-DIGIT = [0-9]
+DIGIT = [0-9０-９]
 FLOAT = (DIGIT* '.' DIGIT+) / (DIGIT+ '.' !'.')

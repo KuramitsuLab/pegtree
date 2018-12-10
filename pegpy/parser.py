@@ -706,9 +706,8 @@ def generate2(p, method = 'eval', isByte=False, conv = None):
         pos = px.pos
         result = None
         if not f(px):
-            result = ParseTree("err", px.inputs, px.headpos, len(s), None)
+            result = ParseTree("err", px.inputs, px.headpos, len(px.inputs), None)
         else:
             result = px.ast if px.ast is not None else ParseTree("", px.inputs, pos, px.pos, None)
         return conv(result) if conv is not None else result
     return parse
-
