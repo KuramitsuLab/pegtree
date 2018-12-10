@@ -1,0 +1,97 @@
+Source
+    = _ {
+    "#" 'ユーザ定義' _
+    ($UserDefinition _)*
+    "#" '辞書' _
+    ($Dictionary _)*
+    #Input
+    } EOF
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
+S            = [ \t\n\r] / '　'
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '//' ( !EOL . )* EOL
+EOF          = !.
+EOL          = ('\r'? '\n') / EOF
+
+"#" = '#' / '＃'
+":" = ':' / '：'
+"," = ',' / '、'
+"(" = '(' / '（'
+")" = ')' / '）'
+" " = ' ' / '　'
+"->" = '->' / 'ー＞' / '→'
+
+C
+    = HIRA
+    / KATA
+    / KANJI
+    / MARK
+    / Alphabet
+    / [a-zA-Z0-9]
+
+Any
+    = [a-zA-Z0-9]
+
+HIRA = [ぁ-ん]
+KATA = [ァ-ヶ]
+KANJI = [㐀-䶵一-龠々〇〻]
+MARK = [ー]
+Alphabet = [ａ-ｚＡ-Ｚ０-９]
+
+
+UserDefinition
+    = StructDefine
+
+StructDefine
+    = {
+    $StructName ('は' EOL) _
+    ($StructFactor _)+
+    'からなる'
+    #StructDef
+    }
+StructName
+    = {(!('は' EOL) C)+ #SName}
+StructFactor
+    = {$MapWord _ ":" _ $MapType #SFactor}
+    / {$Word _ ":" _ $Type #SFactor}
+
+Dictionary
+    = {$MapWord _ ":" _ $MapType #Dict}
+    / {$Word _ ":" _ $Type #Dict}
+
+MapWord
+    = {(!":" C)+ #MW}
+Word
+    = {(!":" C)+ #W}
+
+Type
+    = ArrayType
+    / PrimitiveType
+    / StructType
+
+MapType
+    = {$PrimitiveType (_ "," _ $PrimitiveType)* _ "->" _ $MapRetType #Map}
+
+MapRetType
+    = ArrayType
+    / PrimitiveType
+    / StructType
+
+ArrayType
+    = {$BaseType (${'のリスト' #B})+ #Array}
+BaseType
+    = PrimitiveType
+    / StructType
+
+PrimitiveType
+    = {'int' #T}
+    / {'bool' #T}
+    / {'address' #T}
+    / {'string' #T}
+
+StructType
+    = {(!":" !'のリスト' !"->"" C)+ #ST}
+
