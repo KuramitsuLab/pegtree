@@ -54,6 +54,19 @@ def string_intern():
         return d[s]
     return f
 
+# quote
+
+def quote_string(e: str, esc ="'"):
+    sb = []
+    for c in e:
+        if c == '\n' : sb.append(r'\n')
+        elif c == '\t' : sb.append(r'\t')
+        elif c == '\\' : sb.append(r'\\')
+        elif c == '\r' : sb.append(r'\r')
+        elif c in esc : sb.append('\\' + str(c))
+        else: sb.append(c)
+    return "".join(sb)
+
 # unquote
 
 def unquote(s):

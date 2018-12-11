@@ -1,36 +1,75 @@
+from enum import Enum
+import pegpy.utils as u
 
 class ParsingExpression(object):
     def __repr__(self):
         return self.__str__()
+
     def __or__(self,right):
         return Alt(self, ParsingExpression.new(right))
+
     def __and__(self,right):
         return seq(self, ParsingExpression.new(right))
+
     def __xor__(self,right):
         return seq(self,lfold("", ParsingExpression.new(right)))
+
     def __rand__(self,left):
         return seq(ParsingExpression.new(left), self)
+
     def __add__(self,right):
         return seq(Many1(self),ParsingExpression.new(right))
+
     def __mul__(self,right):
         return seq(Many(self),ParsingExpression.new(right))
+
     def __truediv__ (self, right):
         return Ore(self, ParsingExpression.new(right))
+
     def __invert__(self):
         return Not(self)
+
     def __neq__(self):
         return Not(self)
+
     def __pos__(self):
         return And(self)
+
+    def __len__(self):
+        if hasattr(self, 'inner'): return 1
+        if hasattr(self, 'right'): return 2
+        return 0
+
+    def __getitem__(self, item):
+        if hasattr(self, 'inner') and item == 0:
+            return self.inner
+        if hasattr(self, 'right'):
+            if item == 0: return self.left
+            if item == 1: return self.right
+        raise IndexError
+
+    def __iter__(self):
+        if hasattr(self, 'inner'):
+            yield self.inner
+        if hasattr(self, 'right'):
+            yield self.left
+            yield self.right
+
     def setpeg(self, peg):
+        '''
         if hasattr(self, 'inner'):
             self.inner = self.inner.setpeg(peg)
         if hasattr(self, 'right'):
             self.left = self.left.setpeg(peg)
             self.right = self.right.setpeg(peg)
+        '''
+        for pe in self:
+            pe.setpeg(peg)
         return self
+
     def deref(self):
         return self.inner
+
     @classmethod
     def new(cls, e):
         if e == 0: return EMPTY
@@ -39,6 +78,7 @@ class ParsingExpression(object):
                 return EMPTY
             return Char(e)
         return e
+
 
 def ref(name):
     if name.find('/') != -1:
@@ -49,9 +89,11 @@ def ref(name):
         return LinkAs("", Ref(name[1:]))
     return Ref(name)
 
+
 def seq(x,y):
     if isinstance(y, Empty): return x
     return Seq(x, y)
+
 
 def lseq(ls):
     if len(ls) > 1:
@@ -59,11 +101,13 @@ def lseq(ls):
     if len(ls) == 1: return ls[0]
     return EMPTY
 
+
 def lor(ls):
     if len(ls) > 1:
         return Ore(ls[0], lor(ls[1:]))
     if len(ls) == 1: return ls[0]
     return EMPTY
+
 
 def lfold(ltag,e):
     if isinstance(e, Many) and isinstance(e.inner, TreeAs):
@@ -76,29 +120,22 @@ def lfold(ltag,e):
         return FoldAs(ltag, e.name, ParsingExpression.new(e.inner))
     return e
 
+
 def grouping(e, f):
     return '(' + str(e) + ')' if f(e) else str(e)
 
+
 def inSeq(e):
     return isinstance(e, Ore) or isinstance(e, Alt)
+
 
 def inUnary(e):
     return (isinstance(e, Ore) and e.right != EMPTY) \
            or isinstance(e, Seq) or isinstance(e, Alt) \
            or isinstance(e, LinkAs) or isinstance(e, FoldAs)
 
-def quote_string(e: str, esc ="'"):
-    sb = []
-    for c in e:
-        if c == '\n' : sb.append(r'\n')
-        elif c == '\t' : sb.append(r'\t')
-        elif c == '\\' : sb.append(r'\\')
-        elif c == '\r' : sb.append(r'\r')
-        elif c in esc : sb.append('\\' + str(c))
-        else: sb.append(c)
-    return "".join(sb)
+# PEG Grammar
 
-## PEG Grammar
 
 class Empty(ParsingExpression):
     def __str__(self):
@@ -108,10 +145,12 @@ EMPTY = Empty()
 
 class Char(ParsingExpression):
     __slots__ = ['a']
+
     def __init__(self, a):
         self.a = a
     def __str__(self):
-        return "'" + quote_string(self.a) + "'"
+        return "'" + u.quote_string(self.a) + "'"
+
 
 class Range(ParsingExpression):
     __slots__ = ['chars', 'ranges']
@@ -130,21 +169,38 @@ class Range(ParsingExpression):
         self.ranges = tuple(ranges)
 
     def __str__(self):
-        l = tuple(map(lambda x: quote_string(x[0], ']') + '-' + quote_string(x[1], ']'), self.ranges))
-        return "[" + ''.join(l) + quote_string(self.chars, ']') + "]"
+        l = tuple(map(lambda x: u.quote_string(x[0], ']') + '-' + u.quote_string(x[1], ']'), self.ranges))
+        return "[" + ''.join(l) + u.quote_string(self.chars, ']') + "]"
+
 
 class Any(ParsingExpression):
     def __str__(self):
         return '.'
+
 ANY = Any()
+
+def flatten(pe, cls, ls):
+    if isinstance(pe, cls):
+        if isinstance(pe.left, cls):
+            flatten(pe.left, cls, ls)
+        else:
+            ls.append(pe.left)
+        if isinstance(pe.right, cls):
+            flatten(pe.right, cls,ls)
+        else:
+            ls.append(pe.right)
+        return ls
 
 class Seq(ParsingExpression):
     __slots__ = ['left', 'right']
+
     def __init__(self, left, right):
         self.left = ParsingExpression.new(left)
         self.right = ParsingExpression.new(right)
+
     def __str__(self):
         return grouping(self.left, inSeq) + ' ' + grouping(self.right, inSeq)
+
     def flatten(self, ls):
         if isinstance(self.left, Seq):
             self.left.flatten(ls)
@@ -156,15 +212,19 @@ class Seq(ParsingExpression):
             ls.append(self.right)
         return ls
 
+
 class Ore(ParsingExpression):
     __slots__ = ['left', 'right']
+
     def __init__(self, left, right):
         self.left = ParsingExpression.new(left)
         self.right = ParsingExpression.new(right)
+
     def __str__(self):
         if self.right == EMPTY:
             return grouping(self.left, inUnary) + '?'
         return str(self.left) + ' / ' + str(self.right)
+
     def flatten(self, ls):
         if isinstance(self.left, Ore):
             self.left.flatten(ls)
@@ -183,6 +243,7 @@ class Alt(ParsingExpression):
         self.right = ParsingExpression.new(right)
     def __str__(self):
         return str(self.left) + ' | ' + str(self.right)
+
     def flatten(self, ls):
         if isinstance(self.left, Alt):
             self.left.flatten(ls)
@@ -196,32 +257,40 @@ class Alt(ParsingExpression):
 
 class And(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return '&' + grouping(self.inner, inUnary)
 
+
 class Not(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return '!' + grouping(self.inner, inUnary)
 
 class Many(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return grouping(self.inner, inUnary) + '*'
 
 class Many1(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return grouping(self.inner, inUnary) + '+'
-
 
 ## Tree Construction
 
@@ -429,7 +498,6 @@ def isAlwaysConsumed(pe: ParsingExpression):
     return pe.isAlwaysConsumed()
 
 ## TreeState
-from enum import Enum
 
 class T(Enum):
     Unit = 0
@@ -821,7 +889,6 @@ def setup_loader(Grammar, pgen):
                 name = stmt['name'].asString()
                 pexr = stmt['inner']
                 pe = PEGconv.conv(pexr)
-                #print('@load', name, '\n\t', pexr, '\n\t', pe)
                 g.add(name, pe)
             elif stmt == 'Example':
                 pexr = stmt['inner']
