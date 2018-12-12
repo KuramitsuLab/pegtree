@@ -137,9 +137,9 @@ example Statement ボールAが真ん中より少し上にある。
 example Statement ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
 
 example Statement '''
-ボールAについて
-    色は赤
-    半径は５０
+ボールAについて、
+    色は赤とする
+    半径は50とする
 '''
 
 example Statement '''
