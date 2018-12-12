@@ -16,12 +16,14 @@ def dasm(p, conv = None):
 
 
 class Grammar(object):
-    __slots__ = ['ns', 'rules', 'rulemap', 'memo', 'examples']
+    __slots__ = ['ns', 'rules', 'rulemap', 'min', 'max', 'memo', 'examples']
 
     def __init__(self, ns = None):
         self.ns = ns
         self.rules = []
         self.rulemap = {}
+        self.min = 1 << 20
+        self.max = 0
         self.memo = {}
         self.examples = []
         if isinstance(ns, str) and ns.find('=') > 0:

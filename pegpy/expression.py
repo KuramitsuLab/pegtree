@@ -144,9 +144,15 @@ class Char(ParsingExpression):
 
     def __init__(self, a):
         self.a = a
+
     def __str__(self):
         return "'" + u.quote_string(self.a) + "'"
 
+    def setpeg(self, peg):
+        for c in self.a:
+            peg.min = min(ord(c), peg.min)
+            peg.max = max(ord(c), peg.max)
+        return self
 
 class Range(ParsingExpression):
     __slots__ = ['chars', 'ranges']
@@ -159,6 +165,14 @@ class Range(ParsingExpression):
         l = tuple(map(lambda x: u.quote_string(x[0], ']') + '-' + u.quote_string(x[1], ']'), self.ranges))
         return "[" + ''.join(l) + u.quote_string(self.chars, ']') + "]"
 
+    def setpeg(self, peg):
+        for c in self.chars:
+            peg.min = min(ord(c), peg.min)
+            peg.max = max(ord(c), peg.max)
+        for r in self.ranges:
+            peg.min = min(ord(r[0]), peg.min)
+            peg.max = max(ord(r[1]), peg.max)
+        return self
 
 def Range2(*ss):
     chars = []
@@ -379,10 +393,10 @@ class Detree(ParsingExpression):
 class State(ParsingExpression):
     __slots__ = ['func', 'name', 'inner', 'opt']
 
-    def __init__(self, func, inner, opt = None):
+    def __init__(self, func, inner, name = None, opt = None):
         self.func = func
         self.inner = ParsingExpression.new(inner)
-        self.name = str(self.inner) if opt is None else opt
+        self.name = str(self.inner) if name is None else name
         self.opt = opt
 
     def __str__(self):
@@ -516,27 +530,26 @@ def isAlwaysConsumed(pe: ParsingExpression):
     if not hasattr(Char, 'isAlwaysConsumed'):
         method = 'isAlwaysConsumed'
         @addmethod(Char, Any, Range, method)
-        def consumed(pe): return True
+        def char(pe): return True
 
         @addmethod(Many, Not, And, Empty, method)
-        def consumed(pe): return False
+        def empty(pe): return False
 
         @addmethod(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
         def unary(pe):
-            return isAlwaysConsumed(pe.inner)
+            return pe.inner.isAlwaysConsumed()
 
         @addmethod(Seq, method)
         def seq(pe):
-            return isAlwaysConsumed(pe.left) or isAlwaysConsumed(pe.right)
+            return pe.left.isAlwaysConsumed() or pe.right.isAlwaysConsumed()
 
         @addmethod(Ore, Alt, method)
         def ore(pe):
-            return isAlwaysConsumed(pe.left) and isAlwaysConsumed(pe.right)
+            return pe.left.isAlwaysConsumed() and pe.right.isAlwaysConsumed()
 
         @addmethod(State, method)
         def state(pe):
-            if pe.func == '@exists': return False
-            return isAlwaysConsumed(pe.inner)
+            return pe.inner.isAlwaysConsumed()
 
         @addmethod(Ref, method)
         def memo(pe: Ref):
@@ -649,7 +662,6 @@ def treeState(pe):
         def state(pe):
             if pe.func == '@exists' or pe.func == '@match': return T.Unit
             return treeState(pe.inner)
-
 
         @addmethod(Ref, method)
         def stateRef(pe: Ref):
@@ -926,26 +938,26 @@ def setup_loader(Grammar, pgen):
 
         def Func(self, t):
             a = t.asArray()
-            name = a[0].asString()
-            if name == '@if' and len(a) > 1:
+            funcname = a[0].asString()
+            if funcname == '@if' and len(a) > 1:
                 return If(a[1].asString())
-            elif name == '@on' and len(a) > 2:
+            elif funcname == '@on' and len(a) > 2:
                 return On(a[1].asString(), self.conv(a[2]))
-            elif name == '@off' and len(a) > 2:
+            elif funcname == '@off' and len(a) > 2:
                 return Off(a[1].asString(), self.conv(a[2]))
-            elif name == '@scope' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@symbol' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@match' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@exists' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@equals' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@contains' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            print('@TODO', name)
+            elif (funcname == '@scope' or funcname == '@block') and len(a) > 1:
+                return State('@scope', self.conv(a[1]))
+            elif funcname == '@symbol' and len(a) > 1:
+                return State('@symbol', self.conv(a[1]))
+            elif funcname == '@match' and len(a) > 1:
+                return State('@match', self.conv(a[1]))
+            elif funcname == '@exists' and len(a) > 1:
+                return State('@exists', EMPTY, str(self.conv(a[1])))
+            elif funcname == '@equals' and len(a) > 1:
+                return State('@equals', self.conv(a[1]))
+            elif funcname == '@contains' and len(a) > 1:
+                return State('@contains', self.conv(a[1]))
+            print('@TODO', funcname)
             return EMPTY
 
     def checkRef(pe, consumed: bool, name: str, visited: dict):
@@ -995,7 +1007,6 @@ def setup_loader(Grammar, pgen):
                 name = stmt['name'].asString()
                 pexr = stmt['inner']
                 pe = PEGconv.conv(pexr)
-                #print('@flatten', flatten(pe, []))
                 g.add(name, pe, stmt['name'].pos3())
             elif stmt == 'Example':
                 pexr = stmt['inner']

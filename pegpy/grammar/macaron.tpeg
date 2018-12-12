@@ -143,7 +143,7 @@ DIdentifier = {('半径' / '一辺') length: Expression unit: Unit #Radius}
 						/ {'縦' vertical: Expression vunit: Unit '横' horizontal: Expression hunit: Unit #RectSize}
 						/ {'横' horizontal: Expression hunit: Unit '縦' vertical: Expression vunit: Unit #RectSize}
 						/ {(DIRECTIVE / NAME+) #NameExpr}
-						
+
 PIdentifier = {(PLACE / NAME+) #NameExpr}
 
 DPIdentifier = {(DIRECTIVE / PLACE / NAME+) #NameExpr}

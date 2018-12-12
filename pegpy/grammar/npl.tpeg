@@ -1,0 +1,150 @@
+/**
+ * Nihongo Programming Language Grammar
+ *
+ * Authors:
+ *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
+ */
+
+
+File = _  { (Statement "。"? _ )* #Block } _ EOF
+
+
+/* Code Layout (Whitespace) */
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+S            = [ \t　\n\r]
+SPC          = [ \t　]
+BLOCKCOMMENT = '(' ( !')' . )* ')' _
+LINECOMMENT  = '#' ( !EOL . )* EOL
+EOF          = !.
+EOL          = SPC* (('\r'? '\n') / EOF)
+
+Identifier = {NAME+ #NameExpr}
+NAME       = [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜！？・＾＝]
+HIRAGANA   = [ぁ-ゖ]
+ALPHABET   = [a-zａ-ｚA-ZＡ-Ｚ]
+DIGIT      = [0-9０-９]
+
+/* Tokens */
+
+"。"       = [。．.;]
+"、"       = [、，,:]
+
+EOV = [。．、，:., \t　\n\r]
+
+/* Dictionary */
+
+
+ADVERB =
+    'ちょっと' / '少し' /  'すこし' / '超' / '大分' / 'だいぶ' / '結構' / 'けっこう'
+
+// こそあど
+
+DEMONSTRATIVE =
+    / 'これ' / 'ここ' / 'こっち' / 'こちら' / 'こう' / 'こんな'
+    / 'それ' / 'そこ' / 'そっち' / 'そちら' / 'そう' / 'そんな'
+    / 'あれ' / 'あこ' / 'あっち' / 'あちら' / 'あう' / 'あんな'
+    / 'どれ' / 'どこ' / 'どっち' / 'どちら' / 'どう' / 'どんな'
+
+// 連体詞
+
+ADJECTIVE =
+    / '大きな' / 'おおきな' / '小さな' / 'ちいさな'
+    / 'いろいろな' / '変な' / 'おかしな' / '奇妙な'
+    / 'いわゆる'
+//    / 'この' / ’その' / 'あの' / 'どの' / '例の' / 'くだんの' / 'かの'
+
+/* Statement */
+
+Statement =
+    Definition / IfStatement / ExpressionStatement
+
+ExpressionStatement = {
+    (Subject / Object )* Verb
+    #Statement
+}
+
+Definition = {
+    Noun 'について' "、"? EOL
+    (S+ ExpressionStatement "。"? EOL)+
+    #Definition
+}
+
+IfStatement = {
+    ('もし' ExpressionStatement 'ならば' / ExpressionStatement 'とき' ) "、"? EOL
+    (S+ ExpressionStatement "。"? EOL)+
+    #IfStmt
+}
+
+Subject = {
+    NounP (('と' / 'や') NounP)*
+    #Subject
+} [がはも] "、"? S*
+
+Object = {
+    NounP
+    { PARTICLE  #C }
+    #Object
+}  S*
+
+PARTICLE =
+    / 'から' / 'より'
+    / 'まで' / 'へ'
+    / 'を' / 'で' / 'に'
+
+CNJ =
+    / 'とき' / 'ならば'
+
+Verb = {
+    (!CNJ !EOV .)*
+    #Verb
+}
+
+NounP = {
+    AdjectivePhrase* Noun
+    #NP
+}
+
+AdjectivePhrase = { ADJECTIVE #AP } / {
+    ( Noun {'の'} / Noun {'しい'} / Noun {'い'} )
+    #AP
+}
+
+Noun = (NounStr / NounWord)
+
+NounWord2 = {
+  [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜ん]*  #Noun
+} _
+
+NounWord = {
+  . (!PARTICLE ![がのはもとや] !"。" !"、" !S .)*  #Noun
+} _
+
+NounStr = '「' { (!'」' .)* #Noun } '」' _
+
+example Noun ボールがある
+
+example Subject,Statement ボールがある
+
+example Statement ボールAを真ん中におく
+example Statement ボールAが真ん中にある
+example Statement ボールAが上に移動する
+example Statement 小さなボールAの位置が下に30ずれる
+example Statement 地面がある
+example Statement ボールAの色は赤。
+
+example Statement ボールAが真ん中より少し上にある。
+example Statement ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
+
+example Statement '''
+ボールAについて
+    色は赤
+    半径は５０
+'''
+
+example Statement '''
+ボールAが地面にぶつかったとき、
+    ボールAの跳ね返り係数がめっちゃ増える
+    ボールAの色がランダムに変わる
+'''
+
