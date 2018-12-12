@@ -14,6 +14,7 @@ def dasm(p, conv = None):
 
 ## Grammar
 
+
 class Grammar(object):
     __slots__ = ['ns', 'rules', 'rulemap', 'memo', 'examples']
 
@@ -23,6 +24,9 @@ class Grammar(object):
         self.rulemap = {}
         self.memo = {}
         self.examples = []
+        if isinstance(ns, str) and ns.find('=') > 0:
+            self.ns = None
+            self.load(ns)
 
     def __setattr__(self, key, value):
         if isinstance(value, pe.ParsingExpression):
@@ -42,37 +46,30 @@ class Grammar(object):
         return self.rulemap[item]
 
     def namespace(self):
-        return 'g'+id(self) if self.ns is None else self.ns
+        return 'g'+str(id(self)) if self.ns is None else self.ns
 
     def start(self):
         if len(self.rules) > 0: return self.rules[0]
         return pe.Rule(self, 'undefined', pe.EMPTY)
 
-    def add(self, key: str, x: pe.ParsingExpression):
+    def add(self, key: str, x: pe.ParsingExpression, pos3=None):
         x.setpeg(self)
         if not isinstance(x, pe.Rule):
-            x = pe.Rule(self, key, x)
-        if not key[0].islower():
+            x = pe.Rule(self, key, x, pos3)
+        if not pe.Ref.isInlineName(key):
             self.rules.append(x)
         self.rulemap[key] = x
 
-    def foreach(self, f):
+    def forEachRule(self, f):
         for rule in self.rules[:]:
-            f(rule)
-
-    def map(self, f):
-        for rule in self.rules[:]:
-            rule.inner = f(rule.inner)
-            # before = str(rule.inner)
-            # after = str(rule.inner)
-            # if before != after:
-            #    print('@BEFORE', before)
-            #    print('@AFTER ', after)
+            rule.inner = f(rule)
 
     def hasmemo(self, key):
         return key in self.memo
+
     def getmemo(self, key):
         return self.memo[key] if key in self.memo else None
+
     def setmemo(self, key, value): self.memo[key] = value
 
     def example(self, prod, input, output = None):
@@ -80,7 +77,7 @@ class Grammar(object):
             self.examples.append((name, input, output))
 
     def dump(self):
-        for r  in self.rules: print(r)
+        for rule in self.rules: print(rule)
 
     def testAll(self, combinator = nez):
         p = {}

@@ -1,5 +1,6 @@
 #!/usr/local/bin/python
 import sys, os, errno
+from pathlib import Path
 
 # Method
 
@@ -41,8 +42,9 @@ def serror(pos3, msg='SyntaxError'):
         return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg,er[0],er[2],er[3],er[1], er[4], er[5])
     return '{} (unknown source)'.format(msg)
 
-def perror(pos3, msg='SyntaxError'):
-    print(serror(pos3, msg))
+def perror(pos3, msg='SyntaxError', file = sys.stdout):
+    file.write(serror(pos3, msg))
+    file.write(os.linesep)
 
 
 def string_intern():
@@ -127,7 +129,6 @@ def unquote_string(s):
     return ''.join(l)
 
 #Path
-from pathlib import Path
 
 def find_path(file, subdir='grammar'):
     path = Path(file)
