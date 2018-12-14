@@ -66,13 +66,13 @@ ExpressionStatement = {
 
 Definition = {
     Noun 'について' "、"? EOL
-    (S+ ExpressionStatement "。"? EOL)+
+    (SPC+ ExpressionStatement "。"? EOL)+
     #Definition
 }
 
 IfStatement = {
     ('もし' ExpressionStatement 'ならば' / ExpressionStatement 'とき' ) "、"? EOL
-    (S+ ExpressionStatement "。"? EOL)+
+    (SPC+ ExpressionStatement "。"? EOL)+
     #IfStmt
 }
 
@@ -85,7 +85,7 @@ Object = {
     NounP
     { PARTICLE  #C }
     #Object
-}  S*
+}  SPC*
 
 PARTICLE =
     / 'から' / 'より'
@@ -147,4 +147,3 @@ example Statement '''
     ボールAの跳ね返り係数がめっちゃ増える
     ボールAの色がランダムに変わる
 '''
-
