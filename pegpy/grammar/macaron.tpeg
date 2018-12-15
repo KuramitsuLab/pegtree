@@ -1,7 +1,7 @@
 File = _  { Statements #Block } _ EOF
 Statements = Statement (^ { _ Statement })*
 Statement = {Sections #Statement} / {JavaScript #JS}
-Sections = Section (^ { "、" Section })* "。"?
+Sections = Section2 (^ { "、" Section2 })* "。"?
 JavaScript = '---' '-'* _ {.*}
 
 /* Code Layout (Whitespace) */
@@ -19,13 +19,13 @@ EOL          = ('\r'? '\n') / EOF
 "、"       = ('、' / '，') _
 
 Identifier = {NAME+ #NameExpr}
-NAME       = [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜！？・＾＝]
+NAME       = [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜!?！？・＾＝]
 HIRAGANA   = [ぁ-ゖ]
 ALPHABET   = [a-zａ-ｚA-ZＡ-Ｚ]
 MODIFIER   = '少し' / 'ちょっと' / 'めっちゃ' / 'ごっつ' / 'すこし' / 'すごく' / 'ぐーんと' / 'がくっと' / 'ぐぐーんと' / 'がくーん' / '超' / '大分' / 'だいぶ' / '結構' / 'けっこう'
 PLACE      = '真ん中'
 SUBJECT    = '跳ね返り係数'
-DIRECTIVE  = 'あれ' / 'これ' / 'それ' / 'あ' / 'そ' / 'こ'
+DIRECTIVE  = 'あれら' / 'これら' / 'それら' / 'あれ' / 'これ' / 'それ' / 'あ' / 'そ' / 'こ'
 
 /* Statement */
 
@@ -38,6 +38,16 @@ example Statement ボールAの色は赤。
 
 example Statement ボールAが真ん中より少し上にある。
 example Statements ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
+
+Section2 = {
+	( subject: Subjects            // 'は' 'が'
+	/ object: Objects              // 'を'
+	/ direction: Direct            // 'に' 'まで' 'へ'
+	/ mod: (Modifier / Expression) // 'ちょっと' 数字
+	)*
+	verb: Verb                     //　さいごまで
+  #Section
+}
 
 Section =
 	(	{subject: Subjects object: Objects direction: Direct mod: (Modifier / Expression) verb: Verb #Section}
@@ -108,7 +118,7 @@ Section =
 	/ {verb: Verb #Section}
 	)
 
-Subjects = {Subject ('と' Subject)* #Subjects} [がは]
+Subjects = {Subject ('と' Subject)* #Subjects} [がは] _
 
 Subject  =
 	( {modifier: Identifier 'い' subname: DIdentifier 'の' mainname: SIdentifier #Subject}
@@ -118,7 +128,7 @@ Subject  =
 	/ {mainname: SIdentifier #Subject}
 	)
 
-Objects = {Object ('と' Object)* #Objects} 'を'
+Objects = {Object ('と' Object)* #Objects} 'を' _
 
 Object   =
 	( {modifier: Identifier 'い' subname: DIdentifier 'の' mainname: Identifier #Object}
@@ -134,14 +144,14 @@ Direct   =
 	/ {subname: DPIdentifier 'の' mainname: PIdentifier #Direction}
 	/ {modifier: Modifier mainname: PIdentifier #Direction}
 	/ {mainname: PIdentifier #Direction}
-	) ([へに] / 'まで')
+	) ([へに] / 'まで') _
 
 SIdentifier = {(SUBJECT / NAME+) #NameExpr}
 
-DIdentifier = {('半径' / '一辺') length: Expression unit: Unit #Radius}
+DIdentifier = {'半径' length: Expression unit: Unit #Radius}
 						/ {'直径' length: Expression unit: Unit #DRadius}
-						/ {'縦' vertical: Expression vunit: Unit '横' horizontal: Expression hunit: Unit #RectSize}
-						/ {'横' horizontal: Expression hunit: Unit '縦' vertical: Expression vunit: Unit #RectSize}
+						/ {'縦' height: Expression hunit: Unit '横' width: Expression wunit: Unit #RectSize}
+						/ {'横' width: Expression wunit: Unit '縦' height: Expression hunit: Unit #RectSize}
 						/ {(DIRECTIVE / NAME+) #NameExpr}
 
 PIdentifier = {(PLACE / NAME+) #NameExpr}

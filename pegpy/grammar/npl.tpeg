@@ -67,13 +67,13 @@ ExpressionStatement = {
 
 Definition = {
     Noun 'について' "、"? EOL
-    (S+ ExpressionStatement "。"? EOL)+
+    (SPC+ ExpressionStatement "。"? EOL)+
     #Definition
 }
 
 IfStatement = {
     ('もし' ExpressionStatement 'ならば' / ExpressionStatement 'とき' ) "、"? EOL
-    (S+ ExpressionStatement "。"? EOL)+
+    (SPC+ ExpressionStatement "。"? EOL)+
     #IfStmt
 }
 
@@ -86,7 +86,7 @@ Object = {
     NounExpr
     { PARTICLE  #C }
     #Object
-}  S*
+}  SPC*
 
 PARTICLE =
     / 'から' / 'より'

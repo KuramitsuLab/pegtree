@@ -58,17 +58,20 @@ def parse(opt, conv=None):
                 print(repr(parser(s)))
         except (EOFError, KeyboardInterrupt):
             pass
+        return None
     elif len(inputs) == 1:
-        print(repr(parser(read_inputs(inputs[0]))))
+        return repr(parser(read_inputs(inputs[0])))
     else:
+        o = []
         for file in opt['inputs']:
             st = time.time()
             t = parser(read_inputs(file))
             et = time.time()
-            print(file, str((et - st) * 1000.0) + "[ms]: ", t.tag)
+            o.append(file + ' ' + str((et - st) * 1000.0) + "[ms]: " + t.tag)
+        return '\n'.join(o)
 
 def json(opt):
-    parse(opt, lambda t: t.asJSON())
+    return parse(opt, lambda t: t.asJSON())
 
 def example(opt):
     g = load_grammar(opt)
@@ -76,7 +79,7 @@ def example(opt):
 
 def peg(opt):
     g = load_grammar(opt)
-    print(g)
+    return g
 
 def origami(opt):
     from pegpy.origami.origami import transpile, transpile_init
@@ -94,36 +97,34 @@ def origami(opt):
                 print(repr(transpile(env, t)))
         except (EOFError, KeyboardInterrupt):
             pass
+        return None
     else :
+        o = []
         for input in source_files:
             t = parser(read_inputs(input))
-            print(repr(transpile(env, t)))
+            o.append(repr(transpile(env, t)))
+        return '\n'.join(o)
 
-def macaron(opt):
+def macaron(opt, default = 'npl.tpeg'):
     from pegpy.origami.macaron import transpile
-    g = load_grammar(opt, 'macaron.tpeg')
-    parser = switch_generator(opt, 'macaron.tpeg')(g)
+    g = load_grammar(opt, default)
+    parser = switch_generator(opt, default)(g)
     inputs = opt['inputs']
     if len(inputs) == 0:
         try:
             while True:
                 s = readlines(bold('>>> '))
                 t = parser(s)
-                print(transpile(t))
+                print(repr(transpile(t)))
         except (EOFError, KeyboardInterrupt):
             pass
+        return None
     else :
+        o = []
         for input in inputs:
             t = parser(read_inputs(input))
-            if __name__ != "__main__":
-                if t != 'err':
-                    return transpile(t)
-                else:
-                    return t
-            if t != 'err':
-                print(transpile(t))
-            else:
-                print(t)
+            o.append(transpile(t))
+        return '\n'.join(o)
 
 def nezcc(opt):
     pass
@@ -201,7 +202,9 @@ def main():
         d = parse_opt(argv[2:])
         names = globals()
         if cmd in names:
-            names[cmd](d)
+            result = names[cmd](d)
+            if result is not None:
+                print(result)
         else:
             raise CommandError(d)
     except CommandError as e:
