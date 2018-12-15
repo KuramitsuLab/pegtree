@@ -24,6 +24,7 @@ NAME       = [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜！？・
 HIRAGANA   = [ぁ-ゖ]
 ALPHABET   = [a-zａ-ｚA-ZＡ-Ｚ]
 DIGIT      = [0-9０-９]
+W          = [A-Za-z0-9_]
 
 /* Tokens */
 
@@ -77,12 +78,12 @@ IfStatement = {
 }
 
 Subject = {
-    NounP (('と' / 'や') NounP)*
+    NounExpr
     #Subject
 } [がはも] "、"? S*
 
 Object = {
-    NounP
+    NounExpr
     { PARTICLE  #C }
     #Object
 }  S*
@@ -93,17 +94,21 @@ PARTICLE =
     / 'を' / 'で' / 'に'
 
 CNJ =
-    / 'とき' / 'ならば'
+    / 'とき' / 'ならば' / 'ら'
 
 Verb = {
     (!CNJ !EOV .)*
     #Verb
 }
 
-NounP = {
-    AdjectivePhrase* Noun
-    #NP
-}
+NounExpr = NounAnd (^{ SPC* ('または' "、”? NounAnd) #OR})*
+
+NounAnd = NounTerm (^{ SPC* (('および' / 'かつ') "、”? NounTerm) #OR})*
+
+NounTerm = NounP (^{ SPC* Identifier #Param})?
+         / Ideintifer
+
+NounP = ({ AdjectivePhrase+ Noun #NP } / Noun) "、"?
 
 AdjectivePhrase = { ADJECTIVE #AP } / {
     ( Noun {'の'} / Noun {'しい'} / Noun {'い'} )
@@ -113,11 +118,16 @@ AdjectivePhrase = { ADJECTIVE #AP } / {
 Noun = (NounStr / NounWord)
 
 NounWord2 = {
-  [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝー〜ん]*  #Noun
+  [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝぁ-ゖー〜ん]*  #Noun
 } _
 
+NGPHRASE =
+    / 'から' / 'より' / 'まで' / 'および' / 'または' / 'かつ'
+
+NGWORD = [をでにがのはもとや。、．，]
+
 NounWord = {
-  . (!PARTICLE ![がのはもとや] !"。" !"、" !S .)*  #Noun
+  . (!NGWORD !NGPHRASE [一-龥ａ-ｚＡ-Ｚ０-９ァ-ヺｦ-ﾝー〜])*  #Noun
 } _
 
 NounStr = '「' { (!'」' .)* #Noun } '」' _
@@ -148,3 +158,14 @@ example Statement '''
     ボールAの色がランダムに変わる
 '''
 
+example Statement 身分証明書および印鑑をご持参ください。
+example Statement 山間部では雨、または、雪が降るでしょう。
+example Statement 職場に入ったら、第一に、挨拶をする
+example Statement ボールAの色はrandom(色リスト)
+
+example Statement aがbより大きくかつbがcより大きいとき
+
+/* programming language */
+
+Identifier = { NAME [']* #NameExpr } _
+NAME       = [a-zA-Z_] W*
