@@ -976,10 +976,10 @@ def setup_loader(Grammar, pgen):
             return pe
         if isinstance(pe, Ref):
             if not consumed and pe.name == name:
-                u.perror(pe.pos3, msg='Left Recursion')
+                u.perror(pe.pos3, msg='Left Recursion: ' + str(pe.name))
                 return pe
             if not pe.isNonTerminal():
-                u.perror(pe.pos3, msg='Undefined Name')
+                u.perror(pe.pos3, msg='Undefined Name: ' + str(pe.name))
                 return Char(pe.name)
             if Ref.isInlineName(pe.name):
                 return pe.deref()

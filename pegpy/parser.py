@@ -497,6 +497,9 @@ class StateTable(object):
         self.val = val
         self.sprev = sprev
 
+    def __str__(self):
+        return str(self.sprev) + ' ' + str((self.nameid, self.val))
+
 STATEIDs = {}
 def state_id(name):
     if not name in STATEIDs:
@@ -551,7 +554,10 @@ def ggen_State(emit, option):
             nid = state_id(pe.name)
             def match(px):
                 state = getstate(px.state, nid)
-                return state is not None and px.inputs.startswith(state.val, px.pos)
+                if state is not None and px.inputs.startswith(state.val, px.pos):
+                    px.pos += len(state.val)
+                    return True
+                return False
             return match
 
         elif pe.func == '@equals':

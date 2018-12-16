@@ -12,8 +12,11 @@ File = _  { (Statement "。"? _ )* #Block } _ EOF
 /* Code Layout (Whitespace) */
 
 _            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
 S            = [ \t　\n\r]
 SPC          = [ \t　]
+INDENT       = [ \t　]+
+
 BLOCKCOMMENT = '(' ( !')' . )* ')' _
 LINECOMMENT  = '#' ( !EOL . )* EOL
 EOF          = !.
@@ -33,8 +36,18 @@ W          = [A-Za-z0-9_]
 
 EOV = [。．、，:., \t　\n\r]
 
-/* Dictionary */
+"{" = [{｛] _
+"}" = [}｝] _
+"[" = [[［【] _
+"]" = [\]］】] _
+"(" = [(（] _
+")" = [)）] _
+"=" = [=＝] ![=＝] _
+"," = [,、] _
+";" = ([;；] _)+
+":" = [:：] _
 
+/* Dictionary */
 
 ADVERB =
     'ちょっと' / '少し' /  'すこし' / '超' / '大分' / 'だいぶ' / '結構' / 'けっこう'
@@ -55,27 +68,80 @@ ADJECTIVE =
     / 'いわゆる'
 //    / 'この' / ’その' / 'あの' / 'どの' / '例の' / 'くだんの' / 'かの'
 
+
 /* Statement */
 
 Statement =
-    Definition / IfStatement / ExpressionStatement
+    / Definition
+    / IfStatement
+    / VarDecl
+    / ExpressionStatement
+
+Definition = {
+    Noun 'について' "、"? EOL
+    @scope(
+        @symbol(INDENT) Statement "。"? EOL
+        (@match(INDENT) Statement "。"? EOL)*
+    )
+    #Definition
+}
+
+example Definition, Statement '''
+ボールについて、
+    色は赤とする
+    半径は50とする
+    重量は0
+'''
+
+IfStatement = {
+    ('もし' Expression 'なら' 'ば'? / Expression 'とき' ) "、"? EOL
+    @scope(
+        @symbol(INDENT) Statement "。"? EOL
+        (@match(INDENT) Statement "。"? EOL)*
+    )
+    #IfStmt
+}
+
+example Statement '''
+ボールAが地面にぶつかったとき、
+    ボールAの跳ね返り係数がめっちゃ増える
+    ボールAの色がランダムに変わる
+'''
+
+example VarDecl, Statement 半径を10とする
+example VarDecl, Statement 半径Rを10とする
+example VarDecl, Statement ボールの半径を10とする
+example VarDecl, Statement ボール.xを10 とする
+
+VarDecl = {
+    left: NounRef _ [をは=] "、"? right: Expression 'とする'?
+    #VarDecl
+}
+
+example NounRef ボールの半径
+example NounRef ボール.x
+
+NounRef =
+    (Noun / Identifier) ( ^{ [の.] (Noun / Identifier) #Get } )*
+
+Noun = (NounStr / NounWord) _ (type:^ { name: Identifier #Param} )?
+
+NGPHRASE =
+    / 'から' / 'より' / 'まで' / 'および' / 'または' / 'かつ'
+
+NGWORD = [をでにがのはもとや。、．，]
+
+NounWord = {
+  [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺぁ-ゖー〜ん]
+  (!NGWORD !NGPHRASE [一-龥ａ-ｚＡ-Ｚ０-９ァ-ヺぁ-ゖー〜])*  #Noun
+} _
+
+NounStr = '「' { (!'」' .)* #Noun } '」' _
 
 ExpressionStatement = {
     (Subject / Object )* Verb
     #Statement
-}
-
-Definition = {
-    Noun 'について' "、"? EOL
-    (SPC+ ExpressionStatement "。"? EOL)+
-    #Definition
-}
-
-IfStatement = {
-    ('もし' ExpressionStatement 'ならば' / ExpressionStatement 'とき' ) "、"? EOL
-    (SPC+ ExpressionStatement "。"? EOL)+
-    #IfStmt
-}
+} / Expression
 
 Subject = {
     NounExpr
@@ -94,19 +160,19 @@ PARTICLE =
     / 'を' / 'で' / 'に'
 
 CNJ =
-    / 'とき' / 'ならば' / 'ら'
+    / 'とき' / 'なら' / 'ら'
 
 Verb = {
     (!CNJ !EOV .)*
     #Verb
 }
 
-NounExpr = NounAnd (^{ SPC* ('または' "、”? NounAnd) #OR})*
+NounExpr = NounAnd (^{ SPC* ('または' _ NounAnd) #OR})*
 
-NounAnd = NounTerm (^{ SPC* (('および' / 'かつ') "、”? NounTerm) #OR})*
+NounAnd = NounTerm (^{ SPC* ( ('および' / 'かつ')  NounTerm) #AND})*
 
 NounTerm = NounP (^{ SPC* Identifier #Param})?
-         / Ideintifer
+         / Identifier
 
 NounP = ({ AdjectivePhrase+ Noun #NP } / Noun) "、"?
 
@@ -115,57 +181,223 @@ AdjectivePhrase = { ADJECTIVE #AP } / {
     #AP
 }
 
-Noun = (NounStr / NounWord)
-
-NounWord2 = {
-  [一-龥a-zａ-ｚA-ZＡ-Ｚ0-9０-９ァ-ヺｦ-ﾝぁ-ゖー〜ん]*  #Noun
-} _
-
-NGPHRASE =
-    / 'から' / 'より' / 'まで' / 'および' / 'または' / 'かつ'
-
-NGWORD = [をでにがのはもとや。、．，]
-
-NounWord = {
-  . (!NGWORD !NGPHRASE [一-龥ａ-ｚＡ-Ｚ０-９ァ-ヺｦ-ﾝー〜])*  #Noun
-} _
-
-NounStr = '「' { (!'」' .)* #Noun } '」' _
-
 example Noun ボールがある
 
 example Subject,Statement ボールがある
 
-example Statement ボールAを真ん中におく
-example Statement ボールAが真ん中にある
-example Statement ボールAが上に移動する
-example Statement 小さなボールAの位置が下に30ずれる
-example Statement 地面がある
-example Statement ボールAの色は赤。
+//example Statement ボールAを真ん中におく
+//example Statement ボールAが真ん中にある
+//example Statement ボールAが上に移動する
+//example Statement 小さなボールAの位置が下に30ずれる
+//example Statement 地面がある
+//example Statement ボールAの色は赤。
 
-example Statement ボールAが真ん中より少し上にある。
-example Statement ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
+//example Statement ボールAが真ん中より少し上にある。
+//example Statement ボールAが地面にぶつかったとき、ボールAの跳ね返り係数がめっちゃ増えて、ボールAの色がランダムに変わる。
 
-example Statement '''
-ボールAについて、
-    色は赤とする
-    半径は50とする
-'''
+//example Statement 身分証明書および印鑑をご持参ください。
+//example Statement 山間部では雨、または、雪が降るでしょう。
+//example Statement 職場に入ったら、第一に、挨拶をする
+//example Statement ボールAの色はrandom(色リスト)
 
-example Statement '''
-ボールAが地面にぶつかったとき、
-    ボールAの跳ね返り係数がめっちゃ増える
-    ボールAの色がランダムに変わる
-'''
-
-example Statement 身分証明書および印鑑をご持参ください。
-example Statement 山間部では雨、または、雪が降るでしょう。
-example Statement 職場に入ったら、第一に、挨拶をする
-example Statement ボールAの色はrandom(色リスト)
-
-example Statement aがbより大きくかつbがcより大きいとき
+//example Statement aがbより大きくかつbがcより大きいとき
 
 /* programming language */
 
 Identifier = { NAME [']* #NameExpr } _
+Type       = { NAME #ClassType }
 NAME       = [a-zA-Z_] W*
+
+/* Expression */
+
+Expression =
+    / BlockExpr
+	/ IfExpr
+	/ Operator
+
+BlockExpr = {
+	"{"
+	(Statement _)*
+	"}"
+	#BlockExpr
+}
+
+"if"   = ('if' !W / 'もし' 'も'? ) _
+"then" = ('then' !W / 'なら' 'ば'? ) _
+"else" = ('else' !W / 'そうでなければ' ) _
+
+IfExpr = {
+    "if"   cond: Expression
+    "then" then: Expression
+    "else" else: Expression
+	#IfExpr
+}
+
+/* Operator */
+
+Operator =
+	AndExpr (left:^ { name: { OR #NameExpr } _ right: AndExpr #Infix })*
+
+OR = '||' !'|'
+
+AndExpr =
+	EqExpr (left:^ { name: { AND #NameExpr } _ right: EqExpr #Infix })*
+
+AND = '&&' !'&'
+
+EqExpr =
+	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
+
+EQ =
+	/ '==' !'='
+	/ '!=' !'='
+	/ '<=' !'='
+	/ '>=' !'='
+	/ '<'  !'<'
+	/ '>'  !'>'
+
+SumExpr =
+	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
+
+SUM =
+	/ '++'
+	/ '+'
+	/ '-' !'>'
+	/ '|' !'|'
+
+ProdExpr =
+	UnaryExpr (left:^ { name: { PROD #NameExpr } _ right: UnaryExpr #Infix })*
+
+PROD =
+	/ '/'
+	/ '*'
+	/ '%'
+	/ '^'
+	/ '<<'
+	/ '>>'
+	/ '&' !'&'
+
+UnaryExpr
+	= { name: {PRE #NameExpr} _ expr: UnaryExpr #Unary }
+    / SuffixExpr
+
+PRE =
+    / '-' !'-'
+    / '!'
+    / '~'
+    / '+'
+
+SuffixExpr =
+	Primary (
+	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
+	    / recv:^ { '.' _ name: Identifier #GetExpr }
+	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
+	    / recv:^ { '_(' _ params: Expressions ")" #IndexExpr }
+	    / recv:^ { "[" type: Type "]" #CastExpr }
+	)*
+
+Expressions = {
+	Expression? ( "," Expression )*
+}
+
+/* Primary */
+
+//example Primary, Expression (1,2) //
+//example Primary, Expression (1)
+//example Primary, Expression () //
+//example Primary, Expression [1,2,3]
+//example Primary, Expression { name: 'naruto', age: 17 }
+//example Primary, Expression {"name": 'naruto', "age": '17'}
+
+Primary =
+  /	GroupExpr
+  / ListExpr
+  / DataExpr
+  / Constant
+  / Identifier
+
+GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #TupleExpr }
+
+ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #ListExpr }
+
+DataExpr = { "{" (KeyValue ("," KeyValue)*) / (':' _) ","? "}" #DataExpr }
+
+KeyValue = {
+	name: (Identifier/StringExpr)
+	':' _
+	value: Expression
+}
+
+/* Literal */
+
+Constant =
+    / TripleExpr
+	/ StringExpr
+	/ CharExpr
+	/ FloatExpr
+	/ IntExpr
+	/ TrueExpr
+	/ FalseExpr
+	/ NullExpr
+
+//example StringExpr, Expression "\n\u1234a\0"
+//example CharExpr, Expression '\''
+//example IntExpr, Expression 0177
+//example IntExpr, Expression 0b1010_1010
+//example IntExpr, Expression 0xdeadbeaf
+//example IntExpr, Expression 0L
+//example FloatExpr, Expression 1.1e-9
+//example TrueExpr, Expression true
+
+TripleExpr =
+	'\'\'\'' { TemplateContent* #TemplateExpr } '\'\'\''
+
+TemplateContent =
+	'${' Expression '}'
+	/ { (!'\'\'\'' !'${' .)* #StringExpr }
+
+StringExpr = '"' { STRING_CONTENT* #StringExpr } '"' _
+CharExpr = '\'' { CHAR_CONTENT* #CharExpr } '\'' _
+STRING_CONTENT = ESCAPE / ![\"\n\\] .
+CHAR_CONTENT   = ESCAPE / !['\n\\] .
+ESCAPE =
+	'\\' ['\"\\bfnrt]
+	/ '\\' [0-3] [0-7] [0-7]
+    / '\\' [0-7] [0-7]
+    / '\\' [0-7]
+	/ '\\' 'u'+ HEX HEX HEX HEX
+
+IntExpr = {
+	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
+	#IntExpr
+} (left:^ { right: Var1 #MulExpr })* _
+
+DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
+HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
+BINARY = '0' [bB] [01] ( '_'* [01] )*
+OCTAL = '0' ( '_'* [0-7] )*
+DIGIT = [0-9]
+HEX = [a-fA-F0-9]
+LONG_SUFFIX = [lL]
+
+FloatExpr = {
+	FLOAT #DoubleExpr
+} (left:^ { right: Var1 #MulExpr })* _
+
+Var1  = { [A-Za-z] [0-9]? [']* #NameExpr }  // xy => x * y
+      / '(' _ Expression ')'                // 2(n+1) => 2 * (n+1)
+
+FLOAT =
+	FRACTION EXPONENT?
+    / DIGIT+ EXPONENT
+
+FRACTION =
+	!'_' ( '_'* DIGIT )* '.' DIGIT ( '_'* DIGIT )*
+    / DIGIT ( '_'* DIGIT )* '.' !'.'
+
+EXPONENT =
+	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
+
+TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
+FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
+NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
