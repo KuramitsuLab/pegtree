@@ -4,7 +4,6 @@ import pegpy.utils as u
 from pegpy.expression import *
 from pegpy.ast import *
 
-
 class ParserOption(object):
     def __init__(self):
         self.isByte = False
@@ -170,6 +169,17 @@ def gen_BRange(pe):
         return False
     return urange
 
+def gen_CRange(pe):
+    offset = min(list(map(lambda c: ord(c), pe.chars)) + [ord(x[0]) for x in pe.ranges])
+    bitset = first(pe) >> offset
+    def bitmatch(px):
+        shift = ord(px.inputs[px.pos]) - offset
+        if px.pos < px.length and (bitset & (1 << shift)) != 0:
+            px.pos += 1
+            return True
+        return False
+    return bitmatch
+
 def gen_CRange(chars, ranges):
     def crange(px) :
         if px.pos < px.length and isRangeChar(px.inputs[px.pos], ranges, chars):
@@ -265,7 +275,7 @@ def ggen_Range(emit, option: ParserOption):
     if option.isByte:
         return lambda pe: gen_BRange(pe)
     else:
-        return lambda pe: gen_CRange2(pe.chars, pe.ranges, mov=inc)
+       return lambda pe: gen_CRange2(pe.chars, pe.ranges, mov=inc)
 
 def gen_AndRange(pe: Range, isByte):
     pass
@@ -556,6 +566,21 @@ def ggen_State(emit, option):
                 state = getstate(px.state, nid)
                 if state is not None and px.inputs.startswith(state.val, px.pos):
                     px.pos += len(state.val)
+                    return True
+                return False
+            return match
+
+        elif pe.func == '@matchsome':
+            nid = state_id(pe.name)
+            def match(px):
+                mlen = 0
+                state = getstate(px.state, nid)
+                while state is not None:
+                    if len(state.val) > mlen and px.inputs.startswith(state.val, px.pos):
+                        mlen += len(state.val)
+                    state = getstate(px.state, nid)
+                if mlen > 0:
+                    px.pos += mlen
                     return True
                 return False
             return match
