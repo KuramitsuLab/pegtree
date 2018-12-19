@@ -98,7 +98,7 @@ def origami(opt):
         except (EOFError, KeyboardInterrupt):
             pass
         return None
-    else :
+    else:
         o = []
         for input in source_files:
             t = parser(read_inputs(input))
@@ -119,7 +119,7 @@ def macaron(opt, default = 'npl.tpeg'):
         except (EOFError, KeyboardInterrupt):
             pass
         return None
-    else :
+    else:
         o = []
         for input in inputs:
             t = parser(read_inputs(input))
@@ -131,6 +131,10 @@ def nezcc(opt):
 
 def bench(opt):
     pass
+
+def playground(opt):
+    from pegpy.playground.server import playground
+    playground()
 
 def update(opt):
     try:
