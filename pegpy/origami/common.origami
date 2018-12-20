@@ -23,10 +23,13 @@ require common.origami
 #TupleExpr       = "(${*})" ","
 #ListExpr        = "[${*}]" ","
 
++@2:(Int,Int) -> Int = (${1}+${2})
+
 +                = "(${*})" "+"
 +@2              = (${1}+${2})
 -@2              = (${1}-${2})
 *@2              = (${1}*${2})
+#MulExpr         = (${1}*${2})
 /@2              = (${1}/${2})
 %@2              = (${1}%${2})
 ||@2             = (${1}||${2})
@@ -50,9 +53,12 @@ require common.origami
 
 true             = True
 false            = False
+null             = None
 
 TODO
 #StringExpr      = \"${s}\"
 #CharExpr        = '${s}'
 
 ->:Int->Float    = float(${1})
+
+Void@1           = ${1}

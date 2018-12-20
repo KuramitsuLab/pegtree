@@ -4,6 +4,7 @@ import pegpy.utils as u
 from pegpy.expression import *
 from pegpy.ast import *
 
+
 class ParserOption(object):
     def __init__(self):
         self.isByte = False
@@ -291,7 +292,7 @@ def seq4(pfa, pfb, pfc, pfd):
 
 def ggen_Seq(emit, option: ParserOption):
     def gen(pe):
-        pfs = tuple(map(emit, pe.flatten([])))
+        pfs = tuple(map(emit, flatten(pe, [], Seq)))
         flen = len(pfs)
         if flen == 2:
             return seq2(pfs[0], pfs[1])
@@ -496,6 +497,9 @@ class StateTable(object):
         self.val = val
         self.sprev = sprev
 
+    def __str__(self):
+        return str(self.sprev) + ' ' + str((self.nameid, self.val))
+
 STATEIDs = {}
 def state_id(name):
     if not name in STATEIDs:
@@ -550,7 +554,10 @@ def ggen_State(emit, option):
             nid = state_id(pe.name)
             def match(px):
                 state = getstate(px.state, nid)
-                return state is not None and px.inputs.startswith(state.val, px.pos)
+                if state is not None and px.inputs.startswith(state.val, px.pos):
+                    px.pos += len(state.val)
+                    return True
+                return False
             return match
 
         elif pe.func == '@equals':
@@ -679,6 +686,7 @@ def setting(method, option: ParserOption):
     memo = {}
     setattr(Ref, method, ggen_Ref(emit, memo, option))
 
+
 class ParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state']
 
@@ -688,6 +696,7 @@ class ParserContext:
       self.headpos = self.pos
       self.ast = None
       self.state = None
+
 
 def generate2(p, method = 'eval', isByte=False, conv = None):
     if not hasattr(Char, method):
@@ -706,9 +715,8 @@ def generate2(p, method = 'eval', isByte=False, conv = None):
         pos = px.pos
         result = None
         if not f(px):
-            result = ParseTree("err", px.inputs, px.headpos, len(s), None)
+            result = ParseTree("err", px.inputs, px.headpos, len(px.inputs), None)
         else:
             result = px.ast if px.ast is not None else ParseTree("", px.inputs, pos, px.pos, None)
         return conv(result) if conv is not None else result
     return parse
-

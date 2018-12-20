@@ -1,5 +1,6 @@
 #!/usr/local/bin/python
 import sys, os, errno
+from pathlib import Path
 
 # Method
 
@@ -35,10 +36,16 @@ def decode_source(inputs, spos, epos):
     mark = (' ' * remain) + ('^' * length)
     return (bytestr(urn), spos, linenum, remain, bytestr(line), mark)
 
-def perror(pos3, msg='SyntaxError'):
+def serror(pos3, msg='SyntaxError'):
     if pos3 is not None:
         er = decode_source(pos3[0], pos3[1], pos3[2])
-        print('{} ({}:{}:{}+{})\n{}\n{}'.format(msg,er[0],er[2],er[3],er[1], er[4], er[5]))
+        return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg,er[0],er[2],er[3],er[1], er[4], er[5])
+    return '{} (unknown source)'.format(msg)
+
+def perror(pos3, msg='SyntaxError', file = sys.stdout):
+    file.write(serror(pos3, msg))
+    file.write(os.linesep)
+
 
 def string_intern():
     d = {}
@@ -48,6 +55,19 @@ def string_intern():
             d[s] = s
         return d[s]
     return f
+
+# quote
+
+def quote_string(e: str, esc ="'"):
+    sb = []
+    for c in e:
+        if c == '\n' : sb.append(r'\n')
+        elif c == '\t' : sb.append(r'\t')
+        elif c == '\\' : sb.append(r'\\')
+        elif c == '\r' : sb.append(r'\r')
+        elif c in esc : sb.append('\\' + str(c))
+        else: sb.append(c)
+    return "".join(sb)
 
 # unquote
 
@@ -109,7 +129,6 @@ def unquote_string(s):
     return ''.join(l)
 
 #Path
-from pathlib import Path
 
 def find_path(file, subdir='grammar'):
     path = Path(file)

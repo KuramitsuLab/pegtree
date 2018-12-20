@@ -1,69 +1,108 @@
+from enum import Enum
+import pegpy.utils as u
 
 class ParsingExpression(object):
     def __repr__(self):
         return self.__str__()
+
     def __or__(self,right):
         return Alt(self, ParsingExpression.new(right))
+
     def __and__(self,right):
-        return seq(self, ParsingExpression.new(right))
+        return Seq.new2(self, ParsingExpression.new(right))
+
     def __xor__(self,right):
-        return seq(self,lfold("", ParsingExpression.new(right)))
+        return Seq.new2(self,lfold("", ParsingExpression.new(right)))
+
     def __rand__(self,left):
-        return seq(ParsingExpression.new(left), self)
+        return Seq.new2(ParsingExpression.new(left), self)
+
     def __add__(self,right):
-        return seq(Many1(self),ParsingExpression.new(right))
+        return Seq.new2(Many1(self),ParsingExpression.new(right))
+
     def __mul__(self,right):
-        return seq(Many(self),ParsingExpression.new(right))
+        return Seq.new2(Many(self),ParsingExpression.new(right))
+
     def __truediv__ (self, right):
         return Ore(self, ParsingExpression.new(right))
+
     def __invert__(self):
         return Not(self)
+
     def __neq__(self):
         return Not(self)
+
     def __pos__(self):
         return And(self)
-    def setpeg(self, peg):
-        if hasattr(self, 'inner'):
-            self.inner = self.inner.setpeg(peg)
+
+    def __len__(self):
+        if hasattr(self, 'inner'): return 1
+        if hasattr(self, 'right'): return 2
+        return 0
+
+    def __getitem__(self, item):
+        if hasattr(self, 'inner') and item == 0:
+            return self.inner
         if hasattr(self, 'right'):
-            self.left = self.left.setpeg(peg)
-            self.right = self.right.setpeg(peg)
+            if item == 0: return self.left
+            if item == 1: return self.right
+        raise IndexError
+
+    def __iter__(self):
+        if hasattr(self, 'inner'):
+            yield self.inner
+        if hasattr(self, 'right'):
+            yield self.left
+            yield self.right
+
+    def setpeg(self, peg):
+        for pe in self: pe.setpeg(peg)
         return self
+
     def deref(self):
         return self.inner
+
     @classmethod
     def new(cls, e):
-        if e == 0: return EMPTY
+        if e == 0 or e is None: return EMPTY
         if isinstance(e, str):
             if len(e) == 0:
                 return EMPTY
             return Char(e)
         return e
 
+def flatten(pe, ls, target = None):
+    if target is None:
+        ls.append(pe)
+        for e in pe: flatten(e, ls, target)
+    elif isinstance(pe, target):
+        for e in pe: flatten(e, ls, target)
+    else :
+        ls.append(pe)
+    return ls
+
+def filter(f, pe, ls):
+    if f(pe):
+        ls.append(pe)
+    for e in pe: filter(f, e, ls)
+    return ls
+
 def ref(name):
     if name.find('/') != -1:
-        return lor(list(map(ref, name.split('/'))))
+        return Ore.new(list(map(ref, name.split('/'))))
     if name.find(' ') != -1:
-        return lseq(list(map(ref, name.split(' '))))
+        return Seq.new(list(map(ref, name.split(' '))))
     if name.startswith('$'):
         return LinkAs("", Ref(name[1:]))
     return Ref(name)
 
-def seq(x,y):
-    if isinstance(y, Empty): return x
-    return Seq(x, y)
-
-def lseq(ls):
-    if len(ls) > 1:
-        return seq(ls[0], lseq(ls[1:]))
-    if len(ls) == 1: return ls[0]
-    return EMPTY
-
+'''
 def lor(ls):
     if len(ls) > 1:
         return Ore(ls[0], lor(ls[1:]))
     if len(ls) == 1: return ls[0]
     return EMPTY
+'''
 
 def lfold(ltag,e):
     if isinstance(e, Many) and isinstance(e.inner, TreeAs):
@@ -76,29 +115,22 @@ def lfold(ltag,e):
         return FoldAs(ltag, e.name, ParsingExpression.new(e.inner))
     return e
 
+
 def grouping(e, f):
     return '(' + str(e) + ')' if f(e) else str(e)
 
+
 def inSeq(e):
     return isinstance(e, Ore) or isinstance(e, Alt)
+
 
 def inUnary(e):
     return (isinstance(e, Ore) and e.right != EMPTY) \
            or isinstance(e, Seq) or isinstance(e, Alt) \
            or isinstance(e, LinkAs) or isinstance(e, FoldAs)
 
-def quote_string(e: str, esc ="'"):
-    sb = []
-    for c in e:
-        if c == '\n' : sb.append(r'\n')
-        elif c == '\t' : sb.append(r'\t')
-        elif c == '\\' : sb.append(r'\\')
-        elif c == '\r' : sb.append(r'\r')
-        elif c in esc : sb.append('\\' + str(c))
-        else: sb.append(c)
-    return "".join(sb)
+# PEG Grammar
 
-## PEG Grammar
 
 class Empty(ParsingExpression):
     def __str__(self):
@@ -106,45 +138,73 @@ class Empty(ParsingExpression):
 
 EMPTY = Empty()
 
+
 class Char(ParsingExpression):
     __slots__ = ['a']
+
     def __init__(self, a):
         self.a = a
+
     def __str__(self):
-        return "'" + quote_string(self.a) + "'"
+        return "'" + u.quote_string(self.a) + "'"
+
+    def setpeg(self, peg):
+        for c in self.a:
+            peg.min = min(ord(c), peg.min)
+            peg.max = max(ord(c), peg.max)
+        return self
 
 class Range(ParsingExpression):
     __slots__ = ['chars', 'ranges']
-    def __init__(self, *ss):
-        chars = []
-        ranges = []
-        for s in ss :
-            if isinstance(s, tuple):
-                ranges.append(s)
-            elif len(s) == 3 and s[1] is '-':
-                ranges.append((s[0], s[2]))
-            else:
-                for c in s:
-                    chars.append(c)
-        self.chars = ''.join(chars)
-        self.ranges = tuple(ranges)
+
+    def __init__(self, chars: str, ranges: tuple):
+        self.chars = chars
+        self.ranges = ranges
 
     def __str__(self):
-        l = tuple(map(lambda x: quote_string(x[0], ']') + '-' + quote_string(x[1], ']'), self.ranges))
-        return "[" + ''.join(l) + quote_string(self.chars, ']') + "]"
+        l = tuple(map(lambda x: u.quote_string(x[0], ']') + '-' + u.quote_string(x[1], ']'), self.ranges))
+        return "[" + ''.join(l) + u.quote_string(self.chars, ']') + "]"
+
+    def setpeg(self, peg):
+        for c in self.chars:
+            peg.min = min(ord(c), peg.min)
+            peg.max = max(ord(c), peg.max)
+        for r in self.ranges:
+            peg.min = min(ord(r[0]), peg.min)
+            peg.max = max(ord(r[1]), peg.max)
+        return self
+
+def Range2(*ss):
+    chars = []
+    ranges = []
+    for s in ss:
+        if isinstance(s, tuple):
+            ranges.append(s)
+        elif len(s) == 3 and s[1] is '-':
+            ranges.append((s[0], s[2]))
+        else:
+            for c in s:
+                chars.append(c)
+    return Range(chars, ranges)
+
 
 class Any(ParsingExpression):
     def __str__(self):
         return '.'
+
 ANY = Any()
+
 
 class Seq(ParsingExpression):
     __slots__ = ['left', 'right']
+
     def __init__(self, left, right):
         self.left = ParsingExpression.new(left)
         self.right = ParsingExpression.new(right)
+
     def __str__(self):
         return grouping(self.left, inSeq) + ' ' + grouping(self.right, inSeq)
+
     def flatten(self, ls):
         if isinstance(self.left, Seq):
             self.left.flatten(ls)
@@ -156,15 +216,33 @@ class Seq(ParsingExpression):
             ls.append(self.right)
         return ls
 
+    @classmethod
+    def new2(cls, x, y):
+        if isinstance(y, Empty): return x
+        if isinstance(x, Empty): return y
+        if isinstance(x, Char) and isinstance(y, Char):
+            return Char(x.a + y.a)
+        return Seq(x, y)
+
+    @classmethod
+    def new(cls, es):
+        if len(es) == 1: return es[0]
+        if len(es) > 1:
+            return Seq.new2(es[0], Seq.new(es[1:]))
+        return EMPTY
+
 class Ore(ParsingExpression):
     __slots__ = ['left', 'right']
+
     def __init__(self, left, right):
         self.left = ParsingExpression.new(left)
         self.right = ParsingExpression.new(right)
+
     def __str__(self):
         if self.right == EMPTY:
             return grouping(self.left, inUnary) + '?'
         return str(self.left) + ' / ' + str(self.right)
+
     def flatten(self, ls):
         if isinstance(self.left, Ore):
             self.left.flatten(ls)
@@ -176,6 +254,17 @@ class Ore(ParsingExpression):
             ls.append(self.right)
         return ls
 
+    @classmethod
+    def new2(cls, x, y):
+        return Ore(x, y)
+
+    @classmethod
+    def new(cls, es):
+        if len(es) == 1: return es[0]
+        if len(es) > 1:
+            return Ore.new2(es[0], Ore.new(es[1:]))
+        return EMPTY
+
 class Alt(ParsingExpression):
     __slots__ = ['left', 'right']
     def __init__(self, left, right):
@@ -183,6 +272,7 @@ class Alt(ParsingExpression):
         self.right = ParsingExpression.new(right)
     def __str__(self):
         return str(self.left) + ' | ' + str(self.right)
+
     def flatten(self, ls):
         if isinstance(self.left, Alt):
             self.left.flatten(ls)
@@ -194,81 +284,107 @@ class Alt(ParsingExpression):
             ls.append(self.right)
         return ls
 
+
 class And(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return '&' + grouping(self.inner, inUnary)
 
+
 class Not(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return '!' + grouping(self.inner, inUnary)
 
+
 class Many(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return grouping(self.inner, inUnary) + '*'
 
+
 class Many1(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return grouping(self.inner, inUnary) + '+'
 
-
 ## Tree Construction
+
 
 class TreeAs(ParsingExpression):
     __slots__ = ['name', 'inner']
+
     def __init__(self, name = '', inner = EMPTY):
         self.name = name
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         tag = ' #' + self.name if self.name != '' else ''
         return '{ ' + str(self.inner) + tag + ' }'
 
 class LinkAs(ParsingExpression):
     __slots__ = ['name', 'inner']
+
     def __init__(self, name = '', inner=None):
         self.name = name
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         if self.name == '':
             return '$' + grouping(self.inner, inUnary)
-        return self.name + ': ' + str(self.inner)
+        return self.name + ': ' + grouping(self.inner, inUnary)
+
     def __le__(self, right):
         return LinkAs(self.name, right)
+
     def __ge__(self, right):
         return LinkAs(self.name, right)
+
     def __mod__(self, right):
         return ref(right)
+
     def __xor__(self,right):
         return lfold(self.name, ParsingExpression.new(right))
 
 N = LinkAs("")
 
+
 class FoldAs(ParsingExpression):
     __slots__ = ['left', 'name', 'inner']
+
     def __init__(self, left = '', name = '', inner = EMPTY):
         self.left = left
         self.name = name
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         prefix = '^' if self.name == '' else self.left + ':^ '
         tag = ' #' + self.name if self.name != '' else ''
         return prefix + '{ ' + str(self.inner) + tag + ' }'
 
+
 class Detree(ParsingExpression):
     __slots__ = ['inner']
+
     def __init__(self, inner):
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return '@detree(' + str(self.inner) + ')'
 
@@ -276,37 +392,45 @@ class Detree(ParsingExpression):
 
 class State(ParsingExpression):
     __slots__ = ['func', 'name', 'inner', 'opt']
-    def __init__(self, func, inner, opt = None):
+
+    def __init__(self, func, inner, name = None, opt = None):
         self.func = func
         self.inner = ParsingExpression.new(inner)
-        self.name = str(self.inner) if opt is None else opt
+        self.name = str(self.inner) if name is None else name
         self.opt = opt
+
     def __str__(self):
         return  self.func + '(' + str(self.inner) + ')'
 
 # @on(flag, e)
 class On(ParsingExpression):
     __slots__ = ['name', 'inner']
+
     def __init__(self, name, inner):
         self.name = name
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return  '@on(' + str(self.inner) + ')'
 
 # @off(flag, e)
 class Off(ParsingExpression):
     __slots__ = ['name', 'inner']
+
     def __init__(self, name, inner):
         self.name = name
         self.inner = ParsingExpression.new(inner)
+
     def __str__(self):
         return  '@off(' + str(self.inner) + ')'
 
 # @if(flag)
 class If(ParsingExpression):
     __slots__ = ['name']
+
     def __init__(self, name):
         self.name = name
+
     def __str__(self):
         return  '@if(' + str(self.name) + ')'
 
@@ -328,10 +452,12 @@ class Meta(ParsingExpression):
 
 class Ref(ParsingExpression):
     __slots__ = ['peg', 'name', 'pos3']
+
     def __init__(self, name, peg = None):
         self.name = name
         self.peg = peg
         self.pos3 = None
+
     def __str__(self):
         return str(self.name)
 
@@ -351,6 +477,14 @@ class Ref(ParsingExpression):
     def deref(self):
         return self.peg[self.name].inner
 
+    @classmethod
+    def isInlineName(cls, name):
+        return name[0].islower()
+
+    @classmethod
+    def isPatternOnlyName(cls, name):
+        return name.isupper()
+
     def prop(self):
         return getattr(self.peg, self.name)
 
@@ -367,19 +501,20 @@ class Ref(ParsingExpression):
         rule = self.peg[self.name]
         setattr(rule, prefix, value)
 
+
 class Rule(Ref):
     __slots__ = ['peg', 'name', 'inner', 'pos3']
-    def __init__(self, peg, name, inner):
+
+    def __init__(self, peg, name, inner, pos3=None):
         super().__init__(name, peg)
         self.inner = ParsingExpression.new(inner)
-        self.checked = False
+        self.pos3 = pos3
 
     def __str__(self):
         return self.name + ' = ' + str(self.inner)
 
     def deref(self):
         return self.inner
-
 
 ## Properties
 
@@ -395,27 +530,26 @@ def isAlwaysConsumed(pe: ParsingExpression):
     if not hasattr(Char, 'isAlwaysConsumed'):
         method = 'isAlwaysConsumed'
         @addmethod(Char, Any, Range, method)
-        def consumed(pe): return True
+        def char(pe): return True
 
         @addmethod(Many, Not, And, Empty, method)
-        def consumed(pe): return False
+        def empty(pe): return False
 
         @addmethod(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
         def unary(pe):
-            return isAlwaysConsumed(pe.inner)
+            return pe.inner.isAlwaysConsumed()
 
         @addmethod(Seq, method)
         def seq(pe):
-            return isAlwaysConsumed(pe.left) or isAlwaysConsumed(pe.right)
+            return pe.left.isAlwaysConsumed() or pe.right.isAlwaysConsumed()
 
         @addmethod(Ore, Alt, method)
         def ore(pe):
-            return isAlwaysConsumed(pe.left) and isAlwaysConsumed(pe.right)
+            return pe.left.isAlwaysConsumed() and pe.right.isAlwaysConsumed()
 
         @addmethod(State, method)
         def state(pe):
-            if pe.func == '@exists': return False
-            return isAlwaysConsumed(pe.inner)
+            return pe.inner.isAlwaysConsumed()
 
         @addmethod(Ref, method)
         def memo(pe: Ref):
@@ -428,8 +562,59 @@ def isAlwaysConsumed(pe: ParsingExpression):
 
     return pe.isAlwaysConsumed()
 
+def first(pe: ParsingExpression, max=255):
+    if not hasattr(Char, 'first'):
+        method = 'first'
+        @addmethod(Char, Any, Range, method)
+        def first_char(pe, max):
+            return 1 << ord(pe.a[0])
+
+        @addmethod(Any, method)
+        def first_any(pe, max):
+            return (1 << ord(max+1))-1
+
+        @addmethod(Range, method)
+        def first_range(pe, max):
+            cs = 0
+            for c in pe.chars:
+                cs |= 1 << ord(c)
+            for r in pe.ranges:
+                for c in range(ord(r[0]), ord(r[1])+1):
+                    cs |= 1 << ord(c)
+            return cs
+
+        @addmethod(Not, Empty, method)
+        def first_empty(pe, max): return 0
+
+        @addmethod(Many, Many1, And, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
+        def first_unary(pe, max):
+            return pe.inner.first(max)
+
+        @addmethod(Seq, method)
+        def first_seq(pe, max):
+            cs = pe.left.first(max)
+            return cs if isAlwaysConsumed(pe.left) else cs | pe.right.first(max)
+
+        @addmethod(Ore, Alt, method)
+        def first_ore(pe, max):
+            return pe.left.first(max) | pe.right.first(max)
+
+        @addmethod(State, method)
+        def first_state(pe, max):
+            return pe.inner.first(max)
+
+        @addmethod(Ref, method)
+        def first_memo(pe: Ref, max):
+            memoed = pe.getmemo(method, None)
+            if memoed == None:
+                pe.setmemo(method, first_any(max))
+                pe.setmemo('method', pe.deref().first(max))
+            return memoed
+
+    return pe.first(max)
+
+
 ## TreeState
-from enum import Enum
 
 class T(Enum):
     Unit = 0
@@ -477,7 +662,6 @@ def treeState(pe):
         def state(pe):
             if pe.func == '@exists' or pe.func == '@match': return T.Unit
             return treeState(pe.inner)
-
 
         @addmethod(Ref, method)
         def stateRef(pe: Ref):
@@ -548,6 +732,7 @@ def load_tpeg(g):
     __ = N % '__'
     _ = N % '_'
     EOS = N % 'EOS'
+    Range = Range2
 
     g.Start = N%'__ Source EOF'
     g.EOF = ~ANY
@@ -679,6 +864,7 @@ def load_tpeg(g):
 def setup_loader(Grammar, pgen):
     import pegpy.utils as u
     from pegpy.ast import ParseTreeConv
+
     class PEGConv(ParseTreeConv):
         def __init__(self, *args):
             super(PEGConv, self).__init__(*args)
@@ -715,7 +901,7 @@ def setup_loader(Grammar, pgen):
                     sb.append((c, c2))
                 else:
                     sb.append(c)
-            return Range(*sb)
+            return Range2(*sb)
 
         def Option(self, t):
             inner = self.conv(t['inner'])
@@ -752,26 +938,26 @@ def setup_loader(Grammar, pgen):
 
         def Func(self, t):
             a = t.asArray()
-            name = a[0].asString()
-            if name == '@if' and len(a) > 1:
+            funcname = a[0].asString()
+            if funcname == '@if' and len(a) > 1:
                 return If(a[1].asString())
-            elif name == '@on' and len(a) > 2:
+            elif funcname == '@on' and len(a) > 2:
                 return On(a[1].asString(), self.conv(a[2]))
-            elif name == '@off' and len(a) > 2:
+            elif funcname == '@off' and len(a) > 2:
                 return Off(a[1].asString(), self.conv(a[2]))
-            elif name == '@scope' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@symbol' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@match' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@exists' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@equals' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            elif name == '@contains' and len(a) > 1:
-                return State(name, self.conv(a[1]))
-            print('@TODO', name)
+            elif (funcname == '@scope' or funcname == '@block') and len(a) > 1:
+                return State('@scope', self.conv(a[1]))
+            elif funcname == '@symbol' and len(a) > 1:
+                return State('@symbol', self.conv(a[1]))
+            elif funcname == '@match' and len(a) > 1:
+                return State('@match', self.conv(a[1]))
+            elif funcname == '@exists' and len(a) > 1:
+                return State('@exists', EMPTY, str(self.conv(a[1])))
+            elif funcname == '@equals' and len(a) > 1:
+                return State('@equals', self.conv(a[1]))
+            elif funcname == '@contains' and len(a) > 1:
+                return State('@contains', self.conv(a[1]))
+            print('@TODO', funcname)
             return EMPTY
 
     def checkRef(pe, consumed: bool, name: str, visited: dict):
@@ -790,29 +976,29 @@ def setup_loader(Grammar, pgen):
             return pe
         if isinstance(pe, Ref):
             if not consumed and pe.name == name:
-                u.perror(pe.pos3, msg='Left Recursion')
+                u.perror(pe.pos3, msg='Left Recursion: ' + str(pe.name))
                 return pe
             if not pe.isNonTerminal():
-                u.perror(pe.pos3, msg='Undefined Name')
+                u.perror(pe.pos3, msg='Undefined Name: ' + str(pe.name))
                 return Char(pe.name)
-            if pe.name[0].islower(): # inlining
+            if Ref.isInlineName(pe.name):
                 return pe.deref()
             if not pe.name in visited:
                 visited[pe.name] = True
                 checkRef(pe.deref(), consumed, name, visited)
         return pe
 
-    def checkRule(rule):
-        rule.inner = checkRef(rule.inner, False, rule.name, {})
-
     PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
     pegparser = pgen(load_tpeg(Grammar('tpeg')))
 
     def load_grammar(g, path):
-        f = u.find_path(path).open()
-        data = f.read()
-        f.close()
-        t = pegparser(data, path)
+        if path.find('=') == -1:
+            f = u.find_path(path).open()
+            data = f.read()
+            f.close()
+            t = pegparser(data, path)
+        else:
+            t = pegparser(path)
         if t == 'err':
             u.perror(t.pos3())
         # load
@@ -821,15 +1007,14 @@ def setup_loader(Grammar, pgen):
                 name = stmt['name'].asString()
                 pexr = stmt['inner']
                 pe = PEGconv.conv(pexr)
-                #print('@load', name, '\n\t', pexr, '\n\t', pe)
-                g.add(name, pe)
+                g.add(name, pe, stmt['name'].pos3())
             elif stmt == 'Example':
                 pexr = stmt['inner']
                 doc = stmt['inner'].asString()
                 for n in stmt['name'].asArray():
                     g.example(n.asString(), doc)
-        g.foreach(checkRule)
-        g.map(lambda pe: checkTree(pe, None))
+        g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}))
+        g.forEachRule(lambda pe: checkTree(pe.inner, None))
 
     Grammar.load = load_grammar
 

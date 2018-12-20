@@ -1,6 +1,6 @@
-## Source
 
 import pegpy.utils as u
+
 
 class SourcePosition(object):
     def __init__(self, inputs, spos, epos):
@@ -8,6 +8,7 @@ class SourcePosition(object):
 
     def err(self):
         return u.decode_source(self.pos[0], self.pos[1], self.pos[2])
+
 
 class ParseTree(object):
     __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child']

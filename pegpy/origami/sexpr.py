@@ -45,17 +45,6 @@ class Char(object):
             return
         ty.match(self.ty)
 
-'''
-class Type(object):
-    __slots__ = ['name']
-    def __init__(self, name):
-        self.name = name
-    def __eq__(self, other):
-        return self is other
-    def __str__(self):
-        return self.name
-'''
-
 ## SExpression
 
 class SExpr(object):
@@ -71,6 +60,7 @@ class SExpr(object):
         'CharExpr': lambda t: Char(t.asString()),
         'TrueExpr': lambda t: 'true',
         'FalseExpr': lambda t: 'false',
+        'NullExpr': lambda t: 'null',
     }
 
     @classmethod
@@ -92,7 +82,7 @@ class SExpr(object):
         lconv = rules[key] if key in rules else None
         ##
         def flatadd(l, e):
-            if isinstance(e, ListExpr) and e.first() == '#':
+            if isinstance(e, ListExpr) and len(e) > 1 and e.first() == '#':
                 # flatten [# e e]
                 for e2 in e.data[1:]: l.append(e2)
             else:
@@ -128,6 +118,7 @@ class SExpr(object):
                 cons.append(AtomExpr(e))
         return ListExpr(cons)
 
+
     @classmethod
     def new2(cls, s):
         """
@@ -156,17 +147,38 @@ class SExpr(object):
                 word += char
         return sexp[0]
 
-    def asType(self, env, ty = None):
-        if ty is not None:
-            return self.typeCheck(env, ty)
+    @classmethod
+    def ofType(cls, ty):
+        return BaseType(ty) if isinstance(ty, str) else ty
 
-        if self.ty is None:
-            for iname in self.keys():
-                tf = env.getType(iname)
-                if isinstance(tf, TypeExpr):
-                    return self.typeCheck(env, tf)
-                elif tf is not None:
-                    return tf(self, env)
+    @classmethod
+    def makekeys(cls, key, n, ty = None):
+        key2 = key + '@' + str(n)
+        l = []
+        if ty is not None:
+            for tkey in ty.typekeys():
+                l.append(key2 + '@' + str(tkey))
+        l.append(key2)
+        l.append(key)
+        return l
+
+    def isUntyped(self):
+        return self.ty is None
+
+    def setType(self, ty):
+        self.ty = BaseType(ty) if isinstance(ty, str) else ty
+        return self
+
+    def isUncode(self):
+        return self.code is None
+
+    def setCode(self, code):
+        if code is not None and self.code is None:
+            self.code = code
+        return self
+
+    def err(self, msg):
+        return ErrorExpr(msg, self.getpos())
 
 class AtomExpr(SExpr):
     __slots__ = ['data', 'pos3', 'ty', 'code']
@@ -175,74 +187,103 @@ class AtomExpr(SExpr):
         self.pos3 = pos3
         self.ty = ty
         self.code = None
+
     def __str__(self):
         return str(self.data)
 
     def __len__(self):
         return 0
+
     def __getitem__(self, item):
         return None
+
+    def asSymbol(self):
+        return self.data if isinstance(self.data, str) else '#V' + type(self.data).__name__
 
     def first(self):
         return self
 
     def keys(self):
-        return [type(self.data).__name__, str(self.data)]
+        return ['#' + type(self.data).__name__, str(self.data)]
 
-    def typeCheck(self, env, ty):
-        if self.ty == None or self.ty is ty:
-            self.ty = ty
-            return
-        ty.match(self.ty)
+    def getpos(self):
+        return self.pos3
+
+    def perror(self):
+        return False
 
 class ListExpr(SExpr):
     __slots__ = ['data', 'ty', 'code']
     def __init__(self, data, ty = None):
-        self.data = tuple(data)
+        self.data = list(data)
         self.ty = ty
         self.code = None
+
     def __str__(self):
         return '(' + (' '.join(map(str, self.data))) + ')'
+
     def __len__(self):
         return len(self.data)
+
     def __getitem__(self, item):
         return self.data[item]
 
+    def isSymbol(self):
+        return isinstance(self.data[0], AtomExpr)
+
+    def asSymbol(self):
+        return self.data[0].asSymbol()
+
     def first(self):
         return str(self.data[0])
+
     def keys(self):
-        key = str(self.data[0])
-        keys = ['{}@{}'.format(key, len(self.data)-1), key]
-        if self.ty is not None:
-            return self.ty.joinkeys(keys)
-        return keys
+        return SExpr.makekeys(str(self.data[0]), len(self)-1,
+                       self.data[1].ty if len(self) > 1 and not self.data[1].isUntyped() else None)
 
-    def typeCheck(self, ty):
-        assert(ty.isFuncType())
-        for ty in ty.paramType():
-            self.data[1]
-            #TODO
+    def getpos(self):
+        for e in self.data:
+            pos3 = e.getpos()
+            if pos3 is not None: return pos3
+        return None
 
-    def inferType(self, env):
-        if self.ty is None:
-            for e in self.data[1:]:
-                e.inferType(env)
-            for iname in self.keys():
-                ty = env.getType(iname)
-                if ty is not None:
-                    self.typeCheck(ty)
-                    break
+    def perror(self):
+        res = False
+        for e in self.data:
+            if e.perror(): res = True
+        return res
+
+class ErrorExpr(SExpr):
+    __slots__ = ['data', 'pos3', 'ty']
+
+    def __init__(self, msg, pos3 = None):
+        self.data = msg
+        self.pos3 = pos3
+        self.ty = None
+
+    def __str__(self):
+        return '<<{}>>'.format(self.data)
+
+    def getpos(self):
+        return self.pos3
+
+    def perror(self):
+        u.perror(self.pos3, self.data)
+        return True
+
+
+
+
 
 def sconv(t):
     intern = u.string_intern()
     return SExpr.of(t, intern)
 
-
-
 ## Type
 
 class TypeExpr(object):
     def isFuncType(self): return False
+
     def match(self, ty, vars = {}):
         if self is ty: return True
         if len(self.data) == len(ty.data) and self.data[0] == ty.data[0]:
@@ -260,8 +301,11 @@ class BaseTypeExpr(AtomExpr, TypeExpr):
     def __eq__(self, other):
         return self is other or self.data == other
 
-    def joinkeys(self, keys):
-        return [keys[0]+'@'+str(self.data)] + keys
+    def keys(self):
+        return [str(self.data)]
+
+    def typekeys(self):
+        return [str(self.data)]
 
     def isVarType(self):
         return len(self.data) == 1 and self.data.islower()
@@ -311,18 +355,23 @@ def resolve_curry(vars):
 
 class ParamTypeExpr(ListExpr, TypeExpr):
     __slots__ = ['data', 'ty']
+
     def __init__(self, data):
         super().__init__(data, TypeType)
+
     def __str__(self):
         return str(self.data[1]) + '[' + (','.join(map(str, self.data[2:]))) + ']'
+
     def __eq__(self, other):
         return self.data[1] is other or self.data[1] == other
 
     def keys(self):
         m = str(self.data[1])
         return [ m + str(self.data[2]), m] + super().keys()[1:]
-    def joinkeys(self, keys):
-        return [keys[0]+'@'+str(self.data)] + keys
+
+    def typekeys(self):
+        return [str(self.data), str(self.data[1])]
+
     def resolve(self, vars):
         ParamType(*map(resolve_curry(vars), self.data))
 
@@ -341,18 +390,28 @@ def cParamType(t, intern, rules):
 
 class FuncTypeExpr(ListExpr, TypeExpr):
     __slots__ = ['data', 'ty']
+
     def __init__(self, data):
         super().__init__(data, TypeType)
+
     def __str__(self):
         return 'Func['+ (','.join(map(str, self.data[1:])))+']'
+
     def isFuncType(self):
         return True
+
     def __len__(self):
         return len(self.data)-2
+
     def __getitem__(self, item):
         return self.data[item+1]
-    def joinkeys(self, keys):
-        return [keys[0]+'@'+str(self.data)] + keys
+
+    def ret(self):
+        return self.data[-1]
+
+    def typekeys(self):
+        return [str(self)]
+
     def resolve(self, vars):
         FuncType(*map(resolve_curry(vars), self.data))
 
@@ -379,61 +438,3 @@ SExpr.addRule('ParamType', cParamType)
 SExpr.addRule('FuncType', cFuncType)
 
 
-
-
-
-
-## SyntaxMapper
-
-
-class SyntaxMapper(object):
-    __slots__ = ['syntaxMap']
-
-    def __init__(self):
-        self.syntaxMap = {}
-        self.syntaxMap['TODO'] = 'TODO(%*)\v '
-
-    def addSyntax(self, key, fmt):
-        self.syntaxMap[key] = fmt
-
-    def emit(self, e, ss):
-        keys = e.keys()
-        for key in keys:
-            if key in self.syntaxMap:
-                rule = self.syntaxMap[key]
-                if hasattr(rule, 'emit'):
-                    rule.emit(e, ss)
-                else:
-                    ss.pushFMT(self, rule, e.data)
-                return
-        if isinstance(e, AtomExpr):
-            ss.pushSTR(str(e))
-        else:
-            ss.pushFMT(self, self.syntaxMap['TODO'], e.data)
-
-    def load(self, file):
-        path = Path(file)
-        if not path.exists():
-            path = Path(__file__).parent / path
-        f = path.open('r')
-        libs = ()
-        for line in f.readlines():
-            if line.startswith('#include'):
-                for file in line.split()[1:]:
-                    self.load(file)
-                continue
-            if line.startswith('#require'):
-                libs = line.split()[1:]
-                print(libs)
-                continue
-            if line.startswith('#'):
-                continue
-            loc = line.find('\t=')
-            if loc == -1:
-                loc = line.find(' =')
-            if loc != -1:
-                key = line[:loc].strip()
-                value = u.unquote_string(line[loc+2:].strip())
-                #print('@', key, value)
-                self.addSyntax(key, value)
-        f.close()

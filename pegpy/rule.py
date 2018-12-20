@@ -1,5 +1,6 @@
 from pegpy.expression import *
 
+'''
 def isRec(pe: ParsingExpression, name: str, visited : dict) -> bool:
     if isinstance(pe, Ref):
         if pe.name == name: return True
@@ -131,3 +132,4 @@ def testRules(g):
         p = getattr(g, name)
         p.checkRule()
 
+'''
