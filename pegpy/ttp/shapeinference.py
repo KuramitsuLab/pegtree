@@ -12,10 +12,10 @@ def inference(p, f='shapeinference', l='link'):
 
 def generate(p, f='retinference', l='link'):
     if not isinstance(p, ParsingExpression):  # Grammar
-        p.map(exp_transer)
+        p.forEachRule(exp_transer)
         p = Ref(p.start().name, p)
     elif isinstance(p, Ref):
-      p.peg.map(exp_transer)
+      p.peg.forEachRule(exp_transer)
     else:
       p = exp_transer(p)
     return getattr(p, f, l)()

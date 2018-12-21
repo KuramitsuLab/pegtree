@@ -13,10 +13,11 @@ def inference(p, f = 'retinference'):
 
 def generate(p, f = 'retinference'):
     if not isinstance(p, ParsingExpression):  # Grammar
-        p.map(exp_transer)
+        print(p.rules)
+        p.forEachRule(exp_transer)
         p = Ref(p.start().name, p)
     elif isinstance(p, Ref):
-      p.peg.map(exp_transer)
+      p.peg.forEachRule(exp_transer)
     else:
       p = exp_transer(p)
     return getattr(p, f)()

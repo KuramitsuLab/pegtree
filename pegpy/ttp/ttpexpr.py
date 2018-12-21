@@ -2,6 +2,7 @@ import pegpy.expression as exp
 
 
 def exp_transer(e: exp.ParsingExpression):
+  e = e.inner
   if isinstance(e, exp.Seq) and isFoldMany(e.right):
     fold = e.right.inner
     return Fold(e.left, fold.left, fold.inner, fold.name)
