@@ -1,0 +1,56 @@
+include mixin
+doctype html
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    meta(name='viewport', content='width=device-width, initial-scale=1.0')
+    title Zen Playground
+    +css('css/bootstrap.css')
+    style(type='text/css', media='screen').
+      #zen-editor {
+        height: 600px;
+        border: 1px solid black;
+        border-radius: 3px;
+      }
+      #output-viewer {
+        height: 600px;
+        border: 1px solid black;
+        border-radius: 3px;
+      }
+  body
+    .container(style='max-width: 1280px; min-width: 780px;')
+      .header
+        h1 Libzen Playground
+    .container(style='max-width: 1280px; min-width: 780px;')
+      .col-lg-6.col-md-6.col-sm-6.col-xs-6
+        nav.navbar.navbar-default(role='navigation')
+          .container-fluid
+            .navbar-header.navbar-left
+              a.navbar-brand(href='#') Konoha
+            ul.nav.navbar-nav.navbar-right
+              li.dropdown
+                a.dropdown-toggle(href='#', data-toggle='dropdown') Sample
+                  b.caret
+                ul#zen-sample.dropdown-menu
+        #zen-editor
+          | function foo&lpar;n: int&rpar; &lcub;
+          | &#9;var x &equals; &quot;hello, world&quot;&semi;
+          | &#9;return x&semi;
+          | &rcub;
+      .col-lg-6.col-md-6.col-sm-6.col-xs-6
+        nav.navbar.navbar-default(role='navigation')
+          .container-fluid
+            ul.nav.navbar-nav.navbar-right
+              li.dropdown
+                a#active-lang.dropdown-toggle(href='#', data-toggle='dropdown') JavaScript
+                  b.caret
+                ul#Targets.dropdown-menu
+        #output-viewer
+    .script
+      include sample
+      +js('js/jquery.js')
+      +js('js/bootstrap.min.js')
+      +js('js/ace/ace.js')
+      //+js('js/LibLibZen.js')
+      //+js('js/libzen.js')
+      +js('index.js')

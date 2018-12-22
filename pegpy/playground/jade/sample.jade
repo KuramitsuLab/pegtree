@@ -1,0 +1,121 @@
+.sample
+  script#fibo(type='text/zen').
+    function fibo(n: int): int {
+      if(n < 3) {
+        return 1;
+      }
+      return fibo(n-1)+fibo(n-2);
+    }
+    function main(): void {
+      print("fibo(30) = " + fibo(30));
+      return void;
+    }
+  script#binarytrees(type='text/zen').
+    // The Great Computer Language Shootout
+    // http://shootout.alioth.debian.org/
+    
+    let MINDEPTH : int = 4;
+    let N        : int =14;
+    
+    class TreeNode {
+        var left  : TreeNode;
+        var right : TreeNode;
+        var item  : int;
+    //    var itemCheck : Func<int, TreeNode>;
+    }
+    
+    function TreeNode(this : TreeNode, left : TreeNode, right : TreeNode, item : int): TreeNode {
+        this.left  = left;
+        this.right = right;
+        this.item  = item;
+        return this;
+    }
+    
+    function itemCheck(this : TreeNode) : int {
+        // if necessary deallocate here
+        if(this.left == null) {
+            return this.item;
+        }
+        return this.item + this.left.itemCheck() - this.right.itemCheck();
+    }
+    
+    function bottomUpTree(item : int, depth : int) : TreeNode {
+        if (depth > 0){
+            return new TreeNode(bottomUpTree(2*item-1, depth-1),
+                                bottomUpTree(2*item,   depth-1), item);
+        }
+        else {
+            return new TreeNode(null, null, item);
+        }
+    }
+    
+    function main() : void {
+        var n : int = N;
+        var maxDepth : int = n;
+        if(MINDEPTH+2 > n) {
+            maxDepth = MINDEPTH + 2;
+        }
+        var stretchDepth : int = maxDepth + 1;
+        var check        : int = bottomUpTree(0, stretchDepth).itemCheck();
+        print("stretch tree of depth " + stretchDepth + "\t check: " + check);
+        var longLivedTree : TreeNode = bottomUpTree(0, maxDepth);
+        var depth : int = MINDEPTH
+        while(depth <= maxDepth) {
+            var iterations : int = 1 << (maxDepth - depth + MINDEPTH);
+            var check : int = 0;
+            var i : int = 1;
+            while(i <= iterations) {
+                check = check + bottomUpTree( i, depth).itemCheck();
+                check = check + bottomUpTree(-i, depth).itemCheck();
+                i = i + 1;
+            }
+            print(""+(iterations*2) + "\t trees of depth " + depth + "\t check: " + check);
+            depth = depth + 2;
+        }
+        print("long lived tree of depth " + maxDepth + "\t check: "+ longLivedTree.itemCheck());
+    }
+  script#class(type='text/zen').
+    class Person {
+      var name : String;
+      var age = 17;
+      var IsChild : Func<boolean, Person>;
+    }
+    
+    function Person(this: Person, Name: String) {
+      this.name = Name;
+    }
+    
+    function IsChild(this : Person) {
+      return this.age < 21;
+    }
+    
+    export function main() {
+      var p = new Person("Taro");
+      var b = p.IsChild();
+      println("IsChild="+b);
+    }
+  script#function(type='text/zen').
+    function f(n){
+      n = n + 1;
+      n = n + 1;
+      n = n + 1;
+      return n;
+    }
+  script#if(type='text/zen').
+    function f(n){
+      if(n < 3) {
+        n = n+3;
+      }else{
+        n = n-3;
+      }
+      return n;
+    }
+  script#while(type='text/zen').
+    function f(i) {
+        var n = 2;
+        while (i>0){
+            n = n*n;
+        }
+        return n;
+    }
+
