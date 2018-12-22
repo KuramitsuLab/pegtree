@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import sys, time, readline, subprocess
+import sys, time, readline, subprocess, functools
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
@@ -98,7 +98,7 @@ def origami(opt):
         except (EOFError, KeyboardInterrupt):
             pass
         return None
-    else :
+    else:
         o = []
         for input in source_files:
             t = parser(read_inputs(input))
@@ -119,7 +119,7 @@ def macaron(opt, default = 'npl.tpeg'):
         except (EOFError, KeyboardInterrupt):
             pass
         return None
-    else :
+    else:
         o = []
         for input in inputs:
             t = parser(read_inputs(input))
@@ -200,6 +200,10 @@ def main():
 
         cmd = argv[1]
         d = parse_opt(argv[2:])
+        if functools.reduce(lambda x, y: x or ('playground' in y), argv[1:], False):
+            from pegpy.playground.server import playground
+            playground(cmd, d)
+            return
         names = globals()
         if cmd in names:
             result = names[cmd](d)
