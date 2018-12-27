@@ -148,6 +148,9 @@ def parse_opt(argv):
                 elif a[0] == '-s' or a[0] == '--start':
                     d['start'] = a[1]
                     return a[2:]
+                elif a[0] == '-o' or a[0] == '--output':
+                    d['output'] = a[1]
+                    return a[2:]
                 elif a[0] == '-X':
                     d['extension'] = a[1]
                     return a[2:]
@@ -168,21 +171,22 @@ def version():
     print(bold('PEGPY - A PEG-based Parsering Tools for Python'))
 
 def usage(opt):
-    print("Usage: pegpy <command> options inputs");
-    print("  -g | --grammar <file>      specify a grammar file");
-    print("  -s | --start <NAME>        specify a starting rule");
-    print("  -D                         specify an optional value");
+    print("Usage: pegpy <command> options inputs")
+    print("  -g | --grammar <file>      specify a grammar file")
+    print("  -s | --start <NAME>        specify a starting rule")
+    print("  -o | --output <file>       specify an output file")
+    print("  -D                         specify an optional value")
     print()
 
-    print("Example:");
-    print("  pegpy parse -g math.tpeg <inputs>");
-    print("  pegpy json -g math.tpeg <inputs>");
+    print("Example:")
+    print("  pegpy parse -g math.tpeg <inputs>")
+    print("  pegpy json -g math.tpeg <inputs>")
     print("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
-    print();
+    print()
 
-    print("The most commonly used nez commands are:");
-    print(" parse      run an interactive parser");
-    print(" nezcc      generate a cross-language parser");
+    print("The most commonly used nez commands are:")
+    print(" parse      run an interactive parser")
+    print(" nezcc      generate a cross-language parser")
     print(" origami    transpiler")
     print(" bench      the bench mark")
     print(" json       output tree as json file")
@@ -192,25 +196,28 @@ class CommandError(Exception):
     def __init__(self, opt):
         self.opt = opt
 
-def main():
-    try:
-        argv = sys.argv
-        if len(argv) < 2:
-            raise CommandError({})
+def main2(argv):
+    cmd = argv[1]
+    opt = parse_opt(argv[2:])
+    names = globals()
+    if cmd in names:
+        return names[cmd](opt)
+    else:
+        raise CommandError(opt)
 
-        cmd = argv[1]
-        d = parse_opt(argv[2:])
-        if functools.reduce(lambda x, y: x or ('playground' in y), argv[1:], False):
+def main():
+    argv = sys.argv
+    try:
+        if len(argv) < 2: raise CommandError({})
+
+        if functools.reduce(lambda x, y: x or ('edit' in y), argv[1:], False):
             from pegpy.playground.server import playground
-            playground(cmd, d)
-            return
-        names = globals()
-        if cmd in names:
-            result = names[cmd](d)
+            playground(argv, main2)
+        else:
+            result = main2(argv)
             if result is not None:
                 print(result)
-        else:
-            raise CommandError(d)
+
     except CommandError as e:
         usage(e.opt)
 

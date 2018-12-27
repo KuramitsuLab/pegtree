@@ -8,20 +8,21 @@
   border: 1px solid black;
   border-radius: 3px;
 }</style></head>
-<body><div style="max-width: 1280px; min-width: 780px;" class="container"><div class="header"><h1>pegpy Playground</h1></div></div>
+<body>
+  <div style="max-width: 1280px; min-width: 780px;" class="container">
+    <div class="header">
+      <h1>pegpy Playground</h1>
+      <form>
+        <input id="cmdline" type="text" size="100" name="cmd">
+        <input id="saveButton" type="button" value="save">
+      </form>
+      <br>
+    </div>
+  </div>
 <div style="max-width: 1280px; min-width: 780px;" class="container">
   <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
     <nav role="navigation" class="navbar navbar-default">
       <div class="container-fluid">
-        <!--div class="navbar-header navbar-left"-->
-        <ul class="nav navbar-nav navbar-left">
-          <li class="dropdown">
-            <!--a href="#" class="navbar-brand">Konoha6</a-->
-            <a id="active-syntax" href="#" data-toggle="dropdown" class="dropdown-toggle">Konoha6<b class="caret"></b></a>
-            <ul id="Syntaxs" class="dropdown-menu"></ul>
-          </li>
-        </ul>
-        <!--/div-->
         <ul class="nav navbar-nav navbar-right">
           <li id="SampleCont" class="dropdown">
             <a id="SampleText" href="#" data-toggle="dropdown" class="dropdown-toggle">Sample<b class="caret"></b></a>
@@ -35,12 +36,6 @@
   <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
     <nav role="navigation" class="navbar navbar-default">
       <div class="container-fluid">
-        <ul class="nav navbar-nav navbar-left">
-          <li id="ModeCont" class="dropdown">
-            <a id="active-mode" href="#" data-toggle="dropdown" class="dropdown-toggle">parse<b class="caret"></b></a>
-            <ul id="Modes" class="dropdown-menu"></ul>
-          </li>
-        </ul>
         <ul class="nav navbar-nav navbar-right">
           <li id="TargetCont" class="dropdown">
             <a id="active-lang" href="#" data-toggle="dropdown" class="dropdown-toggle">Python<b class="caret"></b></a>
@@ -57,6 +52,7 @@
   <script type="text/javascript" src="js/bootstrap.min.js"></script>
   <script type="text/javascript" src="js/ace/ace.js"></script>
   <!--+js('js/LibLibZen.js')--><!--+js('js/libzen.js')-->
+  <script type="text/javascript" src="js/ace/ext-language_tools.js"></script>
   <script type="text/javascript" src="index.js"></script>
 </div>
 </body></html>
