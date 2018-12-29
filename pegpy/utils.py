@@ -201,18 +201,15 @@ COLOR = {
 }
 
 class Writer(object):
-    __slots__ = ['file', 'type', 'istty']
+    __slots__ = ['file', 'istty']
 
-    def __init__(self, file = 'txt'):
-        pos = file.rfind('.')
-        if pos > 0:
-            self.type = file[:pos+1]
-            self.file = open(file, 'w')
-            self.istty = False
-        else:
-            self.type = file
+    def __init__(self, file = None):
+        if file is None:
             self.file = sys.stdout
             self.istty = True
+        else:
+            self.file = open(file, 'w')
+            self.istty = False
 
     def print(self, *args):
         file = self.file

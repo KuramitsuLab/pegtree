@@ -37,7 +37,7 @@ def readlines(prompt):
         return '\n'.join(l)
 
 def init_output(opt):
-    out = u.Writer(opt['output'] if 'output' in opt else 'txt')
+    out = u.Writer(opt['output'] if 'output' in opt else None)
     return out
 
 def load_grammar(opt, default = None):
@@ -111,7 +111,7 @@ def example(opt, out):
 
 def peg(opt, out):
     g = load_grammar(opt)
-    out.println(g)
+    g.dump(out)
 
 def origami(opt, out):
     from pegpy.origami.origami import transpile, transpile_init
