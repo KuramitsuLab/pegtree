@@ -44,10 +44,9 @@ def ggenerate(p, f='gnez'):
 class GParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'result']
 
-  def __init__(self, inputs, urn='(unknown)', pos=0):
+  def __init__(self, inputs, urn, pos, slen):
     s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-    self.inputs, self.pos = u.encode_source(s, urn, pos)
-    self.length = len(self.inputs)
+    self.inputs, self.pos, self.length = u.encsrc(s, urn, pos,slen)
     self.headpos = self.pos
     self.ast = None
     self.result = {}
@@ -65,11 +64,18 @@ def collect_amb(s, pos, result):
     return prev
 
 def generate_gparser(f, conv=None):
-    def parse(s, urn='(unknown)', pos=0):
-        px = GParserContext(s, urn, pos)
+    def parse(inputs, urn = '(unknown)', pos = 0, epos = None):
+        if u.issrc(inputs):
+            urn, inputs, spos, epos = u.decsrc(inputs)
+            pos = spos + pos
+        else:
+            #if isByte:
+            #    inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+            if epos is None: epos = len(inputs)
+        px = GParserContext(inputs, urn, pos, epos)
         pos = px.pos
         if not f(px):
-            return ParseTree("err", px.inputs, px.headpos, len(s), None)
+            return ParseTree("err", px.inputs, px.headpos, epos, None)
         elif len(px.result) == 0:
             return ParseTree("", px.inputs, pos, px.pos, None)
         elif len(px.result) == 1:

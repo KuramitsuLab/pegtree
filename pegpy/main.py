@@ -9,6 +9,9 @@ import pegpy.utils as u
 def bold(s):
     return '\033[1m' + str(s) + '\033[0m'
 
+def version():
+    print(bold('PEGPY - A PEG-based Parsering Tools for Python'))
+
 def read_inputs(a):
     path = Path(a)
     if path.exists():
@@ -33,6 +36,10 @@ def readlines(prompt):
                 break
         return '\n'.join(l)
 
+def init_output(opt):
+    out = u.Writer(opt['output'] if 'output' in opt else 'txt')
+    return out
+
 def load_grammar(opt, default = None):
     file = default if not 'grammar' in opt else opt['grammar']
     if file is None:
@@ -47,41 +54,66 @@ def switch_generator(opt, default = 'math.tpeg'):
         return gnez
     return nez
 
-def parse(opt, conv=None):
+# parse command
+
+def parse(opt, out, conv=None):
     g = load_grammar(opt)
     parser = switch_generator(opt)(g, conv)
     inputs = opt['inputs']
-    if len(inputs) == 0:
+    if len(inputs) == 0:   #Interactive Mode
         try:
             while True:
                 s = readlines(bold('>>> '))
-                print(repr(parser(s)))
+                out.dump(parser(s))
         except (EOFError, KeyboardInterrupt):
             pass
-        return None
-    elif len(inputs) == 1:
-        return repr(parser(read_inputs(inputs[0])))
+        return
+    if len(inputs) == 1:
+        out.dump(parser(read_inputs(inputs[0])))
+        return
     else:
-        o = []
         for file in opt['inputs']:
             st = time.time()
             t = parser(read_inputs(file))
             et = time.time()
-            o.append(file + ' ' + str((et - st) * 1000.0) + "[ms]: " + t.tag)
-        return '\n'.join(o)
+            out.println(file, (et - st) * 1000.0, "[ms]:", t.tag)
+        return
 
-def json(opt):
-    return parse(opt, lambda t: t.asJSON())
+def json(opt, out):
+    parse(opt, out, lambda t: t.asJSON())
 
-def example(opt):
+def example(opt, out):
     g = load_grammar(opt)
-    g.testAll()
+    p = {}
+    test = 0
+    ok = 0
+    for testcase in g.examples:
+        name, inputs, output = testcase
+        if not name in g: continue
+        if not name in p:
+            p[name] = g.pgen(name)
+        res = p[name](inputs)
+        if output == None:
+            if res == 'err':
+                out.perror(res.pos3(), 'NG ' + name)
+            else:
+                out.println('OK', name, '=>', str(res))
+        else:
+            t = str(res).replace(" b'", " '")
+            test += 1
+            if t == output:
+                out.println('OK', name, input)
+                ok += 1
+            else:
+                out.println('NG', name, input, output, '!=', t)
+    if test > 0:
+        out.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
 
-def peg(opt):
+def peg(opt, out):
     g = load_grammar(opt)
-    return g
+    out.println(g)
 
-def origami(opt):
+def origami(opt, out):
     from pegpy.origami.origami import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
     parser = switch_generator(opt, 'konoha6.tpeg')(g)
@@ -93,19 +125,17 @@ def origami(opt):
             while True:
                 s = readlines(bold('>>> '))
                 t = parser(s)
-                print(repr(t))
-                print(repr(transpile(env, t)))
+                out.println(repr(t))
+                out.println(repr(transpile(env, t)))
         except (EOFError, KeyboardInterrupt):
             pass
         return None
     else:
-        o = []
         for input in source_files:
             t = parser(read_inputs(input))
-            o.append(repr(transpile(env, t)))
-        return '\n'.join(o)
+            out.println(repr(transpile(env, t)))
 
-def macaron(opt, default = 'npl.tpeg'):
+def macaron(opt, out, default = 'npl.tpeg'):
     from pegpy.origami.macaron import transpile
     g = load_grammar(opt, default)
     parser = switch_generator(opt, default)(g)
@@ -115,24 +145,22 @@ def macaron(opt, default = 'npl.tpeg'):
             while True:
                 s = readlines(bold('>>> '))
                 t = parser(s)
-                print(repr(transpile(t)))
+                out.print(repr(transpile(t)))
         except (EOFError, KeyboardInterrupt):
             pass
         return None
     else:
-        o = []
         for input in inputs:
             t = parser(read_inputs(input))
-            o.append(transpile(t))
-        return '\n'.join(o)
+            out.println(transpile(t))
 
-def nezcc(opt):
+def nezcc(opt, out):
     pass
 
 def bench(opt):
     pass
 
-def update(opt):
+def update(opt, out):
     try:
         subprocess.check_call(['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
     except:
@@ -167,30 +195,28 @@ def parse_opt(argv):
         argv = parse_each(argv, d)
     return d
 
-def version():
-    print(bold('PEGPY - A PEG-based Parsering Tools for Python'))
+def usage(opt, out):
+    out.println("Usage: pegpy <command> options inputs")
+    out.println("  -g | --grammar <file>      specify a grammar file")
+    out.println("  -s | --start <NAME>        specify a starting rule")
+    out.println("  -o | --output <file>       specify an output file")
+    out.println("  -D                         specify an optional value")
+    out.println()
 
-def usage(opt):
-    print("Usage: pegpy <command> options inputs")
-    print("  -g | --grammar <file>      specify a grammar file")
-    print("  -s | --start <NAME>        specify a starting rule")
-    print("  -o | --output <file>       specify an output file")
-    print("  -D                         specify an optional value")
-    print()
+    out.println("Example:")
+    out.println("  pegpy parse -g math.tpeg <inputs>")
+    out.println("  pegpy json -g math.tpeg <inputs>")
+    out.println("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
+    out.println()
 
-    print("Example:")
-    print("  pegpy parse -g math.tpeg <inputs>")
-    print("  pegpy json -g math.tpeg <inputs>")
-    print("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
-    print()
+    out.println("The most commonly used nez commands are:")
+    out.println(" parse      run an interactive parser")
+    out.println(" nezcc      generate a cross-language parser")
+    out.println(" origami    transpiler")
+    out.println(" bench      the bench mark")
+    out.println(" json       output tree as json file")
+    out.println(" update     update pegpy")
 
-    print("The most commonly used nez commands are:")
-    print(" parse      run an interactive parser")
-    print(" nezcc      generate a cross-language parser")
-    print(" origami    transpiler")
-    print(" bench      the bench mark")
-    print(" json       output tree as json file")
-    print(" update     update pegpy")
 
 class CommandError(Exception):
     def __init__(self, opt):
@@ -201,7 +227,9 @@ def main2(argv):
     opt = parse_opt(argv[2:])
     names = globals()
     if cmd in names:
-        return names[cmd](opt)
+        out = init_output(opt)
+        names[cmd](opt, out)
+        return out
     else:
         raise CommandError(opt)
 
@@ -214,23 +242,10 @@ def main():
             from pegpy.playground.server import playground
             playground(argv, main2)
         else:
-            result = main2(argv)
-            if result is not None:
-                print(result)
+            main2(argv)
 
     except CommandError as e:
         usage(e.opt)
 
 if __name__ == "__main__":
     main()
-
-'''
-  st = time.time()
-  t = parse(s, len(s)-1, newAST, subAST)
-  et = time.time()
-  sys.stderr.write(a + " " + str((et-st) * 1000.0) + "[ms]: ")
-  sys.stderr.flush()
-  sys.stdout.write(str(t))
-  sys.stdout.flush()
-  sys.stderr.write('\n')
-'''

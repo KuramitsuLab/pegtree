@@ -75,6 +75,18 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
+    def dump(self, w, indent=''):
+        if self.child is None:
+            s = self.inputs[self.spos:self.epos]
+            w.println(w.bold("[#" + self.tag), repr(s) + w.bold("]"))
+            return
+        w.println(w.bold("[#" + self.tag))
+        indent2 = '  ' + indent
+        for tag, child in self:
+            w.print(indent2 if tag is '' else indent2 + tag + '=')
+            child.dump(w, indent2)
+        w.println(indent + w.bold("]"))
+
     def get(self, label: str, default = None, conv = None):
         cur = self.child
         while(cur is not None):

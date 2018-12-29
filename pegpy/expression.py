@@ -2,6 +2,7 @@ from enum import Enum
 import pegpy.utils as u
 
 class ParsingExpression(object):
+
     def __repr__(self):
         return self.__str__()
 
@@ -165,6 +166,12 @@ class Range(ParsingExpression):
             peg.min = min(ord(r[0]), peg.min)
             peg.max = max(ord(r[1])+1, peg.max)
         return self
+
+    def min(self):
+        return min(list(map(lambda c: ord(c), self.chars)) + [ord(x[0]) for x in self.ranges])
+
+    def max(self):
+        return max(list(map(lambda c: ord(c), self.chars)) + [ord(x[1]) for x in self.ranges])
 
     @classmethod
     def new(cls, *ss):
@@ -1073,8 +1080,9 @@ def setup_loader(Grammar, pgen):
                 pe = PEGconv.conv(pexr)
                 g.add(name, pe, stmt['name'].pos3())
             elif stmt == 'Example':
-                pexr = stmt['inner']
-                doc = stmt['inner'].asString()
+                s, spos, epos = stmt['inner'].pos3()
+                doc, _, _ = u.encpos3(s, spos, epos)
+                #doc = stmt['inner'].asString()
                 for n in stmt['name'].asArray():
                     g.example(n.asString(), doc)
         g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}))

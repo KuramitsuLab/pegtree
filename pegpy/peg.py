@@ -1,7 +1,6 @@
 #!/usr/local/bin/python
 import pegpy.rule as pe
 import pegpy.parser as pg
-import unittest as ut
 
 def eval(p, conv = None):
     return pg.generate2(p, method='eval', conv=conv)
@@ -78,10 +77,14 @@ class Grammar(object):
         for name in prod.split(','):
             self.examples.append((name, input, output))
 
-    def dump(self):
-        for rule in self.rules: print(rule)
+    def dump(self, out, indent=''):
+        for rule in self.rules: out.println(rule)
 
-    def testAll(self, combinator = nez):
+    def pgen(self, name:str, combinator=nez):
+        return combinator(pe.Ref(name, self))
+
+    '''    
+    def testAll(self, out, combinator = nez):
         p = {}
         test = 0
         ok = 0
@@ -94,17 +97,18 @@ class Grammar(object):
             if output == None:
                 if res == 'err':
                     er = res.getpos()
-                    print('NG {}({}:{}:{}+{})'.format(name, er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
+                    out.println('NG {}({}:{}:{}+{})'.format(name, er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
                 else:
-                    print('OK', name, '=>', t)
+                    out.println('OK', name, '=>', t)
             else:
                 test += 1
                 if t == output:
-                    print('OK', name, input)
+                    out.println('OK', name, input)
                     ok += 1
                 else:
-                    print('NG', name, input, output, '!=', t)
+                    out.println('NG', name, input, output, '!=', t)
         if test > 0:
-            print('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
+            out.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
+    '''
 
 pe.setup_loader(Grammar, nez)
