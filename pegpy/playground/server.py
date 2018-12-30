@@ -28,10 +28,13 @@ def createSourceFile(name, contents):
 comp = None
 
 def compileCommand(name, cmd):
-    r = comp(['dummy'] + cmd.strip().split(' ') + [name])
-    with open(name + '.txt', mode = 'w') as f:
-        f.write(r)
-    return r
+    cmd2 = cmd.strip().split(' ')
+    if '-o' in cmd2 or '--output' in cmd2:
+        w = comp(['dummy'] + cmd2 + [name])
+    else:
+        w = comp(['dummy'] + cmd2 + ['-o', str(file_search('input.k')), name])
+    w.file.seek(0)
+    return w.file.read()
 
 #Server settings
 app = Bottle()
@@ -131,7 +134,7 @@ def write_inputs(datas, file = file_search('input.k')):
 def playground(argv, main):
     global comp, cmd, grammar, output
     write_inputs(list(map(lambda x: x[5:], list(filter(lambda x: x.startswith('edit:'), argv)))))
-    arg = list(map(lambda x: x.replace('edit:', ''), argv[1:]))
+    arg = list(map(lambda x: x.replace('edit:', '').replace('edit', ''), argv[1:]))
 
     cmd = ' '.join(arg)
     comp = main
