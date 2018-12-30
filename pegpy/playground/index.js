@@ -157,22 +157,11 @@ $(function () {
     var SyntaxNames = ['Konoha6', 'NPL', 'Math', 'Python3', 'Java8', 'JavaScript', 'CSV', 'XML', 'JSON', 'UTF-8', 'EMail']
     var SyntaxFiles = ['konoha6.tpeg', 'npl.tpeg', 'math.tpeg', 'python3.tpeg', 'java8.tpeg', 'js.tpeg', 'csv.tpeg', 'xml.tpeg', 'json.tpeg', 'utf8.tpeg', 'email.tpeg']
 
-    $('#saveButton').click(function () {
-        let cmd = document.querySelector("form").elements.cmd.value;
+    $('#closeButton').click(function () {
+        window.open('about:blank','_self').close();
         $.ajax({
             type: "POST",
-            url: "/save",
-            data: JSON.stringify({source: zenEditor.getValue(), cmd: cmd}),
-            contentType: "application/json; charset=utf-8"
-        })
-        .done(function(data) {
-        })
-        .fail(function(XMLHttpRequest, textStatus, errorThrown) {
-            console.log("ajax通信に失敗しました");
-            console.log("XMLHttpRequest : " + XMLHttpRequest.status);
-            console.log("textStatus     : " + textStatus);
-            console.log("errorThrown    : " + errorThrown.message);
-            // alert(errorThrown.message);
+            url: "/close"
         });
     });
 
