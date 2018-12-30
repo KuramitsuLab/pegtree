@@ -217,7 +217,6 @@ def usage(opt, out):
     out.println(" json       output tree as json file")
     out.println(" update     update pegpy")
 
-
 class CommandError(Exception):
     def __init__(self, opt):
         self.opt = opt

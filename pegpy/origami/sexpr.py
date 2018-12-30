@@ -177,6 +177,11 @@ class SExpr(object):
             self.code = code
         return self
 
+    def done(self):
+        self.setType('Void')
+        self.setCode([])
+        return self
+
     def err(self, msg):
         return ErrorExpr(msg, self.getpos())
 

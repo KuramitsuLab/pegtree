@@ -46,6 +46,9 @@ class Env(object):
         self.parent = parent
         self.nameMap = {}
 
+    def newLocal(self):
+        return Env(self)
+
     def __contains__(self, item):
         if item in self.nameMap:
             return True
@@ -89,6 +92,18 @@ class Env(object):
                     if not key in self:
                         self[key] = d
         #print('DEBUG', self.nameMap)
+
+    def addName(self, name, ty):
+        self[name] = Def(ty, None, None)
+
+    def inferName(self, name):
+        if name[-1] in "0123456789'_": name = name[:-1]
+        if name in self:
+            ty = self[name].ty
+            if ty is not None: return ty
+        if len(name) >= 1:
+            return self.inferName(name[1:])
+        return None
 
 ## Typing
 
@@ -135,6 +150,33 @@ class Typer(object):
             self.typeAt(env, expr, n, voidTy)
         return expr
 
+    def AssumeDecl(self, env, expr, ty):
+        ty = expr[-1]
+        #print('a', expr, expr[0], expr[-1], type(expr[-1]))
+        for name in expr[1:-1]:
+            env.addName(str(name), ty)
+        return expr.done()
+
+    def FuncDecl(self, env, expr, ty):
+        print(expr)
+        lenv = env.newLocal()
+        for n in range(2, len(expr)):
+            self.typeAt(lenv, expr, n, None)
+        expr.setType('Void')
+        return expr
+
+    def Param(self, env, expr, ty):
+        name = str(expr[1])
+        if len(expr) == 2:
+            ty = env.inferName(name)
+        else:
+            ty = expr[2]
+        if ty is None: return expr.err('Untyped ' + name)
+        expr[1].setType(ty)
+        env[name] = Def(ty, None, name)
+        expr.setType('Void')
+        return expr
+
     def Var(self, env, expr, ty):
         key = expr.asSymbol()
         defined = env[key]
@@ -142,7 +184,7 @@ class Typer(object):
             expr.setType(defined.ty)
             expr.setCode(defined.getcode())
             return expr
-        return expr.err('Undefined')
+        return expr.err('Undefined ' + key)
 
     def Apply(self, env, expr, ty):
         for n in range(1, len(expr)):
@@ -159,7 +201,7 @@ class Typer(object):
                     self.typeAt(env, expr, n, defined.ty[n-1])
             if not expr.isUntyped() and not expr.isUncode():
                 return expr
-        return expr.err('Undefined')
+        return expr.err('Undefined ' + str(expr))
 
     def Vint(self, env, expr, ty):
         return expr.setType('Int')
