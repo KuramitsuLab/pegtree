@@ -189,6 +189,14 @@ def find_path(file, subdir='grammar'):
         else:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)
 
+def find_importPath(sourcePath, importPath):
+    path = Path(importPath)
+    if not path.exists():
+        path = Path(sourcePath).resolve().parent / importPath
+        if not path.exists(): return importPath
+    return str(path.absolute())
+
+
 COLOR = {
     "Black": '0;30', "DarkGray": '1;30',
     "Red": '0;31',     "LightRed": '1;31',

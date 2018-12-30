@@ -13,7 +13,6 @@ def dasm(p, conv = None):
 
 ## Grammar
 
-
 class Grammar(object):
     __slots__ = ['ns', 'rules', 'rulemap', 'min', 'max', 'memo', 'examples']
 
@@ -82,33 +81,5 @@ class Grammar(object):
 
     def pgen(self, name:str, combinator=nez):
         return combinator(pe.Ref(name, self))
-
-    '''    
-    def testAll(self, out, combinator = nez):
-        p = {}
-        test = 0
-        ok = 0
-        for testcase in self.examples:
-            name, input, output = testcase
-            if not name in p:
-                p[name] = combinator(pe.Ref(name, self))
-            res = p[name](input)
-            t = str(res).replace(" b'", " '")
-            if output == None:
-                if res == 'err':
-                    er = res.getpos()
-                    out.println('NG {}({}:{}:{}+{})'.format(name, er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
-                else:
-                    out.println('OK', name, '=>', t)
-            else:
-                test += 1
-                if t == output:
-                    out.println('OK', name, input)
-                    ok += 1
-                else:
-                    out.println('NG', name, input, output, '!=', t)
-        if test > 0:
-            out.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
-    '''
 
 pe.setup_loader(Grammar, nez)

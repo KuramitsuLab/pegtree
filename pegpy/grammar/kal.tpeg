@@ -1,0 +1,107 @@
+/**
+ * KaleidoScope Grammar
+ *
+ * Authors:
+ *   Kimio Kuramitsu
+ *   Masanori Sato (https://github.com/masanori-10)
+ */
+
+File = Input
+
+example File '''
+main 1 + 2
+def add(x,y) x + y
+'''
+
+File = {
+    Statement*
+    #Source
+}
+
+NAME = !DIGIT !KEYWORD W+
+W = [a-zA-Z0-9_$]
+_ = [ \n\r\t\u000B\u000C]*
+
+KEYWORD
+    = "def"
+    / "extern"
+    / "main"
+
+"main"   = 'main' !W _
+"def"    = 'def' !W _
+"extern" = 'extern' !W _
+
+"," = ',' _
+"(" = '(' _
+")" = ')' _
+"+" = '+' _
+"*" = '*' _
+
+Statement =
+    MainFunc
+    / FuncDecl
+    / ExternFunc
+
+MainFunc = "main" BinopExpr
+
+FuncDecl = {
+    "def"
+    name: Identifier
+    "(" params: Params ")"
+    body: BinopExpr
+    #FuncDecl
+}
+
+ExternFunc = {
+    "extern"
+    name: Identifier
+    "(" params: Params ")"
+    #ExternDecl
+}
+
+Params = {
+    ( Param ( "," Param )* )?
+}
+
+Param = {
+    name: Identifier
+    #LetDecl
+}
+
+BinopExpr =
+  Expr (left:^ { op: ("+"/"*") right: Expr #Infix })*
+
+Expr =
+    CallFunc
+    / Identifier
+    / DoubleLiteral
+    / IntegerLiteral
+
+CallFunc = {
+    Identifier
+    "(" ( Expr ( "," Expr )* )? ")"
+    #ApplyExpr
+}
+
+DoubleLiteral = { DOUBLE #DoubleExpr } _
+
+IntegerLiteral = { INTEGER #IntExpr } _
+
+Identifier = { NAME #NameExpr } _
+
+DOUBLE =
+  FRACTION EXPONENT?
+  / DECIMAL EXPONENT
+
+INTEGER = DECIMAL
+DIGITS = DIGIT+
+DIGIT = [0-9]
+DECIMAL =
+  '0'
+  / !'0' DIGITS
+FRACTION =
+  '.' DIGITS
+  / DIGITS '.' DIGITS?
+EXPONENT = [eE] [+\-]? DIGITS
+
+

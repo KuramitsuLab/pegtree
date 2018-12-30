@@ -815,9 +815,10 @@ def load_tpeg(g):
     left = LinkAs('left')
     right = LinkAs('right')
     name = LinkAs('name')
+    ns = LinkAs('ns')
     inner = LinkAs('inner')
 
-    g.Statement = N%'Example/Rule'
+    g.Statement = N%'Import/Example/Rule'
 
     g.Rule = TreeAs('Rule', (name <= N%'Identifier __') & '=' & __ & (Range.new('/|') & __ |0) & (inner <= N%'Expression')) & EOS
     g.Identifier = TreeAs('Name', (Range.new('A-Z', 'a-z', '@_') & Range.new('A-Z', 'a-z', '0-9', '_.')*0
@@ -829,6 +830,9 @@ def load_tpeg(g):
     Doc2 = TreeAs("Doc", (~Range.new('\r\n') & ANY)* 0)
     g.Doc = N%'DELIM' & (N%'S'*0) & N%'EOL' & Doc1 & N % 'DELIM' | Doc2
     g.DELIM = ParsingExpression.new("'''")
+
+    g.Import = TreeAs('Import', 'import' & N%'S _' & (name <= N%'Char')
+                      & ((N%'S _' & 'as' & N%'S _' & (ns <= N%'Identifier'))|0)) & EOS
 
     #g.Expression = N%'Choice' & (left ^ (TreeAs('Alt', __ & '|' & _ & (right <= N%'Expression'))|0))
     g.Expression = N%'Choice' & (left ^ TreeAs('Alt', __ & '|' & _ & (right <= N%'Expression'))|0)
@@ -994,7 +998,6 @@ def setup_loader(Grammar, pgen):
                 inner = self.conv(a[1])
             else:
                 inner = self.conv(tsub)
-            #print('@Append', LinkAs(name, inner))
             return LinkAs(name, inner)
 
         def Fold(self, t):
@@ -1085,6 +1088,15 @@ def setup_loader(Grammar, pgen):
                 #doc = stmt['inner'].asString()
                 for n in stmt['name'].asArray():
                     g.example(n.asString(), doc)
+            elif stmt == 'Import':
+                importPath = stmt['name'].asString()
+                if 'as' in stmt:
+                    ns = stmt['as'] + '.'
+                    print('@TODO import file as ns')
+                else:
+                    if path.find('=') == -1:
+                        importPath = u.find_importPath(path, importPath)
+                    load_grammar(g, importPath)
         g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}))
         g.forEachRule(lambda pe: checkTree(pe.inner, None))
         def dummy(pe):
