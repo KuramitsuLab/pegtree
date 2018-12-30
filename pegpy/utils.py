@@ -216,7 +216,7 @@ class Writer(object):
             self.file = sys.stdout
             self.istty = True
         else:
-            self.file = open(file, 'w')
+            self.file = open(file, 'w+')
             self.istty = False
 
     def print(self, *args):

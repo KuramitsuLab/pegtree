@@ -7,7 +7,7 @@ var Playground;
         var editor = ace.edit(query);
         editor.setTheme("ace/theme/xcode");
         editor.getSession().setMode("ace/mode/text");
-        editor.setFontSize(13);
+        editor.setFontSize(12);
         editor.setOptions({
             enableBasicAutocompletion: true,
             enableSnippets: true,
@@ -47,7 +47,7 @@ $(function () {
                 if (ShowTopFlag) {
                     outputViewer.gotoLine(0);
                 }
-                if (res.error != "") console.log(res.error)
+                if (res.error != "") console.log(res.error);
             },
             error: function () {
                 console.log("compile error");
@@ -64,23 +64,58 @@ $(function () {
         timer = setTimeout(GenerateServer, 400);
     });
 
-    var TargetNames = ["Python"];
-    var TargetMode = ["python"];
+    $("#cmd").on("change", function (cm, obj) {
+        resetTarget();
+        GenerateServer(true);
+    });
 
-    var bind = function (n) {
-        var Target = $('#Target-' + TargetNames[n]);
+    var TargetNames = {
+        origami: ['Python3', 'Niko', 'macaron'],
+        macaron: ['macaron'],
+        parse: ['TPEG'],
+        json: ['JSON']
+    };
+
+    var TargetMode = {
+        Python3: 'python',
+        Niko: 'niko',
+        macaron: 'macaron',
+        TPEG: 'tpeg',
+        JSON: 'json'
+    }
+
+    var bind = function (target) {
+        var Target = $('#Target-' + target);
         Target.click(function () {
             $('li.active').removeClass("active");
             Target.parent().addClass("active");
-            $('#active-lang').text(TargetNames[n]);
+            $('#active-lang').text(target);
             $('#active-lang').append('<b class="caret"></b>');
-            Playground.ChangeSyntaxHighlight(outputViewer, TargetMode[n]);
+            //Playground.ChangeSyntaxHighlight(outputViewer, TargetMode[target]);
         });
     };
 
-    for (var i = 0; i < TargetNames.length; i++) {
-        $("#Targets").append('<li id="Target-' + TargetNames[i] + '-li"><a href="#" id="Target-' + TargetNames[i] + '">' + TargetNames[i] + '</a></li>');
-        bind(i);
+    var setTargets = function(targets) {
+        $("#TargetCont").append(`<a id="active-lang" href="#" data-toggle="dropdown" class="dropdown-toggle">${targets[0]}<b class="caret"></b></a>`);
+        $("#TargetCont").append('<ul id="Targets" class="dropdown-menu"></ul>');
+        for (var i = 0; i < targets.length; i++) {
+            $("#Targets").append(`<li id="Target-${targets[i]}-li"><a href="#" id="Target-${targets[i]}">${targets[i]}</a></li>`);
+            bind(targets[i]);
+        }
+    }
+
+    var removeTargets = function() {
+        $("#active-lang").remove();
+        $("#Targets").remove();
+    };
+
+    var resetTarget = function() {
+        let cmd = document.querySelector("form").elements.cmd.value;
+        removeTargets();
+        mode = cmd.trim().split(' ')[0];
+        if (Object.keys(TargetNames).indexOf(mode) !== -1) {
+            setTargets(TargetNames[mode]);
+        }
     }
 
     var Samples = ["ifexpr", "fib"];
@@ -165,6 +200,9 @@ $(function () {
         dataType: 'json',
         success: function (res) {
             document.querySelector("form").elements.cmd.value = res.cmd;
+            mode = res.cmd.trim().split(' ')[0];
+            if (Object.keys(TargetNames).indexOf(mode) !== -1)
+                setTargets(TargetNames[mode]);
             GenerateServer(true);
         },
         error: function () {

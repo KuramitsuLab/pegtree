@@ -13,7 +13,8 @@
     <div class="header">
       <h1>pegpy Playground</h1>
       <form>
-        <input id="cmdline" type="text" size="100" name="cmd">
+        <input type="text" size="100" name="cmd" id="cmd">
+        <input type="text" name="dummy" style="display:none;">
         <input id="saveButton" type="button" value="save">
       </form>
       <br>
@@ -38,8 +39,6 @@
       <div class="container-fluid">
         <ul class="nav navbar-nav navbar-right">
           <li id="TargetCont" class="dropdown">
-            <a id="active-lang" href="#" data-toggle="dropdown" class="dropdown-toggle">Python<b class="caret"></b></a>
-            <ul id="Targets" class="dropdown-menu"></ul>
           </li>
         </ul>
       </div>
