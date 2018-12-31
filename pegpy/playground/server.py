@@ -13,33 +13,17 @@ from importlib import import_module
 from pathlib import Path
 from datetime import datetime
 
-from bottle import Bottle, run, request, static_file
+from bottle import Bottle, request, static_file
 
 from pegpy.utils import find_path
-
-def createResponseJson(source, result, error):
-    return json.dumps({'source': source, 'result': result, 'error': error})
-
-def createSourceFile(name, contents):
-    f = codecs.open(name, 'w', 'utf-8')
-    f.write(contents)
-    f.close()
-
-comp = None
-
-def compileCommand(name, cmd):
-    cmd2 = cmd.strip().split(' ')
-    if '-o' in cmd2 or '--output' in cmd2:
-        w = comp(['dummy'] + cmd2 + [name])
-    else:
-        w = comp(['dummy'] + cmd2 + ['-o', str(file_search('input.k')), name])
-    w.file.seek(0)
-    return w.file.read()
 
 #Server settings
 app = Bottle()
 rootPath = str(Path(__file__).resolve().parent)
 root = datetime.now().strftime('?%Y%m%d%H%M%S')
+url = 'http://0.0.0.0:3000' + root
+comp = None
+cmd = ''
 
 #Server routings
 @app.get('/')
@@ -86,27 +70,34 @@ def get_ifexpr():
     with file_search('input.k').open() as f:
         return f.read()
 
-@app.post('/save')
-def saveFile():
-    if not hasattr(request, 'json'):
-        return 'error'
-    req = request.json
-    cmd = req['cmd'].split(' ')
-    out = ''
-    for i in range(len(cmd)):
-        if (cmd[i] == '-o' or cmd[i] == '--output') and i+1 < len(cmd):
-            out = cmd[i+1]
-
-    if out:
-        with Path(out).open(mode = 'w') as f:
-            f.write(req['source'])
-    return 'success'
-
-cmd = ''
+@app.post('/close')
+def close():
+    app.close()
+    write_inputs([])
+    sys.stderr.close()
 
 @app.post('/init')
 def init():
     return json.dumps({'cmd': cmd})
+
+def createResponseJson(source, result, error):
+    return json.dumps({'source': source, 'result': result, 'error': error})
+
+def createSourceFile(name, contents):
+    f = codecs.open(name, 'w', 'utf-8')
+    f.write(contents)
+    f.close()
+
+def compileCommand(name, cmd):
+    cmd2 = cmd.strip().split(' ')
+    if '-o' in cmd2 or '--output' in cmd2:
+        w = comp(['dummy'] + cmd2 + [name])
+    else:
+        w = comp(['dummy'] + cmd2 + ['-o', str(file_search('input.k')), name])
+    w.file.seek(0)
+    cont = w.file.read()
+    w.file.close()
+    return cont
 
 def file_search(file, subdir = 'sample'):
     return Path(__file__).resolve().parent / subdir / file
@@ -136,13 +127,13 @@ def playground(argv, main):
     write_inputs(list(map(lambda x: x[5:], list(filter(lambda x: x.startswith('edit:'), argv)))))
     arg = list(map(lambda x: x.replace('edit:', '').replace('edit', ''), argv[1:]))
 
-    cmd = ' '.join(arg)
+    cmd = ' '.join(arg).strip()
     comp = main
 
     if platform.system() == 'Darwin':
         try:
-            subprocess.check_call(['open', 'http://0.0.0.0:3000' + root])
+            subprocess.check_call(['open', url])
         except:
             pass
-    run(app, host='0.0.0.0', port=3000)
+    app.run(host='0.0.0.0', port=3000)
     write_inputs([])
