@@ -209,7 +209,7 @@ COLOR = {
 }
 
 class Writer(object):
-    __slots__ = ['file', 'istty']
+    __slots__ = ['file', 'istty', 'isVerbose']
 
     def __init__(self, file = None):
         if file is None:
@@ -218,6 +218,7 @@ class Writer(object):
         else:
             self.file = open(file, 'w+')
             self.istty = False
+        self.isVerbose = True
 
     def print(self, *args):
         file = self.file
@@ -238,11 +239,15 @@ class Writer(object):
         else:
             self.println(o)
 
+    def verbose(self, *args):
+        if self.isVerbose:
+            self.println(*args)
+
     def bold(self, s):
         return '\033[1m' + str(s) + '\033[0m' if self.istty else str(s)
 
     def c(self, color, s):
         return '\033[{}m{}\033[0m'.format(COLOR[color],str(s)) + '' if self.istty else str(s)
 
-    def perror(self, pos3, msg='SyntaxError'):
+    def perror(self, pos3, msg='Syntax Error'):
         self.println(self.c('Red', serror(pos3, msg)))

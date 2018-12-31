@@ -1,3 +1,4 @@
+from functools import lru_cache
 from pegpy.peg import Grammar, nez
 from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, String, Char
 import pegpy.utils as u
@@ -7,12 +8,13 @@ g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
 class Def(object):
-    __slots__ = ['ty', 'libs', 'code']
+    __slots__ = ['ty', 'libs', 'code', 'delim']
 
-    def __init__(self, ty, libs, code):
+    def __init__(self, ty, libs, code, delim = None):
         self.libs = libs
         self.ty = ty
         self.code = code
+        self.delim = delim
 
     def __str__(self):
         return str(self.code)
@@ -21,9 +23,7 @@ class Def(object):
         return repr(self.code)
 
     def getcode(self):
-        if isinstance(self.code, str):
-            self.code = split_code(self.code)
-        return self.code
+        return None if self.code is None else compile_code(self.code, self.delim)
 
     @classmethod
     def getkeys(cls, stmt, ty):
@@ -66,14 +66,13 @@ class Env(object):
     def __setitem__(self, item, value):
         self.nameMap[item] = value
 
-    def load(self, path):
+    def load(self, path, out):
         f = u.find_path(path, 'origami').open()
         data = f.read()
         f.close()
         t = origami_parser(data, path)
         if t == 'err':
-            er = t.getpos()
-            print('SyntaxError ({}:{}:{}+{})'.format(er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
+            out.verbose(u.serror(t.pos3()))
             return
         libs = tuple([])
         for _, stmt in t:
@@ -81,12 +80,9 @@ class Env(object):
             if stmt == 'CodeMap':
                 ty = stmt.get('type', None, lambda t: SExpr.of(t))
                 keys = Def.getkeys(stmt, ty)
-                code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else ''
-                if 'delim' in stmt:
-                    delim = u.unquote_string(stmt['delim'].asString())
-                    delim = split_code(delim)
-                    code = split_code(code, delim)
-                d = Def(ty, libs, code)
+                code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
+                delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else None
+                d = Def(ty, libs, code, delim)
                 self[keys[0]] = d
                 for key in keys[1:]:
                     if not key in self:
@@ -158,7 +154,6 @@ class Typer(object):
         return expr.done()
 
     def FuncDecl(self, env, expr, ty):
-        print(expr)
         lenv = env.newLocal()
         for n in range(2, len(expr)):
             self.typeAt(lenv, expr, n, None)
@@ -206,7 +201,16 @@ class Typer(object):
     def Vint(self, env, expr, ty):
         return expr.setType('Int')
 
-keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
+    def Vfloat(self, env, expr, ty):
+        return expr.setType('Float')
+
+    def VString(self, env, expr, ty):
+        return expr.setType('String')
+
+    def VChar(self, env, expr, ty):
+        return expr.setType('Char')
+
+#keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
 
 class SourceSection(object):
 
@@ -250,15 +254,7 @@ class SourceSection(object):
 
     def pushEXPR(self, env, e: SExpr):
         def ef(key):
-            if key in env:
-                d = env[key]
-                code = d.code
-                if isinstance(code, str):
-                    code = split_code(code)
-                    d.code = code
-                return code
-            return None
-
+            return env[key].getcode() if key in env else None
         code = e.code
         if code is None:
             keys = e.keys()
@@ -266,23 +262,6 @@ class SourceSection(object):
                 code = ef(key)
                 if code is not None:
                     break
-
-        if code is None:
-            if isinstance(e, AtomExpr):
-                if isinstance(e.data, String):
-                    for k in keyList:
-                        key = k.format('String')
-                        code = ef(key)
-                        if code is not None:
-                            break
-
-                elif isinstance(e.data, Char):
-                    for k in keyList:
-                        key = k.format('Char')
-                        code = ef(key)
-                        if code is not None:
-                            break
-
         if code is None:
             self.pushSTR(str(e))
         else:
@@ -362,8 +341,6 @@ def exprfunc(c):
     return expr0
 
 def EXPR(env, e, f, ss):
-    #assert(isinstance(e, SExpr))
-    #print('@', f, e, '->', f(env, e))
     ss.pushEXPR(env, f(env, e))
 
 def findindex(s, n):
@@ -395,8 +372,7 @@ def endindex(code: str):
 
 def delimfunc(start, end):
     def curry(env, e, delim, ss):
-        if delim is None:
-            delim = [(STR, ',')]
+        if delim is None: delim = [(STR, ',')]
         if start < len(e):
             ss.pushEXPR(env, e[start])
             if end == 0:
@@ -409,7 +385,10 @@ def delimfunc(start, end):
                     ss.pushEXPR(env, se)
     return curry
 
-def split_code(code: str, delim=None):
+@lru_cache(maxsize=512)
+def compile_code(code: str, delim = None):
+    if delim is not None:
+        delim = compile_code(delim, None)
     def append_string(l, c):
         if len(c) > 0: l.append((STR, c))
     def append_command(l, c):
@@ -421,9 +400,9 @@ def split_code(code: str, delim=None):
             if c.endswith(':'):
                 c = c + str(endindex(code))
             s,e = map(int, c.split(':'))
-            l.append((delimfunc(s,e),None))
+            l.append((delimfunc(s,e),delim))
         elif c == '*':
-            l.append((delimfunc(startindex(code), endindex(code)), None))
+            l.append((delimfunc(startindex(code), endindex(code)), delim))
         elif c in commands:
             l.append((commands[c],None))
     index = 1
@@ -462,17 +441,19 @@ def split_code(code: str, delim=None):
 #split_code('${indent}')
 #split_code('def ${1}(${*}):\n\t${-1}')
 
-def transpile_init(origami_files = ['common.origami']):
+def transpile_init(origami_files, out):
     env = Env()
     if len(origami_files) == 0:
-        env.load('common.origami')
-    else:
-        for file in origami_files:
-            env.load(file)
+        origami_files.append('common.origami')
+    for file in origami_files:
+        env.load(file, out)
     return env
 
-def transpile(env, t):
+def transpile(env, t, out):
     if env is None: env = transpile_init()
+    if t == 'err':
+        out.perror(t.pos3(), 'Syntax Error')
+        return
     e = SExpr.of(t)
     Typer().asType(env, e, None)
     ss = SourceSection()

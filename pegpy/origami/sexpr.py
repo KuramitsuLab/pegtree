@@ -4,46 +4,18 @@ import pegpy.utils as u
 ## Value
 
 class String(object):
-    __slots__ = ['data', 'code']
+    __slots__ = ['data']
     def __init__(self, data):
         self.data = data
-        self.code = None
     def __str__(self):
-        return str(self.data)
-    def __len__(self):
-        return 0
-    def __getitem__(self, item):
-        return None
-    def first(self):
-        return self
-    def keys(self):
-        return []
-    def typeCheck(self, env, ty):
-        if self.ty == None or self.ty is ty:
-            self.ty = ty
-            return
-        ty.match(self.ty)
+        return '"' + str(self.data) + '"'
 
 class Char(object):
-    __slots__ = ['data', 'code']
+    __slots__ = ['data']
     def __init__(self, data):
         self.data = data
-        self.code = None
     def __str__(self):
-        return str(self.data)
-    def __len__(self):
-        return 0
-    def __getitem__(self, item):
-        return None
-    def first(self):
-        return self
-    def keys(self):
-        return []
-    def typeCheck(self, env, ty):
-        if self.ty == None or self.ty is ty:
-            self.ty = ty
-            return
-        ty.match(self.ty)
+        return "'" + str(self.data) + "'"
 
 ## SExpression
 
@@ -58,9 +30,6 @@ class SExpr(object):
         'DoubleExpr': lambda t: float(t.asString()),
         'StringExpr': lambda t: String(t.asString()),
         'CharExpr': lambda t: Char(t.asString()),
-        'TrueExpr': lambda t: 'true',
-        'FalseExpr': lambda t: 'false',
-        'NullExpr': lambda t: 'null',
     }
 
     @classmethod
