@@ -2,6 +2,7 @@ from functools import lru_cache
 from pegpy.peg import Grammar, nez
 from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, String, Char
 import pegpy.utils as u
+from pegpy.origami.desugar import desugar
 
 g = Grammar('konoha6')
 g.load('konoha6.tpeg')
@@ -127,6 +128,7 @@ class Typer(object):
         expr.data[n] = self.asType(env, expr.data[n],ty)
 
     def tryType(self, env, expr, ty):
+        desugar(env, expr)
         key = expr.asSymbol()
         if key.startswith('#'):
             try:
@@ -179,7 +181,31 @@ class Typer(object):
             expr.setType(defined.ty)
             expr.setCode(defined.getcode())
             return expr
-        return expr.err('Undefined ' + key)
+        return expr.err('Undefined Name: ' + key)
+
+    def Group(self, env, expr, ty):
+        self.typeAt(env, expr, 1, ty)
+        return expr.setType(expr[1].ty)
+
+    def Safe(self, env, expr, ty):
+        if expr.asSymbol() == 'Infix':
+            self.typeAt(env, expr, 1, ty)
+            expr[0] = AtomExpr('#Group')
+            return expr
+        else:
+            self.typeAt(env, expr, 1, ty)
+            return expr[1]
+
+    def Infix(self, env, expr, ty):
+        binary = ListExpr([expr[2], expr[1], expr[3]])
+        binary = self.Apply(env, binary, ty)
+        if binary.isUncode():
+            expr.ty = binary.ty
+            expr[2] = binary[0]
+            expr[1] = binary[1]
+            expr[3] = binary[2]
+            return expr
+        return binary
 
     def Apply(self, env, expr, ty):
         for n in range(1, len(expr)):
@@ -195,8 +221,14 @@ class Typer(object):
                 for n in range(1, len(expr)):
                     self.typeAt(env, expr, n, defined.ty[n-1])
             if not expr.isUntyped() and not expr.isUncode():
-                return expr
-        return expr.err('Undefined ' + str(expr))
+                break
+        return expr
+
+    def TrueExpr(self, env, expr, ty):
+        return expr.setType('Bool')
+
+    def FalseExpr(self, env, expr, ty):
+        return expr.setType('Bool')
 
     def Vint(self, env, expr, ty):
         return expr.setType('Int')
@@ -214,13 +246,17 @@ class Typer(object):
 
 class SourceSection(object):
 
-    __slots__ = ['sb', 'indent', 'tab', 'lf']
+    __slots__ = ['sb', 'indent', 'tab', 'lf', 'out']
 
-    def __init__(self, indent = 0, tab = '   ', lf = '\n'):
+    def __init__(self, out, indent = 0, tab = '   ', lf = '\n'):
         self.sb = []
         self.indent = indent
         self.tab = tab
         self.lf = lf
+        self.out = out
+
+    def perror(self, pos3, msg = 'Syntax Error'):
+        self.out.perror(pos3, msg)
 
     def __repr__(self):
         return ''.join(self.sb)
@@ -263,7 +299,7 @@ class SourceSection(object):
                 if code is not None:
                     break
         if code is None:
-            self.pushSTR(str(e))
+            e.emit(env, self)
         else:
             self.exec(env, e, code)
 
@@ -307,9 +343,6 @@ def exprdata(env, e): return e.data
 
 def exprtype(env, e): return e.ty
 
-def returnexpr(env, e):
-    return SExpr.new('#Return', e)
-
 def definedexpr(name):
     def curry(env, e):
         print('@TODO', name)
@@ -320,10 +353,10 @@ def exprfunc(c):
     if c.endswith(')'):
         name, p = c[:-1].split('(')
         f = exprfunc(p)
-        if name=='type':
+        if name.startswith('@'):
+            return f
+        elif name =='type':
             return lambda env, e: exprtype(env, f(env, e))
-        elif name=='@ret':
-            return lambda env, e: returnexpr(env, f(env, e))
         elif name.startsWith('#'):
             pass
         return lambda env, e: definedexpr(name)(f(env, e))
@@ -455,8 +488,8 @@ def transpile(env, t, out):
         out.perror(t.pos3(), 'Syntax Error')
         return
     e = SExpr.of(t)
+    print('@expr', e)
     Typer().asType(env, e, None)
-    ss = SourceSection()
-    if not e.perror():
-        ss.pushEXPR(env, e)
+    ss = SourceSection(out)
+    ss.pushEXPR(env, e)
     return ss

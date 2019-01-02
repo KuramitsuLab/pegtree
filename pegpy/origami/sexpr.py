@@ -21,15 +21,11 @@ class Char(object):
 
 class SExpr(object):
     ORIGAMI = {
-        'Unary': 'name expr',
-        'Infix': 'name left right',
-        'ApplyExpr': 'recv params',
-        'MethodExpr': 'name recv params',
-        'NameExpr' : lambda t: t.asString(),
-        'IntExpr': lambda t: int(t.asString()),
-        'DoubleExpr': lambda t: float(t.asString()),
-        'StringExpr': lambda t: String(t.asString()),
-        'CharExpr': lambda t: Char(t.asString()),
+        'NameExpr' : lambda t, rules: t.asString(),
+        'IntExpr': lambda t, rules: int(t.asString()),
+        'DoubleExpr': lambda t, rules: float(t.asString()),
+        'StringExpr': lambda t, rules: String(t.asString()),
+        'CharExpr': lambda t, rules: Char(t.asString()),
     }
 
     @classmethod
@@ -37,50 +33,30 @@ class SExpr(object):
         SExpr.ORIGAMI[key] = conv
 
     @classmethod
-    def of(cls, t, intern = u.string_intern(), rules = ORIGAMI):
-        if t is None:
-            return ListExpr(())
-        key = t.tag
-        if len(t) == 0 :  #AtomExpr
-            if key in rules:
-                e = rules[key](t)
-                return e if isinstance(e, SExpr) else AtomExpr(rules[key](t), t.pos3())
-            else:
-                return ListExpr([AtomExpr(intern(t.asString()), t.pos3())])
-
-        lconv = rules[key] if key in rules else None
-        ##
-        def flatadd(l, e):
-            if isinstance(e, ListExpr) and len(e) > 1 and e.first() == '#':
-                # flatten [# e e]
-                for e2 in e.data[1:]: l.append(e2)
-            else:
-                l.append(e)
-        if isinstance(lconv, str):
-            lconv = tuple(lconv.split())
-            rules[key] = lconv
-        if isinstance(lconv, tuple):
-            cons = []
-            for name in lconv:
-                if name.startswith('#'):
-                    cons.append(AtomExpr(intern(name), t.pos3()))
-                else:
-                    flatadd(cons, SExpr.of(t[name], intern, rules))
-            return ListExpr(cons)
-        elif callable(lconv):
-            #print('@DEBUG', type(lconv), lconv)
-            return lconv(t, intern, rules)
+    def flatadd(cls, l, e):
+        if isinstance(e, ListExpr) and len(e) > 1 and e.first() == '#':
+            for e2 in e.data[1:]: l.append(e2)
         else:
-            cons = []
-            cons.append(AtomExpr(intern("#"+key), t.pos3()))
-            for n, v in t:
-                flatadd(cons, SExpr.of(v, intern, rules))
-            return ListExpr(cons)
+            l.append(e)
+
+    intern = u.string_intern()
 
     @classmethod
-    def new(cls, *l):
+    def of(cls, t, rules = ORIGAMI):
+        tag = t.tag
+        if tag in rules:
+            e = rules[tag](t, rules)
+            return e if isinstance(e, SExpr) else AtomExpr(e, t.pos3())
         cons = []
-        for e in l:
+        cons.append(AtomExpr(SExpr.intern("#" + tag), t.pos3()))
+        for n, v in t:
+            SExpr.flatadd(cons, SExpr.of(v, rules))
+        return ListExpr(cons)
+
+    @classmethod
+    def new(cls, *argv):
+        cons = []
+        for e in argv:
             if isinstance(e, SExpr) :
                 cons.append(e)
             else:
@@ -152,7 +128,14 @@ class SExpr(object):
         return self
 
     def err(self, msg):
-        return ErrorExpr(msg, self.getpos())
+        return ErrorExpr(msg, self)
+
+    def keys(self):
+        return []
+
+    def emit(self, env, ss):
+        ss.pushSTR(str(self))
+
 
 class AtomExpr(SExpr):
     __slots__ = ['data', 'pos3', 'ty', 'code']
@@ -183,8 +166,8 @@ class AtomExpr(SExpr):
     def getpos(self):
         return self.pos3
 
-    def perror(self):
-        return False
+    def emit(self, env, ss):
+        ss.pushSTR(str(self))
 
 class ListExpr(SExpr):
     __slots__ = ['data', 'ty', 'code']
@@ -201,6 +184,9 @@ class ListExpr(SExpr):
 
     def __getitem__(self, item):
         return self.data[item]
+
+    def __setitem__(self, key, value):
+        self.data[key] = value
 
     def isSymbol(self):
         return isinstance(self.data[0], AtomExpr)
@@ -221,19 +207,14 @@ class ListExpr(SExpr):
             if pos3 is not None: return pos3
         return None
 
-    def perror(self):
-        res = False
-        for e in self.data:
-            if e.perror(): res = True
-        return res
-
 class ErrorExpr(SExpr):
-    __slots__ = ['data', 'pos3', 'ty']
+    __slots__ = ['data', 'msg', 'ty', 'code']
 
-    def __init__(self, msg, pos3 = None):
-        self.data = msg
-        self.pos3 = pos3
-        self.ty = None
+    def __init__(self, msg, data: SExpr ):
+        self.data = data
+        self.msg = msg
+        self.ty = data.ty
+        self.code = None
 
     def __str__(self):
         return '<<{}>>'.format(self.data)
@@ -241,13 +222,9 @@ class ErrorExpr(SExpr):
     def getpos(self):
         return self.pos3
 
-    def perror(self):
-        u.perror(self.pos3, self.data)
-        return True
-
-
-
-
+    def emit(self, env, ss):
+        ss.perror(self.data.getpos(), self.msg)
+        ss.pushEXPR(env, self.data)
 
 def sconv(t):
     intern = u.string_intern()
@@ -312,9 +289,6 @@ def BaseType(n: str):
         typeMap[n] = BaseTypeExpr(n, TypeType)
     return typeMap[n]
 
-def cBaseType(t):
-    return BaseType(t.asString())
-
 def tyconv(ty):
     if isinstance(ty, SExpr):
         return ty
@@ -356,12 +330,6 @@ def ParamType(*types):
         typeMap[key] = ParamTypeExpr(['paramtype', *types])
     return typeMap[key]
 
-def cParamType(t, intern, rules):
-    type = [SExpr.of(t['base'], intern, rules)]
-    for l,se in t['params']:
-        type.append(SExpr.of(se, intern, rules))
-    return ParamType(*type)
-
 class FuncTypeExpr(ListExpr, TypeExpr):
     __slots__ = ['data', 'ty']
 
@@ -396,15 +364,24 @@ def FuncType(*types):
         typeMap[key] = FuncTypeExpr(['functype', *types])
     return typeMap[key]
 
-def cFuncType(t, intern, rules):
+def cBaseType(t, rules):
+    return BaseType(t.asString())
+
+def cParamType(t, rules):
+    type = [SExpr.of(t['base'], rules)]
+    for l,se in t['params']:
+        type.append(SExpr.of(se, rules))
+    return ParamType(*type)
+
+def cFuncType(t, rules):
     types = []
     base = t['base']
     if base.tag == 'TupleType':
         for l,se in t['base']:
-            types.append(SExpr.of(se, intern, rules))
+            types.append(SExpr.of(se, rules))
     else:
-        types.append(SExpr.of(base, intern, rules))
-    types.append(SExpr.of(t['type'], intern, rules))
+        types.append(SExpr.of(base, rules))
+    types.append(SExpr.of(t['type'], rules))
     return FuncType(*types)
 
 SExpr.addRule('BaseType', cBaseType)
