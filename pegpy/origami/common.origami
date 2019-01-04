@@ -2,12 +2,10 @@
 
 require common.origami
 
-#Block           = "${*}" "\n\t"
-#FuncDecl        = "def ${1}(${*}):${indent++}\n\t${@ret(-1)}${indent--}" ","
-#FuncExpr        = "lambda ${*}: ${-1}" ","
-#Decorator@2     = @${1}\n\t${2}
-#Decorator       = "@${1}(${*})\n\t${-1}" ","
+#Block           = "${*}" ";\n\t"
+#FuncDecl        = "${type(1)} ${1}(${2:-1}){${indent++}\n\t${@ret(-1)};${indent--}}" ","
 #Param           = ${1}
+#FuncExpr        = "lambda ${*}: ${-1}" ","
 #Return@0        = return
 #Return@1        = return ${1}
 #LetDecl@2       = ${1} = ${2}
@@ -16,6 +14,8 @@ require common.origami
 #Group           = (${1})
 #Infix           = ${@(1)}${2}${@(3)}
 #Unary           = ${1}${@(2)}
+#ApplyExpr       = "${@(1)}(${2:})" ","
+#MethodExpr      = "${@(1)}.${2}(${3:})" ","
 #GetExpr         = ${@(1)}.${2}
 #IndexExpr       = ${@(1)}[${2}]
 

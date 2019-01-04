@@ -39,7 +39,6 @@ class Def(object):
             keys.append(name)
         return keys
 
-
 class Env(object):
     __slots__ = ['parent', 'nameMap']
 
@@ -68,14 +67,15 @@ class Env(object):
         self.nameMap[item] = value
 
     def load(self, path, out):
-        f = u.find_path(path, 'origami').open()
+        path = u.find_path(path, 'origami')
+        f = path.open()
         data = f.read()
         f.close()
         t = origami_parser(data, path)
         if t == 'err':
             out.verbose(u.serror(t.pos3()))
             return
-        libs = tuple([])
+        libs = None
         for _, stmt in t:
             #print(stmt)
             if stmt == 'CodeMap':
@@ -84,11 +84,32 @@ class Env(object):
                 code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
                 delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else None
                 d = Def(ty, libs, code, delim)
-                self[keys[0]] = d
-                for key in keys[1:]:
-                    if not key in self:
-                        self[key] = d
+                self.add(keys, d)
+            elif stmt == 'Include':
+                file = stmt['file'].asString()
+                file = u.find_importPath(path.absolute(), file)
+                out.verbose('loading...', file)
+                self.load(file, out)
         #print('DEBUG', self.nameMap)
+
+    @classmethod
+    def makekeys(cls, name: str, psize = None, ty = None):
+        if psize is not None:
+            pname = '{}@{}'.format(name, psize)
+            if ty is not None:
+                return ['{}@{}'.format(pname, ty), pname, name]
+            else:
+                return [pname, name]
+        return [name]
+
+    def add(self, keys, defined):
+        if isinstance(keys, str):
+            self[keys] = defined
+        else:
+            self[keys[0]] = defined
+            for key in keys[1:]:
+                if not key in self:
+                    self[key] = defined
 
     def addName(self, name, ty):
         self[name] = Def(ty, None, None)
@@ -98,7 +119,7 @@ class Env(object):
         if name in self:
             ty = self[name].ty
             if ty is not None: return ty
-        if len(name) >= 1:
+        if len(name) >= 2:
             return self.inferName(name[1:])
         return None
 
@@ -135,7 +156,6 @@ class Typer(object):
                 f = getattr(self, key[1:])
                 return f(env, expr, ty)
             except AttributeError:
-                print('@TODO', key)
                 pass
         if isinstance(expr, AtomExpr):
             return self.Var(env, expr, ty)
@@ -159,8 +179,13 @@ class Typer(object):
         lenv = env.newLocal()
         for n in range(2, len(expr)):
             self.typeAt(lenv, expr, n, None)
-        expr.setType('Void')
-        return expr
+        expr[1].ty = expr[-1].ty
+        types = list(map(lambda e: e.ty, expr[2:]))
+        if None not in types:
+            ty = SExpr.ofFuncType(*types)
+            keys = Env.makekeys(str(expr[1]), len(types)-1, ty[0])
+            env.add(keys, Def(ty, None, None))
+        return expr.setType('Void')
 
     def Param(self, env, expr, ty):
         name = str(expr[1])
@@ -173,6 +198,30 @@ class Typer(object):
         env[name] = Def(ty, None, name)
         expr.setType('Void')
         return expr
+
+    def LetDecl(self, env, expr, ty):
+        if len(expr) == 3:
+            self.typeAt(env, expr, 2, None)
+            ty = expr[2].ty
+        else:
+            ty = expr[2]
+            self.typeAt(env, expr, 3, ty)
+        if ty is not None:
+            name = str(expr[1])
+            env[name] = Def(ty, None, name)
+        return expr.setType('Void')
+
+    def VarDecl(self, env, expr, ty):
+        if len(expr) == 3:
+            self.typeAt(env, expr, 2, None)
+            ty = expr[2].ty
+        else:
+            ty = expr[2]
+            self.typeAt(env, expr, 3, ty)
+        if ty is not None:
+            name = str(expr[1])
+            env[name] = Def(ty, None, name)
+        return expr.setType('Void')
 
     def Var(self, env, expr, ty):
         key = expr.asSymbol()
@@ -187,14 +236,15 @@ class Typer(object):
         self.typeAt(env, expr, 1, ty)
         return expr.setType(expr[1].ty)
 
-    def Safe(self, env, expr, ty):
-        if expr.asSymbol() == 'Infix':
-            self.typeAt(env, expr, 1, ty)
-            expr[0] = AtomExpr('#Group')
+    def Unary(self, env, expr, ty):
+        op = ListExpr([expr[1], expr[2]])
+        op = self.Apply(env, op, ty)
+        if op.isUncode():
+            expr.ty = op.ty
+            expr[1] = op[0]
+            expr[2] = op[1]
             return expr
-        else:
-            self.typeAt(env, expr, 1, ty)
-            return expr[1]
+        return op
 
     def Infix(self, env, expr, ty):
         binary = ListExpr([expr[2], expr[1], expr[3]])
@@ -206,6 +256,28 @@ class Typer(object):
             expr[3] = binary[2]
             return expr
         return binary
+
+    def ApplyExpr(self, env, expr, ty):
+        app = ListExpr(expr.data[1:])
+        app = self.Apply(env, app, ty)
+        if app.isUncode():
+            expr.ty = app.ty
+            for i in range(0, len(app)):
+                expr.data[i+1] = app[i]
+            return expr
+        return app
+
+    def MethodExpr(self, env, expr, ty):
+        app = ListExpr(expr.data[1:])
+        app[0], app[1] = app[1], app[2]  # swap callee, funcname
+        app = self.Apply(env, app, ty)
+        if app.isUncode():
+            expr.ty = app.ty
+            app[0], app[1] = app[1], app[2] # swap callee, funcname
+            for i in range(0, len(app)):
+                expr.data[i+1] = app[i]
+            return expr
+        return app
 
     def Apply(self, env, expr, ty):
         for n in range(1, len(expr)):

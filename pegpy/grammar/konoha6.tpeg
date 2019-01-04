@@ -391,7 +391,7 @@ ESCAPE =
 IntExpr = {
 	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
 	#IntExpr
-} (left:^ { right: Var1 #MulExpr })* _
+} _
 
 DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
 HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
@@ -403,7 +403,7 @@ LONG_SUFFIX = [lL]
 
 FloatExpr = {
 	FLOAT #DoubleExpr
-} (left:^ { right: Var1 #MulExpr })* _
+} _
 
 Var1  = { [A-Za-z] [0-9]? [']* #NameExpr }  // xy => x * y
       / '(' _ Expression ')'                // 2(n+1) => 2 * (n+1)
@@ -422,7 +422,6 @@ EXPONENT =
 TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
 FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
 NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
-
 
 /* CodeMap */
 

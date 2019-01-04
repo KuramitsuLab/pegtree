@@ -5,9 +5,9 @@ from functools import lru_cache
 
 import re
 
-pat = re.compile(r'\$\{@([a-z0-9]*)\((-?_|\*|\d\:?-?\d?)\)\}')
+pat = re.compile(r'\$\{@([a-z0-9]*)\((-?\d\:?-?\d?)\)\}')
 
-#print(pat.findall('${@ret(1)} ${@(1:2)}'))
+print(pat.findall('${@ret(-1)}'))
 
 @lru_cache(maxsize=32)
 def desugar_find(s):
@@ -36,6 +36,8 @@ def desugar_func(name):
 
 def desugar_apply(f, e, args):
     if args.find(':') > 0:
+        if args.ends(':'):
+            args += int(len(e))
         start, end = map(int, args.split(':'))
         for i, e2 in enumerate(e[start: end], start):
             e[i] = f(e2)
@@ -50,7 +52,7 @@ def desugar(env, e):
     defined = env[e.asSymbol()]
     if defined is not None and defined.code is not None:
         code = desugar_find(defined.code)
-        #print('@desugar', e.asSymbol(), code)
+        print('@desugar', e.asSymbol(), code)
         for func, args in code:
             f = desugar_func(func)
             desugar_apply(f, e, args)

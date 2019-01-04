@@ -97,6 +97,10 @@ class SExpr(object):
         return BaseType(ty) if isinstance(ty, str) else ty
 
     @classmethod
+    def ofFuncType(cls, *types):
+        return FuncType(*types)
+
+    @classmethod
     def makekeys(cls, key, n, ty = None):
         key2 = key + '@' + str(n)
         l = []
@@ -106,6 +110,9 @@ class SExpr(object):
         l.append(key2)
         l.append(key)
         return l
+
+    def __repr__(self):
+        return str(self)
 
     def isUntyped(self):
         return self.ty is None
