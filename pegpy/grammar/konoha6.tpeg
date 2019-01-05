@@ -28,6 +28,8 @@ EOL          = ('\r'? '\n') / EOF
 "]" = ']' _
 "(" = '(' _
 ")" = ')' _
+"<" = '<' _
+">" = '>' _
 "=" = '=' !'=' _
 "," = ',' _
 ";" = (';' _)+
@@ -114,7 +116,9 @@ Statement =
     / Decorator
 	/ LetDecl
 	/ AssumeDecl
+	/ CodeDecl
 	/ FuncDecl
+	/ AssignStmt
 	/ Expression
 
 /* Decorator */
@@ -149,6 +153,17 @@ Names = {
   Identifier ("," Identifier)*
 }
 
+CodeDecl = {
+  'codemap' __
+  (CodeMap _)*
+  #CodeDecl
+}
+
+example CodeDecl, Statement '''
+codemap +@2: Int->Int = ${1}
+'''
+
+
 /* LetDecl */
 
 LetDecl = {
@@ -158,6 +173,13 @@ LetDecl = {
 	"="
 	expr: Expression
 	#LetDecl
+}
+
+AssignStmt = {
+	left: LeftHand
+    "="
+    right: Expression
+	#Assign
 }
 
 /* FuncDecl */
@@ -202,7 +224,7 @@ FuncCase = {
 
 ReturnStmt = {
 	'return' __ expr: Expression
-	#ReturnStmt
+	#Return
 }
 
 /* Expression */
@@ -230,7 +252,7 @@ BlockExpr = {
 	"{"
 	(Statement _)*
 	"}"
-	#BlockExpr
+	#Block
 }
 
 IfExpr = {
@@ -313,9 +335,16 @@ SuffixExpr =
 	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
 	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
-	    / recv:^ { '_(' _ params: Expressions ")" #IndexExpr }
-	    / recv:^ { "[" type: Type "]" #CastExpr }
+	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
+	    / recv:^ { "<" type: Type ">" #CastExpr }
 	)*
+
+LeftHand =
+    Identifier (
+	    recv:^ { '.' _ name: Identifier #GetExpr }
+    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+    )*
+
 
 Expressions = {
 	Expression? ( "," Expression )*
@@ -454,11 +483,12 @@ Signature = {
     '#'?
     (OPNAME / NAME )
     ('@' DIGIT+ )?
-    #Name
+    #Symbol
 } _
 
 Code = {
     ( !EOL . )*
+    #Symbol
 } EOL _
 
 example CodeMap +@2 : (Int,Int)->Int = (%1+%2)

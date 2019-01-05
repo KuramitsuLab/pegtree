@@ -1,6 +1,6 @@
 from functools import lru_cache
 from pegpy.peg import Grammar, nez
-from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, String, Char
+from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, TypeExpr
 import pegpy.utils as u
 from pegpy.origami.desugar import desugar
 
@@ -92,16 +92,6 @@ class Env(object):
                 self.load(file, out)
         #print('DEBUG', self.nameMap)
 
-    @classmethod
-    def makekeys(cls, name: str, psize = None, ty = None):
-        if psize is not None:
-            pname = '{}@{}'.format(name, psize)
-            if ty is not None:
-                return ['{}@{}'.format(pname, ty), pname, name]
-            else:
-                return [pname, name]
-        return [name]
-
     def add(self, keys, defined):
         if isinstance(keys, str):
             self[keys] = defined
@@ -129,27 +119,28 @@ class Typer(object):
     def __init__(self):
         pass
 
+    VoidType = SExpr.ofType('Void')
+    BoolType = SExpr.ofType('Bool')
+
     def asType(self, env, expr, ty):
         if expr.isUntyped():
+            desugar(env, expr)
             expr = self.tryType(env, expr, ty)
-        if ty is None or expr.ty is ty:
+        if ty is None or expr.ty is None or expr.ty is ty:
             return expr
-        keys = SExpr.makekeys(str(ty), 1, expr.ty)
-        for key in keys:
+        for key in SExpr.makekeys(str(ty), 1, expr.ty):
             defined = env[key]
             if defined is None: continue
-            expr = SExpr.new('#Cast', expr)
+            expr = SExpr.new('#Cast', expr, ty)
             expr.setType(ty)
             expr.setCode(defined.getcode())
             return expr
-        print('@type error', ty, expr, expr.ty, keys)
-        return expr
+        return expr.err('Type Error: Expected={} Given={}'.format(ty, expr.ty))
 
     def typeAt(self, env, expr, n, ty):
         expr.data[n] = self.asType(env, expr.data[n],ty)
 
     def tryType(self, env, expr, ty):
-        desugar(env, expr)
         key = expr.asSymbol()
         if key.startswith('#'):
             try:
@@ -162,15 +153,23 @@ class Typer(object):
         else:
             return self.Apply(env, expr, ty)
 
+    def Scope(self, env, expr, ty):
+        lenv = env.newLocal()
+        if len(expr) == 1: return expr.setType(ty)
+        for n in range(1, len(expr)-1):
+            self.typeAt(lenv, expr, n, Typer.VoidType)
+        self.typeAt(lenv, expr, -1, ty)
+        return expr.setType(expr[-1].ty)
+
     def Block(self, env, expr, ty):
-        voidTy = expr.ofType('Void')
-        for n in range(1, len(expr)):
-            self.typeAt(env, expr, n, voidTy)
-        return expr
+        if len(expr) == 1: return expr.setType(ty)
+        for n in range(1, len(expr)-1):
+            self.typeAt(env, expr, n, Typer.VoidType)
+        self.typeAt(env, expr, -1, ty)
+        return expr.setType(expr[-1].ty)
 
     def AssumeDecl(self, env, expr, ty):
         ty = expr[-1]
-        #print('a', expr, expr[0], expr[-1], type(expr[-1]))
         for name in expr[1:-1]:
             env.addName(str(name), ty)
         return expr.done()
@@ -179,11 +178,15 @@ class Typer(object):
         lenv = env.newLocal()
         for n in range(2, len(expr)):
             self.typeAt(lenv, expr, n, None)
-        expr[1].ty = expr[-1].ty
+        if isinstance(expr[-2], TypeExpr):
+            expr[1].ty = expr[-2]
+            del expr.data[-2]
+        else:
+            expr[1].ty = expr[-1].ty
         types = list(map(lambda e: e.ty, expr[2:]))
         if None not in types:
             ty = SExpr.ofFuncType(*types)
-            keys = Env.makekeys(str(expr[1]), len(types)-1, ty[0])
+            keys = SExpr.makekeys(str(expr[1]), len(types)-1, ty[0])
             env.add(keys, Def(ty, None, None))
         return expr.setType('Void')
 
@@ -193,10 +196,28 @@ class Typer(object):
             ty = env.inferName(name)
         else:
             ty = expr[2]
-        if ty is None: return expr.err('Untyped ' + name)
-        expr[1].setType(ty)
         env[name] = Def(ty, None, name)
-        expr.setType('Void')
+        if ty is None:
+            return expr.err('Untyped ' + name)
+        expr[1].setType(ty)
+        expr.data.append(ty)
+        return expr.setType('Void')
+
+    def Return(self, env, expr, ty):
+        if len(expr) == 2:
+            self.typeAt(env, expr, 1, None)
+            return expr.setType(expr[1].ty)
+        else:
+            return expr.setType('Void')
+
+    def FuncExpr(self, env, expr, ty):
+        lenv = env.newLocal()
+        for n in range(1, len(expr)):
+            self.typeAt(lenv, expr, n, None)
+        types = list(map(lambda e: e.ty, expr[1:]))
+        if None not in types:
+            ty = SExpr.ofFuncType(*types)
+            return expr.setType(ty)
         return expr
 
     def LetDecl(self, env, expr, ty):
@@ -223,14 +244,36 @@ class Typer(object):
             env[name] = Def(ty, None, name)
         return expr.setType('Void')
 
+    def Assign(self, env, expr, ty):
+        left = expr[1]
+        if left == '#GetExpr':
+            setter = ListExpr([left[2], left[1], expr[2]])
+            setter = self.Apply(env, setter, ty)
+            if not setter.isUncode(): return setter
+        elif left == '#IndexExpr':
+            pass
+        self.typeAt(env, expr, 1, None)
+        ty = expr[2].ty
+        self.typeAt(env, expr, 2, ty)
+        return expr.setType('Void')
+
     def Var(self, env, expr, ty):
         key = expr.asSymbol()
         defined = env[key]
         if defined is not None:
-            expr.setType(defined.ty)
             expr.setCode(defined.getcode())
-            return expr
+            return expr.setType(defined.ty)
         return expr.err('Undefined Name: ' + key)
+
+    def IfExpr(self, env, expr, ty):
+        self.typeAt(env, expr, 1, Typer.BoolType)
+        if len(expr) == 4:
+            self.typeAt(env, expr, 2, ty)
+            self.typeAt(env, expr, 3, expr[2].ty)
+            return expr.setType(expr[3].ty)
+        else:
+            self.typeAt(env, expr, 2, Typer.VoidType)
+            return expr.setType(Typer.VoidType)
 
     def Group(self, env, expr, ty):
         self.typeAt(env, expr, 1, ty)
@@ -245,6 +288,22 @@ class Typer(object):
             expr[2] = op[1]
             return expr
         return op
+
+    def GetExpr(self, env, expr, ty):
+        getter = ListExpr([expr[2], expr[1]])
+        getter = self.Apply(env, getter, ty)
+        if getter.isUncode():
+            expr.ty = getter.ty
+            expr[2] = getter[0]
+            expr[1] = getter[1]
+            if expr[1].ty is not None and expr[1].ty.isDataType():
+                name = expr[2].asSymbol()
+                dataty = expr[1].ty
+                if not name in dataty:
+                    return expr.err('Undefined Name: {} in {}'.format(name, dataty))
+                return expr.setType(env.inferName(name))
+            return expr
+        return getter
 
     def Infix(self, env, expr, ty):
         binary = ListExpr([expr[2], expr[1], expr[3]])
@@ -269,11 +328,15 @@ class Typer(object):
 
     def MethodExpr(self, env, expr, ty):
         app = ListExpr(expr.data[1:])
-        app[0], app[1] = app[1], app[2]  # swap callee, funcname
+        print('@befor', app)
+        app[0], app[1] = app[1], app[0]  # swap callee, funcname
+        print('@after', app)
         app = self.Apply(env, app, ty)
         if app.isUncode():
             expr.ty = app.ty
-            app[0], app[1] = app[1], app[2] # swap callee, funcname
+            print('@befor', app)
+            app[0], app[1] = app[1], app[0] # swap callee, funcname
+            print('@after', app)
             for i in range(0, len(app)):
                 expr.data[i+1] = app[i]
             return expr
@@ -294,6 +357,18 @@ class Typer(object):
                     self.typeAt(env, expr, n, defined.ty[n-1])
             if not expr.isUntyped() and not expr.isUncode():
                 break
+        return expr
+
+    def TupleExpr(self, env, expr, ty):
+        if len(expr) == 2:
+            expr.data[0].data = '#Group'
+            return self.Group(env, expr, ty)
+        for n in range(1, len(expr)):
+            self.typeAt(env, expr, n, None)
+        types = list(map(lambda e: e.ty, expr[1:]))
+        if None not in types:
+            ty = SExpr.ofParamType(['Tuple', *types])
+            return expr.setType(ty)
         return expr
 
     def TrueExpr(self, env, expr, ty):
@@ -361,13 +436,14 @@ class SourceSection(object):
         self.pushSTR(s)
 
     def pushEXPR(self, env, e: SExpr):
-        def ef(key):
-            return env[key].getcode() if key in env else None
+        if not hasattr(e, 'code'):
+            self.pushSTR(str(e))
+            return
         code = e.code
         if code is None:
             keys = e.keys()
             for key in keys:
-                code = ef(key)
+                code = env[key].getcode() if key in env else None
                 if code is not None:
                     break
         if code is None:
@@ -413,7 +489,8 @@ def expr4r(env, e): return e[-4]
 def this(env, e): return e
 def exprdata(env, e): return e.data
 
-def exprtype(env, e): return e.ty
+def exprtype(env, e):
+    return e.ty
 
 def definedexpr(name):
     def curry(env, e):

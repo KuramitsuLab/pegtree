@@ -124,7 +124,7 @@ def origami(opt, out):
         try:
             while True:
                 s = readlines(bold('>>> '))
-                t = parser(s)
+                t = parser(s, '>>>')
                 out.println(repr(t))
                 out.println(repr(transpile(env, t, out)))
         except (EOFError, KeyboardInterrupt):

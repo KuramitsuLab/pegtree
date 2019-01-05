@@ -20,7 +20,9 @@ class Char(object):
 ## SExpression
 
 class SExpr(object):
-    ORIGAMI = {
+
+    STNTAX_RULES = {
+        'Symbol' : lambda t, rules: t.asString(),
         'NameExpr' : lambda t, rules: t.asString(),
         'IntExpr': lambda t, rules: int(t.asString()),
         'DoubleExpr': lambda t, rules: float(t.asString()),
@@ -30,7 +32,7 @@ class SExpr(object):
 
     @classmethod
     def addRule(cls, key, conv):
-        SExpr.ORIGAMI[key] = conv
+        SExpr.STNTAX_RULES[key] = conv
 
     @classmethod
     def flatadd(cls, l, e):
@@ -42,7 +44,7 @@ class SExpr(object):
     intern = u.string_intern()
 
     @classmethod
-    def of(cls, t, rules = ORIGAMI):
+    def of(cls, t, rules = STNTAX_RULES):
         tag = t.tag
         if tag in rules:
             e = rules[tag](t, rules)
@@ -63,7 +65,7 @@ class SExpr(object):
                 cons.append(AtomExpr(e))
         return ListExpr(cons)
 
-
+    '''TODO
     @classmethod
     def new2(cls, s):
         """
@@ -91,34 +93,79 @@ class SExpr(object):
             else:
                 word += char
         return sexp[0]
+    '''
+
+    TYPES = {}
+
+    @classmethod
+    def addType(cls, ty):
+        SExpr.TYPES[str(ty)] = ty
+        return ty
 
     @classmethod
     def ofType(cls, ty):
-        return BaseType(ty) if isinstance(ty, str) else ty
+        if isinstance(ty, str):
+            if not ty in SExpr.TYPES:
+                SExpr.addType(BaseTypeExpr(ty))
+            return SExpr.TYPES[ty]
+        assert isinstance(ty, TypeExpr)
+        return ty
+
+    @classmethod
+    def ofParamType(cls, *types):
+        types = list(map(SExpr.ofType, types))
+        key = ParamTypeExpr.typekey(types)
+        if not key in SExpr.TYPES:
+            SExpr.addType(ParamTypeExpr(types))
+        return SExpr.TYPES[key]
 
     @classmethod
     def ofFuncType(cls, *types):
-        return FuncType(*types)
+        types = list(map(SExpr.ofType, types))
+        key = FuncTypeExpr.typekey(types)
+        if not key in SExpr.TYPES:
+            SExpr.addType(FuncTypeExpr(types))
+        return SExpr.TYPES[key]
 
     @classmethod
-    def makekeys(cls, key, n, ty = None):
-        key2 = key + '@' + str(n)
+    def ofDataType(cls, *names):
+        names = list(names)
+        names.sort()
+        key = DataTypeExpr.typekey(names)
+        if not key in SExpr.TYPES:
+            SExpr.addType(DataTypeExpr(names))
+        return SExpr.TYPES[key]
+
+    @classmethod
+    def makekeys(cls, key, n = None, ty = None):
+        if '@' in key:
+            name = key.split('@')[0]
+            pname = key
+        else:
+            if n is None: return [key]
+            name = key
+            pname = key + '@' + str(n)
+        if ty is None:
+            return [pname, name]
         l = []
-        if ty is not None:
-            for tkey in ty.typekeys():
-                l.append(key2 + '@' + str(tkey))
-        l.append(key2)
-        l.append(key)
+        for tkey in ty.typekeys():
+            l.append(pname + '@' + tkey)
+        l.append(pname)
+        l.append(name)
         return l
 
     def __repr__(self):
         return str(self)
 
+    def __eq__(self, symbol):
+        return self.asSymbol() == symbol
+
     def isUntyped(self):
         return self.ty is None
 
     def setType(self, ty):
-        self.ty = BaseType(ty) if isinstance(ty, str) else ty
+        if ty is not None:
+            self.ty = SExpr.ofType(ty)
         return self
 
     def isUncode(self):
@@ -129,19 +176,19 @@ class SExpr(object):
             self.code = code
         return self
 
-    def done(self):
-        self.setType('Void')
-        self.setCode([])
-        return self
-
-    def err(self, msg):
-        return ErrorExpr(msg, self)
+    def err(self, msg, pos3 = None):
+        return ErrorExpr(msg, self, pos3)
 
     def keys(self):
         return []
 
     def emit(self, env, ss):
         ss.pushSTR(str(self))
+
+    def done(self):
+        self.setType('Void')
+        self.setCode([])
+        return self
 
 
 class AtomExpr(SExpr):
@@ -176,8 +223,10 @@ class AtomExpr(SExpr):
     def emit(self, env, ss):
         ss.pushSTR(str(self))
 
+
 class ListExpr(SExpr):
     __slots__ = ['data', 'ty', 'code']
+
     def __init__(self, data, ty = None):
         self.data = list(data)
         self.ty = ty
@@ -198,15 +247,15 @@ class ListExpr(SExpr):
     def isSymbol(self):
         return isinstance(self.data[0], AtomExpr)
 
-    def asSymbol(self):
-        return self.data[0].asSymbol()
+    def asSymbol(self): return self.data[0].asSymbol()
+
 
     def first(self):
         return str(self.data[0])
 
     def keys(self):
         return SExpr.makekeys(str(self.data[0]), len(self)-1,
-                       self.data[1].ty if len(self) > 1 and not self.data[1].isUntyped() else None)
+                       self.data[1].ty if len(self) > 1 else None)
 
     def getpos(self):
         for e in self.data:
@@ -215,33 +264,47 @@ class ListExpr(SExpr):
         return None
 
 class ErrorExpr(SExpr):
-    __slots__ = ['data', 'msg', 'ty', 'code']
+    __slots__ = ['data', 'pos3', 'msg', 'ty', 'code']
 
-    def __init__(self, msg, data: SExpr ):
+    def __init__(self, msg, data: SExpr, pos3 = None):
         self.data = data
+        self.pos3 = data.getpos() if pos3 is None else pos3
         self.msg = msg
         self.ty = data.ty
         self.code = None
 
     def __str__(self):
-        return '<<{}>>'.format(self.data)
+        return '(* {} {} *)'.format(self.msg, self.data)
 
     def getpos(self):
-        return self.pos3
+        return self.data.getpos()
 
     def emit(self, env, ss):
-        ss.perror(self.data.getpos(), self.msg)
+        ss.perror(self.pos3, self.msg)
         ss.pushEXPR(env, self.data)
-
-def sconv(t):
-    intern = u.string_intern()
-    return SExpr.of(t, intern)
 
 ## Type
 
+def typestr(ty):
+    return '?' if ty is None else str(ty)
+
+def resolve_curry(vars):
+    def f(ty):
+        if isinstance(ty, TypeExpr):
+            return ty.resolve(vars)
+        return ty
+    return f
+
+
 class TypeExpr(object):
+
     def isFuncType(self): return False
 
+    def isVarType(self): return False
+
+    def isDataType(self): return False
+
+    '''
     def match(self, ty, vars = {}):
         if self is ty: return True
         if len(self.data) == len(ty.data) and self.data[0] == ty.data[0]:
@@ -249,25 +312,31 @@ class TypeExpr(object):
                 if not t1.match(t2, vars): return False
             return True
         return False
+    '''
+TypeType = None
 
 class BaseTypeExpr(AtomExpr, TypeExpr):
     __slots__ = ['data', 'pos3', 'ty']
+
     def __init__(self, data, ty = None):
-        super().__init__(data, None, ty)
+        super().__init__(data, None, TypeType)
+
     def __str__(self):
         return str(self.data)
+
     def __eq__(self, other):
         return self is other or self.data == other
-
-    def keys(self):
-        return [str(self.data)]
-
-    def typekeys(self):
-        return [str(self.data)]
 
     def isVarType(self):
         return len(self.data) == 1 and self.data.islower()
 
+    def keys(self):
+        return ['#' + str(self.data)]
+
+    def typekeys(self):
+        return [str(self.data)]
+
+    '''
     def match(self, ty: TypeExpr, vars = {}):
         if self is ty: return True
         tname = self.data
@@ -283,30 +352,26 @@ class BaseTypeExpr(AtomExpr, TypeExpr):
         if self.isVarType():
             return vars[self.data]
         return self
+    '''
 
-typeMap = {
-    'Type': BaseTypeExpr('Type')
-}
-
-TypeType = typeMap['Type']
+TypeType = SExpr.addType(BaseTypeExpr('Type'))
 TypeType.ty = TypeType
 
+''''
 def BaseType(n: str):
     if not n in typeMap:
         typeMap[n] = BaseTypeExpr(n, TypeType)
     return typeMap[n]
 
+
 def tyconv(ty):
-    if isinstance(ty, SExpr):
+    if isinstance(ty, TypeExpr):
         return ty
     return BaseType(str(ty))
+'''
 
-def resolve_curry(vars):
-    def f(ty):
-        if isinstance(ty, TypeExpr):
-            return ty.resolve(vars)
-        return ty
-    return f
+
+# ParamType
 
 class ParamTypeExpr(ListExpr, TypeExpr):
     __slots__ = ['data', 'ty']
@@ -315,72 +380,115 @@ class ParamTypeExpr(ListExpr, TypeExpr):
         super().__init__(data, TypeType)
 
     def __str__(self):
-        return str(self.data[1]) + '[' + (','.join(map(str, self.data[2:]))) + ']'
+        return ParamTypeExpr.typekey(self.data)
 
     def __eq__(self, other):
         return self.data[1] is other or self.data[1] == other
 
+    @classmethod
+    def typekey(cls, types):
+        return str(types[0]) + '[' + (','.join(map(str, types[1:]))) + ']'
+
     def keys(self):
-        m = str(self.data[1])
-        return [ m + str(self.data[2]), m] + super().keys()[1:]
+        raw = '#' + str(self.data[0])
+        return [ raw + str(self.data[1]), raw, '#ParamType' ]
 
-    def typekeys(self):
-        return [str(self.data), str(self.data[1])]
-
+    '''
     def resolve(self, vars):
         ParamType(*map(resolve_curry(vars), self.data))
+    '''
 
-def ParamType(*types):
-    types = list(map(tyconv, types))
-    key = ' '.join(map(str, types))
-    if not key in typeMap:
-        typeMap[key] = ParamTypeExpr(['paramtype', *types])
-    return typeMap[key]
+#FuncType
 
 class FuncTypeExpr(ListExpr, TypeExpr):
+
     __slots__ = ['data', 'ty']
 
     def __init__(self, data):
         super().__init__(data, TypeType)
 
+    @classmethod
+    def typekey(cls, types):
+        return 'FuncType['+ (','.join(map(str, types)))+']'
+
     def __str__(self):
-        return 'Func['+ (','.join(map(str, self.data[1:])))+']'
+        return FuncTypeExpr.typekey(self.data)
 
     def isFuncType(self):
         return True
 
     def __len__(self):
-        return len(self.data)-2
+        return len(self.data)-1
 
     def __getitem__(self, item):
-        return self.data[item+1]
+        return self.data[item]
 
     def ret(self):
         return self.data[-1]
 
+    def keys(self):
+        return [ '#'+ str(self), '#FuncType' ]
+
     def typekeys(self):
         return [str(self)]
 
+    '''
     def resolve(self, vars):
         FuncType(*map(resolve_curry(vars), self.data))
+    '''
 
+'''
 def FuncType(*types):
     types = list(map(tyconv, types))
     key = 'F(' + '->'.join(map(str, types)) + ')'
     if not key in typeMap:
         typeMap[key] = FuncTypeExpr(['functype', *types])
     return typeMap[key]
+'''
 
-def cBaseType(t, rules):
-    return BaseType(t.asString())
+#DataType
 
-def cParamType(t, rules):
-    type = [SExpr.of(t['base'], rules)]
+class DataTypeExpr(ListExpr, TypeExpr):
+    __slots__ = ['data', 'ty']
+
+    def __init__(self, data):
+        super().__init__(data, TypeType)
+
+    @classmethod
+    def typekey(cls, names):
+        return '{'+ (','.join(names))+'}'
+
+    def __str__(self):
+        return DataTypeExpr.typekey(self.data)
+
+    def isDataType(self):
+        return True
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, item):
+        return self.data[item]
+
+    def keys(self):
+        return ['#DataType']
+
+    def typekeys(self):
+        return [str(self)]
+
+
+## TypeRule
+
+def BaseTypeRule(t, rules):
+    return SExpr.ofType(t.asString())
+
+def ParamTypeRule(t, rules):
+    types = [SExpr.of(t['base'], rules)]
     for l,se in t['params']:
-        type.append(SExpr.of(se, rules))
-    return ParamType(*type)
+        types.append(SExpr.of(se, rules))
+    return SExpr.ofParamType(*types)
 
-def cFuncType(t, rules):
+def FuncTypeRule(t, rules):
     types = []
     base = t['base']
     if base.tag == 'TupleType':
@@ -389,10 +497,17 @@ def cFuncType(t, rules):
     else:
         types.append(SExpr.of(base, rules))
     types.append(SExpr.of(t['type'], rules))
-    return FuncType(*types)
+    return SExpr.ofFuncType(*types)
 
-SExpr.addRule('BaseType', cBaseType)
-SExpr.addRule('ParamType', cParamType)
-SExpr.addRule('FuncType', cFuncType)
+def DataTypeRule(t, rules):
+    names = []
+    for _,name in t:
+        names.append(name.asString())
+    return SExpr.ofDataType(*names)
+
+SExpr.addRule('BaseType', BaseTypeRule)
+SExpr.addRule('ParamType', ParamTypeRule)
+SExpr.addRule('FuncType', FuncTypeRule)
+SExpr.addRule('DataType', DataTypeRule)
 
 
