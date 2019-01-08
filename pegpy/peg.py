@@ -7,10 +7,10 @@ import pegpy.gparser.optimized as pg3
 def eval(p, conv = None):
     return pg.generate2(p, method='eval', conv=conv)
 
-def nez(p, conv = None):
+def nez0(p, conv = None):
     return pg.generate2(p, method='nez', conv=conv)
 
-def nez1(p, conv = None):
+def nez(p, conv = None):
     def emit(pe, **option) : return pe.nez(**option)
     return pg2.generate(p, method='nez', pg=pg3, emit=emit, memo={}, conv=conv)
 

@@ -1031,6 +1031,10 @@ def setup_loader(Grammar, pgen):
                     return State('@equals', self.conv(a[1]))
                 elif funcname == '@contains':
                     return State('@contains', self.conv(a[1]))
+                elif funcname == '@dict':
+                    return State('@dict', self.conv(a[1]))
+                elif funcname == '@defdict':
+                    return State('@defdict', self.conv(a[1]))
             print('@TODO', funcname)
             return EMPTY
 

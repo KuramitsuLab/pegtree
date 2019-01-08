@@ -10,11 +10,6 @@ def gen_Empty(pe, **option):
     def empty(px): return True
     return empty
 
-
-def gen_NotEmpty(pe, **option):
-    def fail(px): return False
-    return fail
-
 # Char
 
 def gen_Char(pe, **option):
@@ -293,6 +288,20 @@ def getstate(state, nameid):
         state = state.sprev
     return None
 
+def adddict(px, s):
+    if len(s) == 0: return
+    key = s[0]
+    if key in px.dict:
+        l = px.dict[key]
+        slen = len(s)
+        for i in range(len(l)):
+            if slen > len(l[i]):
+                l.insert(i, s)
+                return
+        l.append(s)
+    else:
+        px.dict[key] = [s]
+
 def gen_State(pe, **option):
     pf = option['emit'](pe.inner, **option)
     if pe.func == '@scope':
@@ -372,6 +381,27 @@ def gen_State(pe, **option):
                     state = getstate(state)
             return False
         return contains
+
+    elif pe.func == '@defdict':
+        def defdict(px):
+            pos = px.pos
+            if pf(px):
+                adddict(px, px.inputs[pos:px.pos])
+                return True
+            return False
+        return defdict
+
+    elif pe.func == '@dict':
+        def refdict(px):
+            if px.pos < px.length:
+                key = px.inputs[px.pos]
+                if key in px.dict:
+                    for s in px.dict[key]:
+                        if px.inputs.startswith(s, px.pos):
+                            px.pos += len(s)
+                            return True
+            return False
+        return refdict
 
     else:
         def unknown(px):

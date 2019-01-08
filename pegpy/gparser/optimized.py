@@ -45,7 +45,7 @@ def mov(pf, plen):
         return False
     return match
 
-def not1(pf):
+def not0(pf):
     return lambda px: not pf(px)
 
 def many(pf):
@@ -64,6 +64,12 @@ def many1(pf):
         return False
 
     return match_many1
+
+# Empty
+
+def gen_NotEmpty(pe, **option):
+    def fail(px): return False
+    return fail
 
 # Char
 
@@ -113,7 +119,7 @@ def gen_AndRange(pe, **option):
     return bitmatch
 
 def gen_NotRange(pe, **option):
-    return not1(gen_AndRange(pe, **option))
+    return not0(gen_AndRange(pe, **option))
 
 def gen_ManyRange(pe, **option):
     return many(gen_AndRange(pe, **option))
@@ -134,13 +140,77 @@ def gen_Range(pe, **option):
 
     return bitmatch
 
+# Any
+
+def gen_AndAny(pe, **option):
+    return lambda px : px.pos < px.length
+
+def gen_NotAny(pe, **option):
+    return lambda px : px.pos >= px.length
+
+def gen_ManyAny(pe, **option):
+    def match(px):
+        px.pos = px.length
+        return True
+    return match
+
+def gen_Many1Any(pe, **option):
+    def match(px):
+        if px.pos < px.length:
+            px.pos = px.length
+            return True
+        return False
+    return match
+
+# Not
+
+def gen_And(pe, **option):
+    pi = deref(pe.inner)
+    if isinstance(pi, base.Char):
+        return gen_AndChar(pi, **option)
+    elif isinstance(pi, base.Range):
+        return gen_AndRange(pi, **option)
+    elif pi == base.ANY:
+        return gen_AndAny(pi, **option)
+    elif pi == base.EMPTY:
+        return gen_Empty(pi, **option)
+    return base.gen_And(pe, **option)
+
 # Not
 
 def gen_Not(pe, **option):
     pi = deref(pe.inner)
     if isinstance(pi, base.Char):
-        return gen_NotChar(pe, **option)
+        return gen_NotChar(pi, **option)
+    elif isinstance(pi, base.Range):
+        return gen_NotRange(pi, **option)
+    elif pi == base.ANY:
+        return gen_NotAny(pi, **option)
+    elif pi == base.EMPTY:
+        return gen_NotEmpty(pi, **option)
     return base.gen_Not(pe, **option)
+
+# Many
+
+def gen_Many(pe, **option):
+    pi = deref(pe.inner)
+    if isinstance(pi, base.Char):
+        return gen_ManyChar(pi, **option)
+    elif isinstance(pi, base.Range):
+        return gen_ManyRange(pi, **option)
+    elif pi == base.ANY:
+        return gen_ManyAny(pi, **option)
+    return base.gen_Many(pe, **option)
+
+def gen_Many1(pe, **option):
+    pi = deref(pe.inner)
+    if isinstance(pi, base.Char):
+        return gen_Many1Char(pi, **option)
+    elif isinstance(pi, base.Range):
+        return gen_Many1Range(pi, **option)
+    elif pi == base.ANY:
+        return gen_Many1Any(pi, **option)
+    return base.gen_Many1(pe, **option)
 
 #Seq
 
@@ -164,33 +234,14 @@ def seq(fs):
     else:
         return seq4(fs[0], fs[1], fs[2], seq(fs[3:]))
 
+def opz_Seq(es, **option):
+    return es
+
 def gen_Seq(pe, **option):
     emit = option['emit']
-    #es = pe.flatten([])
     es = base.flatten(pe, [], base.Seq)
-    #print(es)
-    #print(es2)
+    es = opz_Seq(es, **option)
     return seq(list(map(lambda p: emit(p, **option), es)))
-
-def seq2(pfa, pfb):
-    return lambda px: pfa(px) and pfb(px)
-
-def seq3(pfa, pfb, pfc):
-    return lambda px: pfa(px) and pfb(px) and pfc(px)
-
-def seq4(pfa, pfb, pfc, pfd):
-    return lambda px: pfa(px) and pfb(px) and pfc(px) and pfd(px)
-
-def seq(fs):
-    flen = len(fs)
-    if flen == 2:
-        return seq2(fs[0], fs[1])
-    elif flen == 3:
-        return seq3(fs[0], fs[1], fs[2])
-    elif flen == 4:
-        return seq4(fs[0], fs[1], fs[2], fs[3])
-    else:
-        return seq4(fs[0], fs[1], fs[2], seq(fs[3:]))
 
 #Ore, Alt
 

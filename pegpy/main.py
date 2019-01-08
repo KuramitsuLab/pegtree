@@ -195,27 +195,27 @@ def parse_opt(argv):
         argv = parse_each(argv, d)
     return d
 
-def usage(opt, out):
-    out.println("Usage: pegpy <command> options inputs")
-    out.println("  -g | --grammar <file>      specify a grammar file")
-    out.println("  -s | --start <NAME>        specify a starting rule")
-    out.println("  -o | --output <file>       specify an output file")
-    out.println("  -D                         specify an optional value")
-    out.println()
+def usage(opt):
+    print("Usage: pegpy <command> options inputs")
+    print("  -g | --grammar <file>      specify a grammar file")
+    print("  -s | --start <NAME>        specify a starting rule")
+    print("  -o | --output <file>       specify an output file")
+    print("  -D                         specify an optional value")
+    print()
 
-    out.println("Example:")
-    out.println("  pegpy parse -g math.tpeg <inputs>")
-    out.println("  pegpy json -g math.tpeg <inputs>")
-    out.println("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
-    out.println()
+    print("Example:")
+    print("  pegpy parse -g math.tpeg <inputs>")
+    print("  pegpy json -g math.tpeg <inputs>")
+    print("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
+    print()
 
-    out.println("The most commonly used nez commands are:")
-    out.println(" parse      run an interactive parser")
-    out.println(" nezcc      generate a cross-language parser")
-    out.println(" origami    transpiler")
-    out.println(" bench      the bench mark")
-    out.println(" json       output tree as json file")
-    out.println(" update     update pegpy")
+    print("The most commonly used nez commands are:")
+    print(" parse      run an interactive parser")
+    print(" nezcc      generate a cross-language parser")
+    print(" origami    transpiler")
+    print(" bench      the bench mark")
+    print(" json       output tree as json file")
+    print(" update     update pegpy")
 
 class CommandError(Exception):
     def __init__(self, opt):
