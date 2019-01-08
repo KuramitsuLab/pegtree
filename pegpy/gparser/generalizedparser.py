@@ -11,7 +11,6 @@ def mresult(pf):
             px.result[px.pos] = px.ast
             return True
         else:
-            px.result = {}
             return False
     return curry
 
