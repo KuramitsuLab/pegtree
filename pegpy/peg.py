@@ -46,9 +46,21 @@ class Grammar(object):
         return super().__getattr__(key)
 
     def __contains__(self, item):
+        if '.' in item:
+            ns, key = item.split('.')
+            if ns in self.rulemap:
+                g = self.rulemap[ns]
+                if isinstance(g, Grammar):
+                    return key in g
+                return False
         return item in self.rulemap
 
     def __getitem__(self, item):
+        if '.' in item:
+            ns, key = item.split('.')
+            if ns in self.rulemap:
+                g = self.rulemap[ns]
+                return g[key]
         return self.rulemap[item]
 
     def namespace(self):

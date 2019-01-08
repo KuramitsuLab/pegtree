@@ -440,13 +440,14 @@ def setting(**option):
 
 
 class ParserContext:
-  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state', 'memo']
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state', 'dict', 'memo']
 
   def __init__(self, urn, inputs, pos, slen):
       self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
       self.headpos = self.pos
       self.ast = None
       self.state = None
+      self.dict = {}
       self.memo = {}
 
 def generate(p, **option):

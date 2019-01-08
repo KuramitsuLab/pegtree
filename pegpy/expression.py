@@ -124,7 +124,6 @@ def inUnary(e):
 
 # PEG Grammar
 
-
 class Empty(ParsingExpression):
     def __str__(self):
         return "''"
@@ -1094,12 +1093,14 @@ def setup_loader(Grammar, pgen):
                     g.example(n.asString(), doc)
             elif stmt == 'Import':
                 importPath = stmt['name'].asString()
-                if 'as' in stmt:
-                    ns = stmt['as'] + '.'
-                    print('@TODO import file as ns')
+                if path.find('=') == -1:
+                    importPath = u.find_importPath(path, importPath)
+                if 'ns' in stmt:
+                    ns = stmt['ns'].asString()
+                    ng = Grammar()
+                    load_grammar(ng, importPath)
+                    g.rulemap[ns] = ng
                 else:
-                    if path.find('=') == -1:
-                        importPath = u.find_importPath(path, importPath)
                     load_grammar(g, importPath)
         g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}))
         g.forEachRule(lambda pe: checkTree(pe.inner, None))

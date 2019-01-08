@@ -1,5 +1,7 @@
 /* test */
 
-import 'math.tpeg'
+import 'math.tpeg' as math
 
-Start = Expression
+Expression = math.Expression
+
+example Expression 1+2*3
