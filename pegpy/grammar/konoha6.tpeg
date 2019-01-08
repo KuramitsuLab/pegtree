@@ -11,27 +11,31 @@ File = _  { (Statement _)* #Block } EOF
 
 /* Code Layout (Whitespace) */
 
-_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
-__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
-S            = [ \t\n\r]
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
              / '(*' ( !'*)' . )* '*)'
 LINECOMMENT  = '//' ( !EOL . )* EOL
 EOF          = !.
 EOL          = ('\r'? '\n') / EOF
 
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
+S            = [ \t]
+EOS          = ( [ \t;\n\r]+ / BLOCKCOMMENT / LINECOMMENT )*
+
 /* Token */
 
-"{" = '{' _
-"}" = '}' _
-"[" = '[' _
-"]" = ']' _
-"(" = '(' _
-")" = ')' _
+"{" = '{' EOS
+"}" = EOS '}' _
+"[" = '[' EOS
+"]" = EOS ']' _
+"(" = '(' EOS
+")" = EOS ')' _
+"<" = '<' _
+">" = '>' _
 "=" = '=' !'=' _
-"," = ',' _
+"," = ',' EOS
 ";" = (';' _)+
-":" = ':' _
+":" = ':' EOS
 
 /* Identifier */
 
@@ -114,7 +118,9 @@ Statement =
     / Decorator
 	/ LetDecl
 	/ AssumeDecl
+	/ CodeDecl
 	/ FuncDecl
+	/ AssignStmt
 	/ Expression
 
 /* Decorator */
@@ -126,7 +132,7 @@ f(x) = x + 1
 
 Decorator = {
     '@' name: Identifier
-    ("(" params: Params ")")?
+    ("(" params: Params ")")? EOS
     body: Statement
     #Decorator
 }
@@ -138,7 +144,7 @@ assume x,y,z : Float
 '''
 
 AssumeDecl = {
-  'assume' __
+  'assume' !W __
   names: Names
   ":"
   type: Type
@@ -148,6 +154,18 @@ AssumeDecl = {
 Names = {
   Identifier ("," Identifier)*
 }
+
+CodeDecl = {
+  'codemap' !W EOS
+  (CodeMap EOS)*
+  #CodeDecl
+}
+
+example CodeDecl, Statement '''
+codemap
+    +@2: Int->Int = +${1}
+    -@2: Int->Int = -${1}
+'''
 
 /* LetDecl */
 
@@ -160,18 +178,37 @@ LetDecl = {
 	#LetDecl
 }
 
+AssignStmt = {
+	left: LeftHand
+    "="
+    right: Expression
+	#Assign
+}
+
 /* FuncDecl */
 
 example FuncDecl, Statement '''
 f(x) = x + 1
+'''
+example FuncDecl, Statement '''
+g(x) = {
+    let x = 1
+    x + 1
+}
+'''
+
+example FuncDecl, Statement '''
+h(x) =
+    let x = 1
+    x + 1
 '''
 
 FuncDecl = {
 	name: Identifier
 	"(" params: Params ")"
     (":" type: Type)?
-    "="
-    body: (FuncMatch / Expression)
+    '='
+    body: (IndentBlock / _ FuncMatch / _ Expression)
 	#FuncDecl
 }
 
@@ -195,14 +232,30 @@ FuncMatch = {
     FuncCase   FuncCase+
     #FuncMatch
 }
+
+example FuncCase '''
+| x                 if y == 0
+'''
+
 FuncCase = {
-    '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
+    EOS '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
     #FuncCase
+}
+
+INDENT = [ \t]+
+
+IndentBlock = {
+    EOL
+    @scope(
+        @symbol(INDENT) Statement EOL
+        (@match(INDENT) Statement EOL)+
+    )
+    #Block
 }
 
 ReturnStmt = {
 	'return' __ expr: Expression
-	#ReturnStmt
+	#Return
 }
 
 /* Expression */
@@ -230,7 +283,7 @@ BlockExpr = {
 	"{"
 	(Statement _)*
 	"}"
-	#BlockExpr
+	#Scope
 }
 
 IfExpr = {
@@ -313,9 +366,16 @@ SuffixExpr =
 	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
 	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
-	    / recv:^ { '_(' _ params: Expressions ")" #IndexExpr }
-	    / recv:^ { "[" type: Type "]" #CastExpr }
+	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
+	    / recv:^ { "<" type: Type ">" #CastExpr }
 	)*
+
+LeftHand =
+    Identifier (
+	    recv:^ { '.' _ name: Identifier #GetExpr }
+    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+    )*
+
 
 Expressions = {
 	Expression? ( "," Expression )*
@@ -331,11 +391,21 @@ example Primary, Expression { name: 'naruto', age: 17 }
 example Primary, Expression {"name": 'naruto', "age": '17'}
 
 Primary =
+  / Defined
   /	GroupExpr
   / ListExpr
   / DataExpr
   / Constant
   / Identifier
+
+/* Defined */
+
+Defined = {
+    'defined' _ "("
+    { (![) ] .)+ #Symbol }
+    _ ")"
+    #Defined
+}
 
 GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #TupleExpr }
 
@@ -391,7 +461,7 @@ ESCAPE =
 IntExpr = {
 	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
 	#IntExpr
-} (left:^ { right: Var1 #MulExpr })* _
+} _
 
 DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
 HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
@@ -403,7 +473,7 @@ LONG_SUFFIX = [lL]
 
 FloatExpr = {
 	FLOAT #DoubleExpr
-} (left:^ { right: Var1 #MulExpr })* _
+} _
 
 Var1  = { [A-Za-z] [0-9]? [']* #NameExpr }  // xy => x * y
       / '(' _ Expression ')'                // 2(n+1) => 2 * (n+1)
@@ -423,10 +493,9 @@ TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
 FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
 NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
 
-
 /* CodeMap */
 
-OrigamiFile = _ { (Origami _)* #Block } EOF
+OrigamiFile = EOS { (Origami EOS)* #Block } EOF
 
 Origami =
     / CodeInclude
@@ -446,7 +515,7 @@ CodeRequire = {
 CodeMap = {
     name: Signature
     (":" type: Type)?
-    (('->' / '=') _ expr: (StringExpr / Code))?
+    ('=' _ expr: (StringExpr / Code))?
     (delim: StringExpr)?
     #CodeMap
 }
@@ -455,11 +524,12 @@ Signature = {
     '#'?
     (OPNAME / NAME )
     ('@' DIGIT+ )?
-    #Name
+    #Symbol
 } _
 
 Code = {
     ( !EOL . )*
+    #Symbol
 } EOL _
 
 example CodeMap +@2 : (Int,Int)->Int = (%1+%2)

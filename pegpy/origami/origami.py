@@ -1,18 +1,21 @@
+from functools import lru_cache
 from pegpy.peg import Grammar, nez
-from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, String, Char
+from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr, TypeExpr
 import pegpy.utils as u
+from pegpy.origami.desugar import desugar
 
 g = Grammar('konoha6')
 g.load('konoha6.tpeg')
 origami_parser = nez(g['OrigamiFile'])
 
 class Def(object):
-    __slots__ = ['ty', 'libs', 'code']
+    __slots__ = ['ty', 'libs', 'code', 'delim']
 
-    def __init__(self, ty, libs, code):
+    def __init__(self, ty, libs, code, delim = None):
         self.libs = libs
         self.ty = ty
         self.code = code
+        self.delim = delim
 
     def __str__(self):
         return str(self.code)
@@ -21,9 +24,7 @@ class Def(object):
         return repr(self.code)
 
     def getcode(self):
-        if isinstance(self.code, str):
-            self.code = split_code(self.code)
-        return self.code
+        return None if self.code is None else compile_code(self.code, self.delim)
 
     @classmethod
     def getkeys(cls, stmt, ty):
@@ -38,13 +39,15 @@ class Def(object):
             keys.append(name)
         return keys
 
-
 class Env(object):
     __slots__ = ['parent', 'nameMap']
 
     def __init__(self, parent = None):
         self.parent = parent
         self.nameMap = {}
+
+    def newLocal(self):
+        return Env(self)
 
     def __contains__(self, item):
         if item in self.nameMap:
@@ -63,32 +66,52 @@ class Env(object):
     def __setitem__(self, item, value):
         self.nameMap[item] = value
 
-    def load(self, path):
-        f = u.find_path(path, 'origami').open()
+    def load(self, path, out):
+        path = u.find_path(path, 'origami')
+        f = path.open()
         data = f.read()
         f.close()
         t = origami_parser(data, path)
         if t == 'err':
-            er = t.getpos()
-            print('SyntaxError ({}:{}:{}+{})'.format(er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
+            out.verbose(u.serror(t.pos3()))
             return
-        libs = tuple([])
+        libs = None
         for _, stmt in t:
             #print(stmt)
             if stmt == 'CodeMap':
                 ty = stmt.get('type', None, lambda t: SExpr.of(t))
                 keys = Def.getkeys(stmt, ty)
-                code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else ''
-                if 'delim' in stmt:
-                    delim = u.unquote_string(stmt['delim'].asString())
-                    delim = split_code(delim)
-                    code = split_code(code, delim)
-                d = Def(ty, libs, code)
-                self[keys[0]] = d
-                for key in keys[1:]:
-                    if not key in self:
-                        self[key] = d
+                code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
+                delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else None
+                d = Def(ty, libs, code, delim)
+                self.add(keys, d)
+            elif stmt == 'Include':
+                file = stmt['file'].asString()
+                file = u.find_importPath(path.absolute(), file)
+                out.verbose('loading...', file)
+                self.load(file, out)
         #print('DEBUG', self.nameMap)
+
+    def add(self, keys, defined):
+        if isinstance(keys, str):
+            self[keys] = defined
+        else:
+            self[keys[0]] = defined
+            for key in keys[1:]:
+                if not key in self:
+                    self[key] = defined
+
+    def addName(self, name, ty):
+        self[name] = Def(ty, None, None)
+
+    def inferName(self, name):
+        if name[-1] in "0123456789'_": name = name[:-1]
+        if name in self:
+            ty = self[name].ty
+            if ty is not None: return ty
+        if len(name) >= 2:
+            return self.inferName(name[1:])
+        return None
 
 ## Typing
 
@@ -96,24 +119,37 @@ class Typer(object):
     def __init__(self):
         pass
 
+    VoidType = SExpr.ofType('Void')
+    BoolType = SExpr.ofType('Bool')
+
     def asType(self, env, expr, ty):
         if expr.isUntyped():
+            desugar(env, expr)
             expr = self.tryType(env, expr, ty)
-        if ty is None or expr.ty is ty:
+        if ty is None or expr.ty is None or expr.ty is ty:
             return expr
-        keys = SExpr.makekeys(str(ty), 1, expr.ty)
-        for key in keys:
+        for key in SExpr.makekeys(str(ty), 1, expr.ty):
             defined = env[key]
             if defined is None: continue
-            expr = SExpr.new('#Cast', expr)
-            expr.setType(ty)
+            expr = SExpr.new('#Cast', expr, ty)
             expr.setCode(defined.getcode())
-            return expr
-        print('@type error', ty, expr, expr.ty, keys)
-        return expr
+            return expr.setType(ty)
+        return expr.err('Type Error: Expected={} Given={}'.format(ty, expr.ty))
 
     def typeAt(self, env, expr, n, ty):
         expr.data[n] = self.asType(env, expr.data[n],ty)
+
+    def CastExpr(self, env, expr, ty):
+        self.typeAt(env, expr, 1, None)
+        ty = expr[2]
+        for key in SExpr.makekeys(str(ty), 1, expr[1].ty):
+            defined = env[key]
+            if defined is None: continue
+            expr.setCode(defined.getcode())
+            return expr.setType(ty)
+        if expr[1].ty is not None:
+            expr = expr.err('Undefined Cast {}=>{}'.format(expr[1].ty, ty), expr[2].getpos())
+        return expr.setType(ty)
 
     def tryType(self, env, expr, ty):
         key = expr.asSymbol()
@@ -122,27 +158,200 @@ class Typer(object):
                 f = getattr(self, key[1:])
                 return f(env, expr, ty)
             except AttributeError:
-                print('@TODO', key)
                 pass
         if isinstance(expr, AtomExpr):
             return self.Var(env, expr, ty)
         else:
             return self.Apply(env, expr, ty)
 
+    def Scope(self, env, expr, ty):
+        lenv = env.newLocal()
+        if len(expr) == 1: return expr.setType(ty)
+        for n in range(1, len(expr)-1):
+            self.typeAt(lenv, expr, n, Typer.VoidType)
+        self.typeAt(lenv, expr, -1, ty)
+        return expr.setType(expr[-1].ty)
+
     def Block(self, env, expr, ty):
-        voidTy = expr.ofType('Void')
+        if len(expr) == 1: return expr.setType(ty)
+        for n in range(1, len(expr)-1):
+            self.typeAt(env, expr, n, Typer.VoidType)
+        self.typeAt(env, expr, -1, ty)
+        return expr.setType(expr[-1].ty)
+
+    def AssumeDecl(self, env, expr, ty):
+        ty = expr[-1]
+        for name in expr[1:-1]:
+            env.addName(str(name), ty)
+        return expr.done()
+
+    def FuncDecl(self, env, expr, ty):
+        lenv = env.newLocal()
+        for n in range(2, len(expr)):
+            self.typeAt(lenv, expr, n, None)
+        if isinstance(expr[-2], TypeExpr):
+            expr[1].ty = expr[-2]
+            del expr.data[-2]
+        else:
+            expr[1].ty = expr[-1].ty
+        types = list(map(lambda e: e.ty, expr[2:]))
+        if None not in types:
+            ty = SExpr.ofFuncType(*types)
+            keys = SExpr.makekeys(str(expr[1]), len(types)-1, ty[0])
+            env.add(keys, Def(ty, None, None))
+        return expr.setType('Void')
+
+    def Param(self, env, expr, ty):
+        name = str(expr[1])
+        if len(expr) == 2:
+            ty = env.inferName(name)
+        else:
+            ty = expr[2]
+        env[name] = Def(ty, None, name)
+        if ty is None:
+            return expr.err('Untyped ' + name)
+        expr[1].setType(ty)
+        expr.data.append(ty)
+        return expr.setType('Void')
+
+    def Return(self, env, expr, ty):
+        if len(expr) == 2:
+            self.typeAt(env, expr, 1, None)
+            return expr.setType(expr[1].ty)
+        else:
+            return expr.setType('Void')
+
+    def FuncExpr(self, env, expr, ty):
+        lenv = env.newLocal()
         for n in range(1, len(expr)):
-            self.typeAt(env, expr, n, voidTy)
+            self.typeAt(lenv, expr, n, None)
+        types = list(map(lambda e: e.ty, expr[1:]))
+        if None not in types:
+            ty = SExpr.ofFuncType(*types)
+            return expr.setType(ty)
         return expr
+
+    def LetDecl(self, env, expr, ty):
+        if len(expr) == 3:
+            self.typeAt(env, expr, 2, None)
+            ty = expr[2].ty
+        else:
+            ty = expr[2]
+            self.typeAt(env, expr, 3, ty)
+        if ty is not None:
+            name = str(expr[1])
+            env[name] = Def(ty, None, name)
+        return expr.setType('Void')
+
+    def VarDecl(self, env, expr, ty):
+        if len(expr) == 3:
+            self.typeAt(env, expr, 2, None)
+            ty = expr[2].ty
+        else:
+            ty = expr[2]
+            self.typeAt(env, expr, 3, ty)
+        if ty is not None:
+            name = str(expr[1])
+            env[name] = Def(ty, None, name)
+        return expr.setType('Void')
+
+    def Assign(self, env, expr, ty):
+        left = expr[1]
+        if left == '#GetExpr':
+            setter = ListExpr([left[2], left[1], expr[2]])
+            setter = self.Apply(env, setter, ty)
+            if not setter.isUncode(): return setter
+        elif left == '#IndexExpr':
+            pass
+        self.typeAt(env, expr, 1, None)
+        ty = expr[2].ty
+        self.typeAt(env, expr, 2, ty)
+        return expr.setType('Void')
 
     def Var(self, env, expr, ty):
         key = expr.asSymbol()
         defined = env[key]
         if defined is not None:
-            expr.setType(defined.ty)
             expr.setCode(defined.getcode())
+            return expr.setType(defined.ty)
+        return expr.err('Undefined Name: ' + key)
+
+    def IfExpr(self, env, expr, ty):
+        self.typeAt(env, expr, 1, Typer.BoolType)
+        if len(expr) == 4:
+            self.typeAt(env, expr, 2, ty)
+            self.typeAt(env, expr, 3, expr[2].ty)
+            return expr.setType(expr[3].ty)
+        else:
+            self.typeAt(env, expr, 2, Typer.VoidType)
+            return expr.setType(Typer.VoidType)
+
+    def Group(self, env, expr, ty):
+        self.typeAt(env, expr, 1, ty)
+        return expr.setType(expr[1].ty)
+
+    def Unary(self, env, expr, ty):
+        op = ListExpr([expr[1], expr[2]])
+        op = self.Apply(env, op, ty)
+        if op.isUncode():
+            expr.ty = op.ty
+            expr[1] = op[0]
+            expr[2] = op[1]
             return expr
-        return expr.err('Undefined')
+        return op
+
+    def GetExpr(self, env, expr, ty):
+        getter = ListExpr([expr[2], expr[1]])
+        getter = self.Apply(env, getter, ty)
+        if getter.isUncode():
+            expr.ty = getter.ty
+            expr[2] = getter[0]
+            expr[1] = getter[1]
+            if expr[1].ty is not None and expr[1].ty.isDataType():
+                name = expr[2].asSymbol()
+                dataty = expr[1].ty
+                if not name in dataty:
+                    return expr.err('Undefined Name: {} in {}'.format(name, dataty))
+                return expr.setType(env.inferName(name))
+            return expr
+        return getter
+
+    def Infix(self, env, expr, ty):
+        binary = ListExpr([expr[2], expr[1], expr[3]])
+        binary = self.Apply(env, binary, ty)
+        if binary.isUncode():
+            expr.ty = binary.ty
+            expr[2] = binary[0]
+            expr[1] = binary[1]
+            expr[3] = binary[2]
+            return expr
+        return binary
+
+    def ApplyExpr(self, env, expr, ty):
+        app = ListExpr(expr.data[1:])
+        app = self.Apply(env, app, ty)
+        if app.isUncode():
+            expr.ty = app.ty
+            for i in range(0, len(app)):
+                expr.data[i+1] = app[i]
+            return expr
+        return app
+
+    def MethodExpr(self, env, expr, ty):
+        app = ListExpr(expr.data[1:])
+        print('@befor', app)
+        app[0], app[1] = app[1], app[0]  # swap callee, funcname
+        print('@after', app)
+        app = self.Apply(env, app, ty)
+        if app.isUncode():
+            expr.ty = app.ty
+            print('@befor', app)
+            app[0], app[1] = app[1], app[0] # swap callee, funcname
+            print('@after', app)
+            for i in range(0, len(app)):
+                expr.data[i+1] = app[i]
+            return expr
+        return app
 
     def Apply(self, env, expr, ty):
         for n in range(1, len(expr)):
@@ -158,23 +367,54 @@ class Typer(object):
                 for n in range(1, len(expr)):
                     self.typeAt(env, expr, n, defined.ty[n-1])
             if not expr.isUntyped() and not expr.isUncode():
-                return expr
-        return expr.err('Undefined')
+                break
+        return expr
+
+    def TupleExpr(self, env, expr, ty):
+        if len(expr) == 2:
+            expr.data[0].data = '#Group'
+            return self.Group(env, expr, ty)
+        for n in range(1, len(expr)):
+            self.typeAt(env, expr, n, None)
+        types = list(map(lambda e: e.ty, expr[1:]))
+        if None not in types:
+            ty = SExpr.ofParamType(['Tuple', *types])
+            return expr.setType(ty)
+        return expr
+
+    def TrueExpr(self, env, expr, ty):
+        return expr.setType('Bool')
+
+    def FalseExpr(self, env, expr, ty):
+        return expr.setType('Bool')
 
     def Vint(self, env, expr, ty):
         return expr.setType('Int')
 
-keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
+    def Vfloat(self, env, expr, ty):
+        return expr.setType('Float')
+
+    def VString(self, env, expr, ty):
+        return expr.setType('String')
+
+    def VChar(self, env, expr, ty):
+        return expr.setType('Char')
+
+#keyList = ['{}', '#{}', '{}Expr', '#{}Expr']
 
 class SourceSection(object):
 
-    __slots__ = ['sb', 'indent', 'tab', 'lf']
+    __slots__ = ['sb', 'indent', 'tab', 'lf', 'out']
 
-    def __init__(self, indent = 0, tab = '   ', lf = '\n'):
+    def __init__(self, out, indent = 0, tab = '   ', lf = '\n'):
         self.sb = []
         self.indent = indent
         self.tab = tab
         self.lf = lf
+        self.out = out
+
+    def perror(self, pos3, msg = 'Syntax Error'):
+        self.out.perror(pos3, msg)
 
     def __repr__(self):
         return ''.join(self.sb)
@@ -207,42 +447,18 @@ class SourceSection(object):
         self.pushSTR(s)
 
     def pushEXPR(self, env, e: SExpr):
-        def ef(key):
-            if key in env:
-                d = env[key]
-                code = d.code
-                if isinstance(code, str):
-                    code = split_code(code)
-                    d.code = code
-                return code
-            return None
-
+        if not hasattr(e, 'code'):
+            self.pushSTR(str(e))
+            return
         code = e.code
         if code is None:
             keys = e.keys()
             for key in keys:
-                code = ef(key)
+                code = env[key].getcode() if key in env else None
                 if code is not None:
                     break
-
         if code is None:
-            if isinstance(e, AtomExpr):
-                if isinstance(e.data, String):
-                    for k in keyList:
-                        key = k.format('String')
-                        code = ef(key)
-                        if code is not None:
-                            break
-
-                elif isinstance(e.data, Char):
-                    for k in keyList:
-                        key = k.format('Char')
-                        code = ef(key)
-                        if code is not None:
-                            break
-
-        if code is None:
-            self.pushSTR(str(e))
+            e.emit(env, self)
         else:
             self.exec(env, e, code)
 
@@ -284,10 +500,8 @@ def expr4r(env, e): return e[-4]
 def this(env, e): return e
 def exprdata(env, e): return e.data
 
-def exprtype(env, e): return e.ty
-
-def returnexpr(env, e):
-    return SExpr.new('#Return', e)
+def exprtype(env, e):
+    return e.ty
 
 def definedexpr(name):
     def curry(env, e):
@@ -299,10 +513,10 @@ def exprfunc(c):
     if c.endswith(')'):
         name, p = c[:-1].split('(')
         f = exprfunc(p)
-        if name=='type':
+        if name.startswith('@'):
+            return f
+        elif name =='type':
             return lambda env, e: exprtype(env, f(env, e))
-        elif name=='@ret':
-            return lambda env, e: returnexpr(env, f(env, e))
         elif name.startsWith('#'):
             pass
         return lambda env, e: definedexpr(name)(f(env, e))
@@ -320,8 +534,6 @@ def exprfunc(c):
     return expr0
 
 def EXPR(env, e, f, ss):
-    #assert(isinstance(e, SExpr))
-    #print('@', f, e, '->', f(env, e))
     ss.pushEXPR(env, f(env, e))
 
 def findindex(s, n):
@@ -353,8 +565,7 @@ def endindex(code: str):
 
 def delimfunc(start, end):
     def curry(env, e, delim, ss):
-        if delim is None:
-            delim = [(STR, ',')]
+        if delim is None: delim = [(STR, ',')]
         if start < len(e):
             ss.pushEXPR(env, e[start])
             if end == 0:
@@ -367,7 +578,10 @@ def delimfunc(start, end):
                     ss.pushEXPR(env, se)
     return curry
 
-def split_code(code: str, delim=None):
+@lru_cache(maxsize=512)
+def compile_code(code: str, delim = None):
+    if delim is not None:
+        delim = compile_code(delim, None)
     def append_string(l, c):
         if len(c) > 0: l.append((STR, c))
     def append_command(l, c):
@@ -379,9 +593,9 @@ def split_code(code: str, delim=None):
             if c.endswith(':'):
                 c = c + str(endindex(code))
             s,e = map(int, c.split(':'))
-            l.append((delimfunc(s,e),None))
+            l.append((delimfunc(s,e),delim))
         elif c == '*':
-            l.append((delimfunc(startindex(code), endindex(code)), None))
+            l.append((delimfunc(startindex(code), endindex(code)), delim))
         elif c in commands:
             l.append((commands[c],None))
     index = 1
@@ -420,20 +634,22 @@ def split_code(code: str, delim=None):
 #split_code('${indent}')
 #split_code('def ${1}(${*}):\n\t${-1}')
 
-def transpile_init(origami_files = ['common.origami']):
+def transpile_init(origami_files, out):
     env = Env()
     if len(origami_files) == 0:
-        env.load('common.origami')
-    else:
-        for file in origami_files:
-            env.load(file)
+        origami_files.append('common.origami')
+    for file in origami_files:
+        env.load(file, out)
     return env
 
-def transpile(env, t):
+def transpile(env, t, out):
     if env is None: env = transpile_init()
+    if t == 'err':
+        out.perror(t.pos3(), 'Syntax Error')
+        return
     e = SExpr.of(t)
+    print('@expr', e)
     Typer().asType(env, e, None)
-    ss = SourceSection()
-    if not e.perror():
-        ss.pushEXPR(env, e)
+    ss = SourceSection(out)
+    ss.pushEXPR(env, e)
     return ss

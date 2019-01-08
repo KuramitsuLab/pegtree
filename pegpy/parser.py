@@ -4,13 +4,21 @@ import pegpy.utils as u
 from pegpy.expression import *
 from pegpy.ast import *
 
-
 class ParserOption(object):
     def __init__(self):
         self.isByte = False
-        self.isOptimized = False
+        self.NonZero = True
+        self.Optimized = 0
         self.treeFunc = ParseTree
         self.linkFunc = TreeLink
+
+    def encode(self, text):
+        if self.isByte:
+            b = bytes(text, 'utf-8')
+            return b, len(b)
+        else:
+            return text, len(text)
+
 
 # Empty
 def empty(px): return True
@@ -117,7 +125,7 @@ def gen_Many1Any():
     return many1any
 
 # Range
-
+'''
 def isbitset(pe):
     for c in pe.chars:
         if ord(c) > 255: return False
@@ -134,43 +142,46 @@ def encode_bitset(pe):
             n |= (1 << c)
     return n
 
+def isRange(c, ranges):
+    for r in ranges:
+        if r[0] <= c and c <= r[1]: return True
+    return False
+'''
+
 def decode_char(inputs, pos):
     try:
         return inputs[pos:pos + 4].decode('utf-8', 'replace')[0]
     except IndexError:
         return '\0'
 
+def gen_BRange(pe):
+    if pe.max() <= 255:
+        byteset = first(pe, 255)
+        def bitmatch(px):
+            if px.pos < px.length and (byteset & (1 << px.inputs[px.pos])) != 0:
+                px.pos += 1
+                return True
+            return False
+        return bitmatch
+    else:
+        offset = pe.min()
+        bitset = first(pe) >> offset
+        def bitmatch(px):
+            pos = px.pos
+            if pos < px.length:
+                shift = decode_char(px.inputs, pos) - offset
+                if shift >= 0 and (bitset & (1 << shift)) != 0:
+                    px.pos = pos + 1
+                    return True
+            return False
+        return bitmatch
+
 def isRangeChar(c, ranges, chars):
     for r in ranges:
         if r[0] <= c and c <= r[1]: return True
     return c in chars and chars != ''
 
-def isRange(c, ranges):
-    for r in ranges:
-        if r[0] <= c and c <= r[1]: return True
-    return False
-
-def gen_BRange(pe):
-    if isbitset(pe):
-        n = encode_bitset(pe)
-        def bitmatch(px):
-            if px.pos < px.length and (n & (1 << px.inputs[px.pos])) != 0:
-                px.pos += 1
-                return True
-            return False
-        return bitmatch
-    # urange
-    chars = pe.chars
-    ranges = pe.ranges
-    def urange(px):
-        c = decode_char(px.inputs, px.pos)
-        if isRangeChar(c, ranges, chars):
-            px.pos += 1
-            return True
-        return False
-    return urange
-
-def gen_CRange(chars, ranges):
+def gen_CRange0(chars, ranges):
     def crange(px) :
         if px.pos < px.length and isRangeChar(px.inputs[px.pos], ranges, chars):
             px.pos += 1
@@ -178,94 +189,23 @@ def gen_CRange(chars, ranges):
         return False
     return crange
 
-def gen_CRange2(chars, ranges, mov):
-    clen = len(chars)
-    rlen = len(ranges)
-    if clen == 0:
-        if rlen == 0:
-            return lambda px: False
-        elif rlen == 1:
-            s1 = ranges[0][0]
-            e1 = ranges[0][1]
-            def range1(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if s1 <= c <= e1:
-                        mov(px)
-                        return True
-                return False
-            return range1
-        elif rlen == 2:
-            s1 = ranges[0][0]
-            e1 = ranges[0][1]
-            s2 = ranges[1][0]
-            e2 = ranges[1][1]
-            def range2(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if s1 <= c <= e1 or s2 <= c <= e2:
-                        mov(px)
-                        return True
-                return False
-            return range2
-        else:
-            #print('@range', rlen, clen, repr(chars))
-            def crange(px):
-                if px.pos < px.length and isRange(px.inputs[px.pos], ranges):
-                    mov(px)
-                    return True
-                return False
-            return crange
-    else: # clen > 0
-        if rlen == 0:
-            def range0(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if c in chars:
-                        mov(px)
-                        return True
-                return False
-            return range0
-        elif rlen == 1:
-            s1 = ranges[0][0]
-            e1 = ranges[0][1]
-            def range1(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if s1 <= c <= e1 or c in chars:
-                        mov(px)
-                        return True
-                return False
-            return range1
-        elif rlen == 2:
-            s1 = ranges[0][0]
-            e1 = ranges[0][1]
-            s2 = ranges[1][0]
-            e2 = ranges[1][1]
-            def range2(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if s1 <= c <= e1 or s2 <= c <= e2 or c in chars:
-                        mov(px)
-                        return True
-                return False
-            return range2
-        else:
-            #print('@range', rlen, clen, repr(chars))
-            def crange(px):
-                if px.pos < px.length:
-                    c = px.inputs[px.pos]
-                    if isRange(c, ranges) or c in chars:
-                        mov(px)
-                        return True
-                return False
-            return crange
+def gen_CRange(pe):
+    offset = pe.min()
+    bitset = first(pe) >> offset
+    def bitmatch(px):
+        if px.pos < px.length:
+            shift = ord(px.inputs[px.pos]) - offset
+            if shift >= 0 and (bitset & (1 << shift)) != 0:
+                px.pos += 1
+                return True
+        return False
+    return bitmatch
 
 def ggen_Range(emit, option: ParserOption):
     if option.isByte:
         return lambda pe: gen_BRange(pe)
     else:
-        return lambda pe: gen_CRange2(pe.chars, pe.ranges, mov=inc)
+        return lambda pe: gen_CRange(pe)
 
 def gen_AndRange(pe: Range, isByte):
     pass
@@ -362,7 +302,7 @@ def ggen_And(emit, option: ParserOption):
 
 def ggen_Not(emit, option: ParserOption):
     def gen(pe):
-        if option.isOptimized:
+        if option.Optimized > 0:
             if isinstance(pe.inner, Char):
                 return gen_NotChar(pe.inner)
             pass
@@ -383,7 +323,7 @@ def ggen_Not(emit, option: ParserOption):
 
 def ggen_Many(emit, option: ParserOption):
     def gen(pe):
-        if option.isOptimized:
+        if option.Optimized > 0:
             if isinstance(pe.inner, Char):
                 return gen_ManyChar(pe.inner)
             pass
@@ -403,7 +343,7 @@ def ggen_Many(emit, option: ParserOption):
 
 def ggen_Many1(emit, option: ParserOption):
     def gen(pe):
-        if option.isOptimized:
+        if option.Optimized > 0:
             if isinstance(pe.inner, Char):
                 return gen_Many1Char(pe.inner)
             pass
@@ -560,6 +500,21 @@ def ggen_State(emit, option):
                 return False
             return match
 
+        elif pe.func == '@matchsome':
+            nid = state_id(pe.name)
+            def match(px):
+                mlen = 0
+                state = getstate(px.state, nid)
+                while state is not None:
+                    if len(state.val) > mlen and px.inputs.startswith(state.val, px.pos):
+                        mlen += len(state.val)
+                    state = getstate(px.state, nid)
+                if mlen > 0:
+                    px.pos += mlen
+                    return True
+                return False
+            return match
+
         elif pe.func == '@equals':
             pf = emit(pe.inner)
             nid = state_id(pe.name)
@@ -690,13 +645,11 @@ def setting(method, option: ParserOption):
 class ParserContext:
   __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state']
 
-  def __init__(self, inputs, urn='(unknown)', pos=0):
-      self.inputs, self.pos = u.encode_source(inputs, urn, pos)
-      self.length = len(self.inputs)
+  def __init__(self, urn, inputs, pos, slen):
+      self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
       self.headpos = self.pos
       self.ast = None
       self.state = None
-
 
 def generate2(p, method = 'eval', isByte=False, conv = None):
     if not hasattr(Char, method):
@@ -708,14 +661,19 @@ def generate2(p, method = 'eval', isByte=False, conv = None):
         p = Ref(p.start().name, p)
     f = getattr(p, method)()
 
-    def parse(s, urn = '(unknown)', pos = 0):
-        if isByte:
-            s = bytes(s, 'utf-8') if isinstance(s, str) else bytes(s)
-        px = ParserContext(s, urn, pos)
+    def parse(inputs, urn = '(unknown)', pos = 0, epos = None):
+        if u.issrc(inputs):
+            urn, inputs, spos, epos = u.decsrc(inputs)
+            pos = spos + pos
+        else:
+            if isByte:
+                inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+            if epos is None: epos = len(inputs)
+        px = ParserContext(urn, inputs, pos, epos)
         pos = px.pos
         result = None
         if not f(px):
-            result = ParseTree("err", px.inputs, px.headpos, len(px.inputs), None)
+            result = ParseTree("err", px.inputs, px.headpos, epos, None)
         else:
             result = px.ast if px.ast is not None else ParseTree("", px.inputs, pos, px.pos, None)
         return conv(result) if conv is not None else result

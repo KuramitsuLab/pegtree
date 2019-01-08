@@ -1,0 +1,121 @@
+
+Source = _ {
+    ArticleFuncDecl*
+    #Source
+} EOF
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
+S            = [ \t\r] / '　'
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '//' ( !EOL . )* EOL
+EOF          = !.
+EOL          = '\n' / EOF
+EOS          = _ EOL
+INDENT       = '\n' S*
+
+C  = HIRA
+    / KATA
+    / KANJI
+    / MARK
+    / [ａ-ｚＡ-Ｚ０-９]
+    / [a-zA-Z0-9]
+
+Any  = [a-zA-Z0-9]
+
+HIRA = [ぁ-ん]
+KATA = [ァ-ヶ]
+KANJI = [㐀-䶵一-龠々〇〻]
+MARK = [ー]
+
+DIGIT = [0-9０-９]
+
+
+"・" = '・' / ","
+"'" = '"' / '\''
+" " = ' ' / '　'
+"," = ',' / '、'
+"(" = '(' / '（'
+")" = ')' / '）'
+"<" = '<' / '＜'
+">" = '>' / '＞'
+"+" = '+' / '＋'
+"-" = '-' / 'ー'
+"*" = '*' / '＊'
+"/" = '/' / '／'
+"^" = '^' / '＾'
+"**" = ("*" "*") / "^"
+"%" = '%' / '％'
+"=" = '=' / '＝'
+" " = ' ' / '　'
+"@" = '@' / '＠'
+":" = ':' / '：'
+">=" = '>=' / '＞＝'
+"<=" = '<=' / '＜＝'
+"NOT=" = 'NOT=' / 'NOT＝'
+
+/* ArticleFuncDecl */
+
+example ArticleFuncDecl '''
+第２条 送金する(send)
+    xをyとする
+    yをzとする
+'''
+
+ArticleFuncDecl = {
+    ARTICLE name: ArticleFuncName _
+    body: Block
+    #FuncDecl
+}
+
+ARTICLE
+    = '第' _ DIGIT+ _ '条' _
+
+RAW       = (!("(" / [ \t]) C)+ _
+RawDecl   = { RAW }
+NEWSYMBOL = (!'と呼ぶ' C)+
+
+ArticleFuncName
+    = RAW "(" Identifier ")" / RawDecl
+
+Identifier
+    = {[a-zA-Z] [a-zA-Z0-9]* #Name} _
+
+Block = {
+    @scope(
+        @symbol(INDENT) Statement
+        (@match(INDENT) Statement)*
+    )
+    #Block
+}
+
+Statement =
+    / ParamDecl
+    / Assign
+
+ParamDecl = {
+    'パラメータ' ":" _
+    @symbol(INDENT) Param
+    (@match(INDENT) Param )*
+}
+
+Param = {
+    decl: RawDecl
+    "(" '以下' ","
+    name: { NEWSYMBOL }
+    'と呼ぶ' _ ")"
+    #Param
+} _
+
+
+Assign
+    = { left: AssignRef 'は' right: Expression ('とする')? #Assign }
+    / { left: AssignRef 'を' right: Expression 'とする' #Assign }
+
+AssignRef = Identifier
+Expression = Identifier
+
+example Assign, Statement '''
+XをYとする
+'''

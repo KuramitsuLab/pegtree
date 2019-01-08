@@ -1,19 +1,23 @@
 #!/usr/local/bin/python
 import pegpy.rule as pe
 import pegpy.parser as pg
-import unittest as ut
+import pegpy.gparser.base as pg2
+import pegpy.gparser.optimized as pg3
 
 def eval(p, conv = None):
     return pg.generate2(p, method='eval', conv=conv)
 
-def nez(p, conv = None):
+def nez0(p, conv = None):
     return pg.generate2(p, method='nez', conv=conv)
+
+def nez(p, conv = None):
+    def emit(pe, **option) : return pe.nez(**option)
+    return pg2.generate(p, method='nez', pg=pg3, emit=emit, memo={}, conv=conv)
 
 def dasm(p, conv = None):
     return pg.generate2(p, method='dasm', conv=conv)
 
 ## Grammar
-
 
 class Grammar(object):
     __slots__ = ['ns', 'rules', 'rulemap', 'min', 'max', 'memo', 'examples']
@@ -78,33 +82,10 @@ class Grammar(object):
         for name in prod.split(','):
             self.examples.append((name, input, output))
 
-    def dump(self):
-        for rule in self.rules: print(rule)
+    def dump(self, out, indent=''):
+        for rule in self.rules: out.println(rule)
 
-    def testAll(self, combinator = nez):
-        p = {}
-        test = 0
-        ok = 0
-        for testcase in self.examples:
-            name, input, output = testcase
-            if not name in p:
-                p[name] = combinator(pe.Ref(name, self))
-            res = p[name](input)
-            t = str(res).replace(" b'", " '")
-            if output == None:
-                if res == 'err':
-                    er = res.getpos()
-                    print('NG {}({}:{}:{}+{})'.format(name, er[0], er[2], er[3], er[1]), '\n', er[4], '\n', er[5])
-                else:
-                    print('OK', name, '=>', t)
-            else:
-                test += 1
-                if t == output:
-                    print('OK', name, input)
-                    ok += 1
-                else:
-                    print('NG', name, input, output, '!=', t)
-        if test > 0:
-            print('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
+    def pgen(self, name:str, combinator=nez):
+        return combinator(pe.Ref(name, self))
 
-pe.setup_loader(Grammar, nez)
+pe.setup_loader(Grammar, eval)

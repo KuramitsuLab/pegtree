@@ -38,7 +38,6 @@ def union(px, old, pos, mtree, mlink):
 
 def p_GTrue(px): return True
 
-
 def emit_char(c):
     def curry(px):
         if px.pos < px.length and px.inputs[px.pos] == c:
@@ -59,9 +58,7 @@ def emit_multi(s, slen):
         return False
     return curry
 
-
 pf_char = {}
-
 
 def bits(n, offset=0):
     def curry(px):
@@ -74,7 +71,6 @@ def bits(n, offset=0):
         return False
     return curry
 
-
 def multi_bits(n, offset=0):
     def curry(px):
         if px.pos < px.length:
@@ -86,7 +82,6 @@ def multi_bits(n, offset=0):
                 return True
         return False
     return curry
-
 
 def isCharRange(c, ranges, chars):
     for r in ranges:
