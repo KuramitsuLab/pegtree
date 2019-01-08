@@ -44,8 +44,13 @@ class Record(NonNullableShape):
 
   def __init__(self, b):
     self.b = b
-
   
+  
+  def map(self, f):
+    for l, s in self.b.items():
+      self.b[l] = f(s)
+
+
   def __str__(self):
     st = '{'
     f = True
@@ -74,6 +79,12 @@ class Common(NonNullableShape):
         continue
       st += f' | {s}'
     return st
+  
+  def map(self, f):
+    self.b = list(map(lambda x: f(x), self.b))
+
+  def get_name(self):
+    return ''.join(map(lambda s: s.X.capitalize(), self.b))
 
 
 class Value(NonNullableShape):

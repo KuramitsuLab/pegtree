@@ -12,25 +12,29 @@ def inference(p, f='shapeinference', l='link'):
 
 def generate(p, f='retinference', l='link'):
     if not isinstance(p, ParsingExpression):  # Grammar
-        p.forEachRule(exp_transer)
-        p = Ref(p.start().name, p)
+      p.forEachRule(exp_transer)
+      p = Ref(p.start().name, p)
     elif isinstance(p, Ref):
       p.peg.forEachRule(exp_transer)
-    else:
-      p = exp_transer(p)
     return getattr(p, f, l)()
 
 
 class Env(object):
 
-  __slots__ = ['vars']
+  __slots__ = ['vars', 'sourcelines', 'start']
 
   def __init__(self):
     self.vars = {}
+    self.sourcelines = []
+    self.start = 'undefined'
   
   
   def append(self, name, record):
     self.vars[name] = record
+  
+
+  def start_shape(self):
+    return self.vars[self.start]
   
 
   def __str__(self):
@@ -38,6 +42,18 @@ class Env(object):
     for l, r in self.vars.items():
       s += f' {l}: {str(r)}\n'
     return s + '}'
+  
+
+  def variable2source(self, name, s, form):
+    self.sourcelines.append(form.typedef(name, s))
+  
+  def common2source(self, name, s, form):
+    self.sourcelines.append(form.commondef(name, s))
+  
+
+  def get_source(self):
+    return '\n'.join(self.sourcelines)
+  
 
 
 def Sempty():
@@ -118,6 +134,7 @@ def emit_SMany1(pe, emit):
 def Stree(label, xi):
   def curry(env):
     if not label in env.vars:
+      env.start = label
       env.append(label, Variable(label))
       env.vars[label] = Record(xi(env))
     return Variable(label)
@@ -144,6 +161,7 @@ def Sfold(pf1, left, pf2, label):
   def curry(env):
     s = pf1(env)
     if not label in env.vars:
+      env.start = label
       env.append(label, Variable(label))
       xi = {left: union(Variable(label), s)}
       xi.update(pf2(env))
