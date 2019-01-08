@@ -11,7 +11,6 @@ def mresult(pf):
             px.result[px.pos] = px.ast
             return True
         else:
-            px.result[px.pos] = px.ast
             return False
     return curry
 
@@ -19,12 +18,21 @@ def union(px, old, pos, mtree, mlink):
     result = {}
     new = px.result
     umtree = lambda tag, child: mtree(tag, px.inputs, pos, px.pos, child)
-    for pos in set(old) & set(new):
-        result[pos] = mlink('', umtree('?', mlink('', umtree('?l', new[pos]), mlink('', umtree('?r', old[pos]), None))), None)
-    for pos in set(old) - set(new):
-        result[pos] = old[pos]
-    for pos in set(new) - set(old):
-        result[pos] = new[pos]
+    for p in set(old) & set(new):
+        newislink = isinstance(new[p], mlink)
+        oldislink = isinstance(old[p], mlink)
+        if newislink and oldislink:
+            result[p] = mlink('', umtree('?', mlink('', umtree('?l', new[p]), mlink('', umtree('?r', old[p]), None))), None)
+        elif not(newislink or oldislink):
+            result[p] = umtree('?', mlink('', umtree('?l', mlink('', new[p], None)), mlink('', umtree('?r', mlink('', old[p], None)), None)))
+        elif newislink:
+            result[p] = new[p]
+        else:
+            result[p] = old[p]
+    for p in set(old) - set(new):
+        result[p] = old[p]
+    for p in set(new) - set(old):
+        result[p] = new[p]
     return result
 
 def p_GTrue(px): return True
@@ -350,7 +358,7 @@ def gtree(tag, pf, mtree):
             for pos, ast in px.result.items():
                 px.result[pos] = mtree(tag, px.inputs, ppos, pos, ast)
             return True
-        px.result[ppos] = None
+        px.result = {}
         return False
     return curry
 
@@ -365,7 +373,7 @@ def glink(tag, pf, mlink):
             for pos, ast in px.result.items():
                 px.result[pos] = mlink(tag, ast, past)
             return True
-        px.result[ppos] = past
+        px.result = {}
         return False
     return curry
 
@@ -375,8 +383,8 @@ def emit_GLinkAs(pe, emit, mlink):
 def gfold(ltag, tag, pf, mtree, mlink):
     def curry(px):
         ppos = px.pos
-        px.ast = mlink(ltag, px.ast, None)
         past = px.ast
+        px.ast = mlink(ltag, px.ast, None)
         if pf(px):
             for pos, ast in px.result.items():
                 px.result[pos] = mtree(tag, px.inputs, ppos, pos, ast)
@@ -396,7 +404,7 @@ def gdetree(pf):
             for pos, _ in px.result.items():
                 px.result[pos] = past
             return True
-        px.result[ppos] = past
+        px.result = {}
         return False
     return curry
 

@@ -1,0 +1,2 @@
+Prod = Val (left:^ { [*%/] right: Val #Mul })*
+Val = { num: [0-9] #Int }

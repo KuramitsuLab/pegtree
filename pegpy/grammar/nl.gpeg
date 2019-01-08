@@ -1,0 +1,10 @@
+S = {NP VP#S}
+NP =  { NP1 PP #NP} | NP1
+NP1 = { DT NN #NP}
+VP = { VP1 PP #VP} | VP1
+VP1 = { Vt NP #VP}
+PP = {IN NP #PP}
+DT = {'the' #DT}
+NN = {'man' / 'dog' / 'telescope' #NN}
+Vt = {'saw' #Vt}
+IN = {'with' #IN}
