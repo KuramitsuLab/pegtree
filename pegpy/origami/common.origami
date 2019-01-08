@@ -63,6 +63,6 @@ TODO
 #StringExpr      = \"${s}\"
 #CharExpr        = '${s}'
 
-->:Int->Float    = float(${1})
+Float:Int->Float    = float(${1})
 
 Void@1           = ${1}

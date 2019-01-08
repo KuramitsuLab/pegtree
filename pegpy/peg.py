@@ -1,12 +1,18 @@
 #!/usr/local/bin/python
 import pegpy.rule as pe
 import pegpy.parser as pg
+import pegpy.gparser.base as pg2
+import pegpy.gparser.optimized as pg3
 
 def eval(p, conv = None):
     return pg.generate2(p, method='eval', conv=conv)
 
 def nez(p, conv = None):
     return pg.generate2(p, method='nez', conv=conv)
+
+def nez1(p, conv = None):
+    def emit(pe, **option) : return pe.nez(**option)
+    return pg2.generate(p, method='nez', pg=pg3, emit=emit, memo={}, conv=conv)
 
 def dasm(p, conv = None):
     return pg.generate2(p, method='dasm', conv=conv)
@@ -82,4 +88,4 @@ class Grammar(object):
     def pgen(self, name:str, combinator=nez):
         return combinator(pe.Ref(name, self))
 
-pe.setup_loader(Grammar, nez)
+pe.setup_loader(Grammar, eval)

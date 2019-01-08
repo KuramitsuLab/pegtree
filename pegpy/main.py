@@ -102,10 +102,10 @@ def example(opt, out):
             t = str(res).replace(" b'", " '")
             test += 1
             if t == output:
-                out.println('OK', name, input)
+                out.println('OK', name, inputs)
                 ok += 1
             else:
-                out.println('NG', name, input, output, '!=', t)
+                out.println('NG', name, inputs, output, '!=', t)
     if test > 0:
         out.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
 

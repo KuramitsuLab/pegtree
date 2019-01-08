@@ -11,7 +11,10 @@ include common.origami
 #Return@1        = return ${1};
 #LetDecl@2       = ${1} = ${2}
 #LetDecl@3       = ${1} = ${3}
-
+#CastExpr        = (${2})${@(1)}
 
 #Int             = long
 #Float           = double
+
+Float@1: Int->Float = (double)${@(1)}
+Int@1: Float->Int   = (long)${@(1)}

@@ -132,13 +132,24 @@ class Typer(object):
             defined = env[key]
             if defined is None: continue
             expr = SExpr.new('#Cast', expr, ty)
-            expr.setType(ty)
             expr.setCode(defined.getcode())
-            return expr
+            return expr.setType(ty)
         return expr.err('Type Error: Expected={} Given={}'.format(ty, expr.ty))
 
     def typeAt(self, env, expr, n, ty):
         expr.data[n] = self.asType(env, expr.data[n],ty)
+
+    def CastExpr(self, env, expr, ty):
+        self.typeAt(env, expr, 1, None)
+        ty = expr[2]
+        for key in SExpr.makekeys(str(ty), 1, expr[1].ty):
+            defined = env[key]
+            if defined is None: continue
+            expr.setCode(defined.getcode())
+            return expr.setType(ty)
+        if expr[1].ty is not None:
+            expr = expr.err('Undefined Cast {}=>{}'.format(expr[1].ty, ty), expr[2].getpos())
+        return expr.setType(ty)
 
     def tryType(self, env, expr, ty):
         key = expr.asSymbol()

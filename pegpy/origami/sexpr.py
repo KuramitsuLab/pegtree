@@ -190,7 +190,6 @@ class SExpr(object):
         self.setCode([])
         return self
 
-
 class AtomExpr(SExpr):
     __slots__ = ['data', 'pos3', 'ty', 'code']
     def __init__(self, data, pos3 = None, ty = None):
@@ -222,7 +221,6 @@ class AtomExpr(SExpr):
 
     def emit(self, env, ss):
         ss.pushSTR(str(self))
-
 
 class ListExpr(SExpr):
     __slots__ = ['data', 'ty', 'code']
