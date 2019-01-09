@@ -167,25 +167,23 @@ def update(opt, out):
     except:
         pass
 
-def parse_opt(argv):
+opt_data = {
+    'grammar': ['-g', '--grammar'],
+    'start': ['-s', '--start'],
+    'output': ['-o', '--output'],
+    'extension': ['-X'],
+    'option': ['-D'],
+}
+
+def parse_opt(argv, opt = opt_data):
     def parse_each(a, d):
         if a[0].startswith('-'):
             if len(a) > 1:
-                if a[0] == '-g' or a[0] == '--grammar':
-                    d['grammar'] = a[1]
-                    return a[2:]
-                elif a[0] == '-s' or a[0] == '--start':
-                    d['start'] = a[1]
-                    return a[2:]
-                elif a[0] == '-o' or a[0] == '--output':
-                    d['output'] = a[1]
-                    return a[2:]
-                elif a[0] == '-X':
-                    d['extension'] = a[1]
-                    return a[2:]
-                elif a[0] == '-D':
-                    d['option'] = a[1]
-                    return a[2:]
+                for key, list in opt.items():
+                    for l in list:
+                        if a[0] == l:
+                            d[key] = a[1]
+                            return a[2:]
             d['inputs'].extend(a)
             raise CommandError(d)
         else:
@@ -222,6 +220,9 @@ class CommandError(Exception):
     def __init__(self, opt):
         self.opt = opt
 
+    def __str__(self):
+        return 'CommandError ' + str(self.opt)
+
 def main2(argv):
     cmd = argv[1]
     opt = parse_opt(argv[2:])
@@ -240,7 +241,7 @@ def main():
 
         if functools.reduce(lambda x, y: x or ('edit' in y), argv[1:], False):
             from pegpy.playground.server import playground
-            playground(argv, main2)
+            playground(argv, main2, parse_opt)
         else:
             main2(argv)
 
