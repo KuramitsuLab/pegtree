@@ -116,7 +116,8 @@ def peg(opt, out):
 def origami(opt, out):
     from pegpy.origami.origami import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
-    parser = switch_generator(opt, 'konoha6.tpeg')(g)
+    if 'Snippet' in g: g = g['Snippet']
+    parser = switch_generator(opt, 'tpeg')(g)
     origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
     source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
     env = transpile_init(origami_files, out)

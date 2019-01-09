@@ -14,8 +14,8 @@ example Source '''
     あなたは返金者である
 '''
 
-Source = EOS? {
-    (FuncDecl EOS)*
+Source = EOL? {
+    (FuncDecl EOL)*
     #Source
 } EOF
 
@@ -24,18 +24,19 @@ import 'konoha6.tpeg' as konoha
 /* Indent-based Code Layout */
 
 EOF          = !.
-EOL          = '\n' / EOF
+NL           = '\n' / EOF
 S            = [ \t\r　]
 
 _            = ( S / BLOCKCOMMENT / LINECOMMENT )*
-__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
 
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
              / '(*' ( !'*)' . )* '*)'
-LINECOMMENT  = '//' ( !EOL . )*
+LINECOMMENT  = '//' ( !NL . )*
 
+EOL          = _ NL (_ NL)*
 INDENT       = '\n' S*
-EOS          = _ EOL (_ EOL)*
 
 /* Character */
 
@@ -93,7 +94,7 @@ example FuncDecl '''
 
 FuncDecl = {
     ARTICLE name: ArticleFuncName _
-    (EOS _ param: ParamDecl)?
+    (EOL _ param: ParamDecl)?
     body: Block
     #FuncDecl
 }

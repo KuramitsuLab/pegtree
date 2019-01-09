@@ -116,8 +116,30 @@ class Env(object):
 ## Typing
 
 class Typer(object):
+    __slot__ = ['methodMap']
     def __init__(self):
-        pass
+        self.methodMap = {}
+
+    def lookupMethod(self, key):
+        if key in self.methodMap:
+            return self.methodMap[key]
+        if key.startswith('#'):
+            name = key.replace('#', '')
+            if hasattr(self, name):
+                self.methodMap[key] = getattr(self, name)
+                return self.methodMap[key]
+        if key.endswith('Expr'):
+            name = key.replace('Expr', '')
+            if hasattr(self, name):
+                self.methodMap[key] = getattr(self, name)
+                return self.methodMap[key]
+        return self.undefined
+
+    def undefined(self, env, expr, ty):
+        if isinstance(expr, AtomExpr):
+            return self.Var(env, expr, ty)
+        else:
+            return self.Apply(env, expr, ty)
 
     VoidType = SExpr.ofType('Void')
     BoolType = SExpr.ofType('Bool')
@@ -136,6 +158,10 @@ class Typer(object):
             return expr.setType(ty)
         return expr.err('Type Error: Expected={} Given={}'.format(ty, expr.ty))
 
+    def tryType(self, env, expr, ty):
+        method = self.lookupMethod(expr.asSymbol())
+        return method(env, expr, ty)
+
     def typeAt(self, env, expr, n, ty):
         expr.data[n] = self.asType(env, expr.data[n],ty)
 
@@ -150,19 +176,6 @@ class Typer(object):
         if expr[1].ty is not None:
             expr = expr.err('Undefined Cast {}=>{}'.format(expr[1].ty, ty), expr[2].getpos())
         return expr.setType(ty)
-
-    def tryType(self, env, expr, ty):
-        key = expr.asSymbol()
-        if key.startswith('#'):
-            try:
-                f = getattr(self, key[1:])
-                return f(env, expr, ty)
-            except AttributeError:
-                pass
-        if isinstance(expr, AtomExpr):
-            return self.Var(env, expr, ty)
-        else:
-            return self.Apply(env, expr, ty)
 
     def Scope(self, env, expr, ty):
         lenv = env.newLocal()
@@ -311,7 +324,7 @@ class Typer(object):
                 name = expr[2].asSymbol()
                 dataty = expr[1].ty
                 if not name in dataty:
-                    return expr.err('Undefined Name: {} in {}'.format(name, dataty))
+                    return expr.err('undefined name: {} in {}'.format(name, dataty))
                 return expr.setType(env.inferName(name))
             return expr
         return getter

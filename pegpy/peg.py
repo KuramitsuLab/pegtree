@@ -1,4 +1,9 @@
 #!/usr/local/bin/python
+
+# TO AVOID maximum recursion depth exceeded
+import sys
+sys.setrecursionlimit(10000)
+
 import pegpy.rule as pe
 import pegpy.parser as pg
 import pegpy.gparser.base as pg2
@@ -7,7 +12,7 @@ import pegpy.gparser.optimized as pg3
 def eval(p, conv = None):
     return pg.generate2(p, method='eval', conv=conv)
 
-def nez0(p, conv = None):
+def nez2(p, conv = None):
     return pg.generate2(p, method='nez', conv=conv)
 
 def nez(p, conv = None):
@@ -46,7 +51,7 @@ class Grammar(object):
         return super().__getattr__(key)
 
     def __contains__(self, item):
-        if '.' in item:
+        if item[0].islower() and '.' in item:
             ns, key = item.split('.')
             if ns in self.rulemap:
                 g = self.rulemap[ns]
@@ -56,7 +61,7 @@ class Grammar(object):
         return item in self.rulemap
 
     def __getitem__(self, item):
-        if '.' in item:
+        if item[0].islower() and '.' in item:
             ns, key = item.split('.')
             if ns in self.rulemap:
                 g = self.rulemap[ns]
@@ -74,7 +79,7 @@ class Grammar(object):
         x.setpeg(self)
         if not isinstance(x, pe.Rule):
             x = pe.Rule(self, key, x, pos3)
-        if not pe.Ref.isInlineName(key):
+        if not pe.Rule.isInlineName(key):
             self.rules.append(x)
         self.rulemap[key] = x
 

@@ -7,35 +7,37 @@
 
 /* Starting Point */
 
-File = _  { (Statement _)* #Block } EOF
+File = __  { (Statement __)* #Block } EOF
 
-/* Code Layout (Whitespace) */
+EOF          = !.
+NL           = '\n' / EOF
+S            = [ \t\r　]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
 
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
              / '(*' ( !'*)' . )* '*)'
-LINECOMMENT  = '//' ( !EOL . )* EOL
-EOF          = !.
-EOL          = ('\r'? '\n') / EOF
+LINECOMMENT  = '//' ( !NL . )*
 
-_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
-__           = ( S / BLOCKCOMMENT / LINECOMMENT )+
-S            = [ \t]
-EOS          = ( [ \t;\n\r]+ / BLOCKCOMMENT / LINECOMMENT )*
+EOL          = _ NL (_ NL)*
+INDENT       = '\n' S*
 
 /* Token */
 
-"{" = '{' EOS
-"}" = EOS '}' _
-"[" = '[' EOS
-"]" = EOS ']' _
-"(" = '(' EOS
-")" = EOS ')' _
+"{" = '{' __
+"}" = __ '}' _
+"[" = '[' __
+"]" = __ ']' _
+"(" = '(' __
+")" = __ ')' _
 "<" = '<' _
 ">" = '>' _
 "=" = '=' !'=' _
-"," = ',' EOS
+"," = ',' __
 ";" = (';' _)+
-":" = ':' EOS
+":" = ':' __
 
 /* Identifier */
 
@@ -132,7 +134,7 @@ f(x) = x + 1
 
 Decorator = {
     '@' name: Identifier
-    ("(" params: Params ")")? EOS
+    ("(" params: Params ")")? __
     body: Statement
     #Decorator
 }
@@ -144,7 +146,7 @@ assume x,y,z : Float
 '''
 
 AssumeDecl = {
-  'assume' !W __
+  'assume' !W _
   names: Names
   ":"
   type: Type
@@ -156,8 +158,8 @@ Names = {
 }
 
 CodeDecl = {
-  'codemap' !W EOS
-  (CodeMap EOS)*
+  'codemap' !W __
+  (CodeMap __)*
   #CodeDecl
 }
 
@@ -170,7 +172,7 @@ codemap
 /* LetDecl */
 
 LetDecl = {
-	'let' __
+	'let' SPC
 	name: Identifier
 	(":" type: Type)?
 	"="
@@ -207,8 +209,8 @@ FuncDecl = {
 	name: Identifier
 	"(" params: Params ")"
     (":" type: Type)?
-    '='
-    body: (IndentBlock / _ FuncMatch / _ Expression)
+    '=' _
+    body: (IndentBlock / FuncMatch / Expression)
 	#FuncDecl
 }
 
@@ -234,21 +236,18 @@ FuncMatch = {
 }
 
 example FuncCase '''
-| x                 if y == 0
+  | x                 if y == 0
 '''
 
 FuncCase = {
-    EOS '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
+    __ '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
     #FuncCase
 }
 
-INDENT = [ \t]+
-
 IndentBlock = {
-    EOL
     @scope(
-        @symbol(INDENT) Statement EOL
-        (@match(INDENT) Statement EOL)+
+        @symbol(INDENT) Statement
+        (@match(INDENT) Statement)+
     )
     #Block
 }
@@ -281,7 +280,7 @@ Expression =
 
 BlockExpr = {
 	"{"
-	(Statement _)*
+	(Statement __)*
 	"}"
 	#Scope
 }
@@ -495,7 +494,7 @@ NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
 
 /* CodeMap */
 
-OrigamiFile = EOS { (Origami EOS)* #Block } EOF
+OrigamiFile = __ { (Origami __)* #Block } EOF
 
 Origami =
     / CodeInclude
@@ -503,12 +502,12 @@ Origami =
     / CodeMap
 
 CodeInclude = {
-    'include' __ file: Code
+    'include' SPC file: Code
     #Include
 }
 
 CodeRequire = {
-    'require' __ file: Code
+    'require' SPC file: Code
     #Require
 }
 
@@ -528,9 +527,9 @@ Signature = {
 } _
 
 Code = {
-    ( !EOL . )*
+    ( !NL . )*
     #Symbol
-} EOL _
+} NL _
 
 example CodeMap +@2 : (Int,Int)->Int = (%1+%2)
 example CodeMap +@2 : (Int,Int)->Int

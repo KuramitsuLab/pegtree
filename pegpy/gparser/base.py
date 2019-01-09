@@ -304,7 +304,13 @@ def adddict(px, s):
 
 def gen_State(pe, **option):
     pf = option['emit'](pe.inner, **option)
-    if pe.func == '@scope':
+    if pe.func == '@ref':
+        if 'peg' in option and pe.name in option['peg']:
+            return option['emit'](option['peg'][pe.name], **option)
+        else :
+            return pf
+
+    elif pe.func == '@scope':
         def scope(px):
             state = px.state
             if pf(px):
@@ -450,12 +456,24 @@ class ParserContext:
       self.dict = {}
       self.memo = {}
 
+def findpeg(p):
+    if isinstance(p, Ref):
+        return p.peg if not '.' in p.name else None
+    if hasattr(p, 'right'):
+        peg = findpeg(p.right)
+        return peg if peg is not None else findpeg(p.left)
+    if hasattr(p, 'inner'):
+        return findpeg(p.inner)
+    return None
+
 def generate(p, **option):
     if not hasattr(Char, option['method']):
         setting(**option)
 
     if not isinstance(p, ParsingExpression): # Grammar
         p = Ref(p.start().name, p)
+
+    if not 'peg' in option: option['peg'] = findpeg(p)
 
     pf = getattr(p, option['method'])(**option)
     conv = option['conv'] if 'conv' in option else None

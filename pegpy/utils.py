@@ -250,4 +250,14 @@ class Writer(object):
         return '\033[{}m{}\033[0m'.format(COLOR[color],str(s)) + '' if self.istty else str(s)
 
     def perror(self, pos3, msg='Syntax Error'):
-        self.println(self.c('Red', serror(pos3, msg)))
+        self.println(serror(pos3, self.c('Red', '[error] ' + msg)))
+
+    def warning(self, pos3, msg):
+        self.println(serror(pos3, self.c('Orange', '[warning] ' + msg)))
+
+    def notice(self, pos3, msg):
+        self.println(serror(pos3, self.c('Cyan', '[notice] '+ msg)))
+
+
+
+STDOUT = Writer()
