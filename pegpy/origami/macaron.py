@@ -238,50 +238,50 @@ lambdas = [
     (crash, lambda src, sec: event('collisionEnd', src, sec)),
 ]
 
-def get_place(src, sec):
-    if sec.direction is not None:
-        p = str(sec.direction[2])
-        if isinstance(sec.direction[1], AtomExpr):
-            d1 = str(sec.direction[1])
-            if d1 in directive and len(src.past_main_names) != 0:
-                d1 = src.past_main_names[0]
-            direct = text_direct if search_dict(d1)[1] == 'text' else object_direct
-            d = tuple(map(lambda x: x.format(d1) if isinstance(x, str) else x, direct[p] if p in direct else direct['中心']))
-        else:
-            d = no_name_direct[p] if p in no_name_direct else no_name_direct['中心']
+#def get_place(src, sec):
+#    if sec.direction is not None:
+#        p = str(sec.direction[2])
+#        if isinstance(sec.direction[1], AtomExpr):
+#            d1 = str(sec.direction[1])
+#            if d1 in directive and len(src.past_main_names) != 0:
+#                d1 = src.past_main_names[0]
+#            direct = text_direct if search_dict(d1)[1] == 'text' else object_direct
+#            d = tuple(map(lambda x: x.format(d1) if isinstance(x, str) else x, direct[p] if p in direct else direct['中心']))
+#        else:
+#            d = no_name_direct[p] if p in no_name_direct else no_name_direct['中心']
+#
+#        if isinstance(sec.direction[0], AtomExpr):
+#            dir_mod = str(sec.direction[0])
+#            magni = modifier[dir_mod] if dir_mod in modifier else dir_mod
+#            return (calc_mod(d[0], int(d[2] / 10), 'cvsw/ratew', magni), calc_mod(d[1], d[2] % 10, 'cvsh/rateh', magni))
+#        else:
+#            return (d[0], d[1])
+#    else:
+#        center = no_name_direct['中心']
+#        return (center[0], center[1])
 
-        if isinstance(sec.direction[0], AtomExpr):
-            dir_mod = str(sec.direction[0])
-            magni = modifier[dir_mod] if dir_mod in modifier else dir_mod
-            return (calc_mod(d[0], int(d[2] / 10), 'cvsw/ratew', magni), calc_mod(d[1], d[2] % 10, 'cvsh/rateh', magni))
-        else:
-            return (d[0], d[1])
-    else:
-        center = no_name_direct['中心']
-        return (center[0], center[1])
+#def calc_mod(dir, id, txt, magni):
+#    return dir if id == 0 else dir + '+' + txt + '*' + magni if id == 1 else dir + '-' + txt + '*' + magni
 
-def calc_mod(dir, id, txt, magni):
-    return dir if id == 0 else dir + '+' + txt + '*' + magni if id == 1 else dir + '-' + txt + '*' + magni
+#def event(e, src, sec):
+#    objects = list(map(lambda x: str(x[2]), sec.main))
+#    if not reduce(lambda x, o: x and (o in src.definded), objects, True):
+#        return
+#    text = "Matter.Events.on(engine, '%s', function(event) {\n\tpairs = event.pairs;\n\tfor (var i = 0; i < pairs.length; i++) {\n\t\tvar pair = pairs[i];\n\t\tif (pair.bodyA.id == objectMap['$1'].id && pair.bodyB.id == objectMap['$2'].id || pair.bodyA.id == objectMap['$2'].id && pair.bodyB.id == objectMap['$1'].id) {$*\n\t\t}\n\t}\n});" % e
+#    for i in range(len(objects)):
+#        text = text.replace('$' + str(i + 1), objects[i])
+#    src.past_main = sec.main
+#    src.past_main_names = objects
+#    src.s += text
 
-def event(e, src, sec):
-    objects = list(map(lambda x: str(x[2]), sec.main))
-    if not reduce(lambda x, o: x and (o in src.definded), objects, True):
-        return
-    text = "Matter.Events.on(engine, '%s', function(event) {\n\tpairs = event.pairs;\n\tfor (var i = 0; i < pairs.length; i++) {\n\t\tvar pair = pairs[i];\n\t\tif (pair.bodyA.id == objectMap['$1'].id && pair.bodyB.id == objectMap['$2'].id || pair.bodyA.id == objectMap['$2'].id && pair.bodyB.id == objectMap['$1'].id) {$*\n\t\t}\n\t}\n});" % e
-    for i in range(len(objects)):
-        text = text.replace('$' + str(i + 1), objects[i])
-    src.past_main = sec.main
-    src.past_main_names = objects
-    src.s += text
-
-def assign(infix, main, src, sec):
-    main_name = str(main[1]) if isinstance(main[1], AtomExpr) else str(main[2])
-    if main_name in src.definded and search_dict(main_name)[1] == 'text':
-        text = "\n\t\t\ttextMap['{1}'].value = String(Number(textMap['{1}'].value) {0} {2});$*".format(infix, main_name, sec.mod if sec.mod is not None else '1')
-        src.endf.append(lambda s: s.replace('$*', text))
-        src.ends.append(lambda s: s.replace('$*', '\n\t\t\twriteAllText();'))
-    src.past_main = main
-    src.past_main = [main_name]
+#def assign(infix, main, src, sec):
+#    main_name = str(main[1]) if isinstance(main[1], AtomExpr) else str(main[2])
+#    if main_name in src.definded and search_dict(main_name)[1] == 'text':
+#        text = "\n\t\t\ttextMap['{1}'].value = String(Number(textMap['{1}'].value) {0} {2});$*".format(infix, main_name, sec.mod if sec.mod is not None else '1')
+#        src.endf.append(lambda s: s.replace('$*', text))
+#        src.ends.append(lambda s: s.replace('$*', '\n\t\t\twriteAllText();'))
+#    src.past_main = main
+#    src.past_main = [main_name]
 
 class DefindedError(Exception):
     pass
