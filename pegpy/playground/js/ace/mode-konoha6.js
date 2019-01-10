@@ -7,7 +7,7 @@ define("ace/mode/konoha6_highlight_rules",["require","exports","module","ace/lib
     var Konoha6HighlightRules = function() {
 
         var keywords = (
-            "if|then|else|Int|Float|String|Char|Bool|assume"
+            "if|then|else|Int|Float|String|Char|Bool|assume|otherwise"
         );
 
         var builtinConstants = (
