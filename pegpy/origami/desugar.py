@@ -17,12 +17,12 @@ def nop(expr):
     return expr
 
 def safegroup(expr):
-    if expr.asSymbol() == '#Infix':
-        return SExpr.new('#Group', expr)
+    if expr == '#Infix':
+        return expr.new('#Group', expr)
     return expr
 
 def ret(expr):
-    return SExpr.new('#Return', expr)
+    return expr.new('#Return', expr)
 
 funclist = globals()
 
@@ -49,7 +49,7 @@ def desugar_apply(f, e, args):
         e[i] = f(e[i])
 
 def desugar(env, e):
-    defined = env[e.asSymbol()]
+    defined = env[e.key()]
     if defined is not None and defined.code is not None:
         code = desugar_find(defined.code)
         #print('@desugar', e.asSymbol(), code)

@@ -68,22 +68,23 @@ example Identifier (+)
 /* Type */
 
 example Type String
-example Type ()
 example Type Dict[Int]
 example Type () -> int
 example Type int -> int -> int
-example Type (int, int)
+example Type int * int
 example Type {name, age}
 
 Type =
 	PrimaryType (
-	    base:^ { "[" params: Types "]" #ParamType }
+	    base:^ { "[" Type ("," Type)* "]" #ParamType }
+	    base:^ { '*' _ Type ('*' _ Type)* #TupleType }
 	    / base:^ { '->' _ type: Type #FuncType }
 	)*
 
 PrimaryType =
 	{ 'typeof' "(" expr: Expression ")" #ExprType }
-	/ TupleType
+	/ FuncType
+	/ "(" Type ")"
 	/ DataType
 	/ BaseType
 
@@ -98,9 +99,10 @@ TypeName = {
 	#BaseType
 } _
 
-TupleType = {
+FuncType = {
 	"(" ( Type ("," Type)* )? ")"
-	#TupleType
+	'->' _ Type
+	#FuncType
 }
 
 Types = {

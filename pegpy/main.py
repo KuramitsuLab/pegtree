@@ -136,6 +136,31 @@ def origami(opt, out):
             t = parser(read_inputs(input))
             out.println(repr(transpile(env, t, out)))
 
+def origami2(opt, out):
+    from pegpy.origami.origami2 import transpile, transpile_init
+    g = load_grammar(opt, 'konoha6.tpeg')
+    if 'Snippet' in g: g = g['Snippet']
+    parser = switch_generator(opt, 'tpeg')(g)
+    origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
+    source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
+    env = transpile_init(origami_files, out)
+    if len(source_files) == 0:
+        try:
+            while True:
+                s = readlines(bold('>>> '))
+                t = parser(s, '>>>')
+                out.println(repr(t))
+                out.println(repr(transpile(env, t, out)))
+        except (EOFError, KeyboardInterrupt):
+            pass
+        return None
+    else:
+        for input in source_files:
+            t = parser(read_inputs(input))
+            out.println(repr(transpile(env, t, out)))
+
+
+
 def macaron(opt, out, default = 'npl.tpeg'):
     from pegpy.origami.macaron import transpile
     g = load_grammar(opt, default)
