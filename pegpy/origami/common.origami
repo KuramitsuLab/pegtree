@@ -1,7 +1,5 @@
 // python origami
 
-require common.origami
-
 #Block           = "${*}" ";\n\t"
 #FuncDecl        = "${type(1)} ${1}(${2:-1}){${indent++}\n\t${@ret(-1)};${indent--}}" ","
 #Param           = ${1}

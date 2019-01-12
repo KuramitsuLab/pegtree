@@ -2,7 +2,8 @@
 include common.origami
 
 #Block           = "${*}" "\n\t"
-#FuncDecl        = "def ${1}(${2:-1}):${indent++}\n\t${@ret(-1)}${indent--}" ","
+#FuncDecl        = def ${1}${2}:${indent++}\n\t${@ret(-1)}${indent--}
+#Params          = "(${1:})" ","
 #Param           = ${1}
 #FuncExpr        = "lambda ${*}: ${-1}" ","
 #Return@0        = return
@@ -13,4 +14,4 @@ include common.origami
 #IfExpr : (Bool,a,a) -> a    = (${2} if ${1} else ${3})
 
 #IntExpr:Int     = ${1}
-かつ@2 = (#And @1 (#Infix @2 - 1))
+//かつ@2 = (#And @1 (#Infix @2 - 1))

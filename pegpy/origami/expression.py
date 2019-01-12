@@ -79,6 +79,17 @@ class Expression(object):
         else:
             self.data[item - 1] = value
 
+    def find(self, *argv):
+        if isinstance(self.data, list):
+            for i, e in enumerate(self.data):
+                if e.context in argv:
+                    return i+1
+        return -1
+
+    def remove(self, idx):
+        if idx > 0 and isinstance(self.data, list):
+            del self.data[idx-1]
+
     def key(self):
         return self.tag
 
@@ -176,11 +187,15 @@ class Expression(object):
                 cons.append(e)
             else:
                 cons.append(Expression.valueOf(e))
-        if len(cons) == 1 :
-            return Expression(tag, cons[0])
         if isinstance(argv[0], Expression):
             return Expression(tag, cons, argv[0].getpos())
         return Expression(tag, cons)
+
+    @classmethod
+    def new2(cls, tag, value):
+        if isinstance(tag, Expression):
+            return Expression(str(tag), value, tag.getpos())
+        return Expression(tag, value)
 
     @classmethod
     def valueOf(cls, v):
