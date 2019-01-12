@@ -239,7 +239,7 @@ def main():
     try:
         if len(argv) < 2: raise CommandError({})
 
-        if functools.reduce(lambda x, y: x or ('edit' in y), argv[1:], False):
+        if functools.reduce(lambda x, y: x or y.startswith('edit') or y.startswith('sample'), argv[1:], False):
             from pegpy.playground.server import playground
             playground(argv, main2, parse_opt)
         else:

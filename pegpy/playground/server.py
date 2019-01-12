@@ -56,7 +56,8 @@ def command():
     name = file.name
     file.close() #tempfile cannot use utf-8 in python 2.7, so need to reopen
 
-    global cmd, input_name
+    global cmd, input_name, save_name
+    save_name = ''
     cmd2 = (req['cmd']).strip().split(' ')
     cmd = cmd2[:2] + restore_arg(p_arg(cmd2[2:]))
 
@@ -88,8 +89,10 @@ def close():
 
 @app.post('/save')
 def save():
-    if not hasattr(request, 'json'): return
-    with file_search(save_name).open('w') as f:
+    if not hasattr(request, 'json') or not save_name: return
+    file = file_search(save_name)
+    if file is None: return
+    with file.open('w') as f:
         f.write(request.json['source'])
 
 @app.post('/init')
@@ -107,7 +110,8 @@ def createSourceFile(name, contents):
 
 def compileCommand(name, cmd):
     d = p_arg(cmd[2:])
-    w = comp(cmd[:2] + restore_arg(d) + ([name] if 'output' in d else ['-o', str(file_search('output.k')), name]))
+    # w = comp(cmd[:2] + restore_arg(d) + ([name] if 'output' in d else ['-o', str(file_search('output.k')), name]))
+    w = comp(cmd[:2] + restore_arg(d) + ([] if 'output' in d else ['-o', str(file_search('output.k'))]))
     w.file.seek(0)
     cont = w.file.read()
     w.file.close()
@@ -116,27 +120,32 @@ def compileCommand(name, cmd):
 def file_search(file, subdir = 'sample'):
     return Path(__file__).resolve().parent / subdir / file
 
+def file_search2(file):
+    path = Path(file)
+    if path.exists():
+        return path
+    path = file_search(file)
+    if path.exists():
+        return path
+    path = file_search(file, subdir='../grammar')
+    if path.exists():
+        return path
+    path = file_search(file, subdir='../origami')
+    if path.exists():
+        return path
+    return None
+
 def write_inputs(datas, name = 'input.k'):
     text = ''
     for d in datas:
         if d == 'edit': continue
 
-        path = Path(d)
-        if path.exists():
-            with path.open() as f: text += f.read() + '\n'
-            continue
-
-        path = file_search(d)
-        if path.exists():
-            with path.open() as f: text += f.read() + '\n'
-            continue
-
-        path = file_search(d, subdir='../grammar')
-        if path.exists():
-            with path.open() as f: text += f.read() + '\n'
-            continue
-
-        text += d + '\n'
+        path = file_search2(d)
+        if path is not None:
+            with path.open() as f:
+                text += f.read() + '\n'
+        else:
+            text += d + '\n'
 
     with file_search(name).open(mode = 'w') as f:
         f.write(text)
@@ -167,8 +176,20 @@ def restore_arg(d, data = restore_data):
                 arg.append(parse_name(d[key]))
             else:
                 for name in d[key]:
-                    if ':' in name: parse_name(name)
-                    elif name: arg.append(name)
+                    #if ':' in name: parse_name(name)
+                    if ':' in name:
+                        name = parse_name(name)
+                        file = file_search2(name)
+                        if file is not None:
+                            arg.append(str(file))
+                        else:
+                            arg.append(name)
+                    elif name:
+                        file = file_search2(name)
+                        if file is not None:
+                            arg.append(str(file))
+                        else:
+                            arg.append(name)
     return arg
 
 def playground(argv, main, parse_arg):
