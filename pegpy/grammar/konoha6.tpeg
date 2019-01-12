@@ -121,6 +121,7 @@ Statement =
 	/ LetDecl
 	/ AssumeDecl
 	/ CodeDecl
+    / FuncMatchDecl
 	/ FuncDecl
 	/ AssignStmt
 	/ Expression
@@ -205,12 +206,21 @@ h(x) =
     x + 1
 '''
 
+FuncMatchDecl = {
+    name: Identifier
+    "(" params: Params ")"
+    (":" type: Type)?
+    '=' _
+    body: FuncMatch
+    #FuncMatchDecl
+}
+
 FuncDecl = {
 	name: Identifier
 	"(" params: Params ")"
     (":" type: Type)?
     '=' _
-    body: (IndentBlock / FuncMatch / Expression)
+    body: (IndentBlock / Expression)
 	#FuncDecl
 }
 

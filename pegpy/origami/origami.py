@@ -88,7 +88,7 @@ class Env(object):
             elif stmt == 'Include':
                 file = stmt['file'].asString()
                 file = u.find_importPath(path.absolute(), file)
-                out.verbose('loading...', file)
+                # out.verbose('loading...', file)
                 self.load(file, out)
         #print('DEBUG', self.nameMap)
 
@@ -213,6 +213,34 @@ class Typer(object):
             keys = SExpr.makekeys(str(expr[1]), len(types)-1, ty[0])
             env.add(keys, Def(ty, None, None))
         return expr.setType('Void')
+
+    def FuncMatchDecl(self, env, expr, ty):
+        lenv = env.newLocal()
+        for n in range(2, len(expr)):
+            self.typeAt(lenv, expr, n, None)
+        if isinstance(expr[-2], TypeExpr):
+            expr[1].ty = expr[-2]
+            del expr.data[-2]
+        else:
+            expr[1].ty = expr[-1].ty
+        types = list(map(lambda e: e.ty, expr[2:]))
+        if None not in types:
+            ty = SExpr.ofFuncType(*types)
+            keys = SExpr.makekeys(str(expr[1]), len(types)-1, ty[0])
+            env.add(keys, Def(ty, None, None))
+        return expr.setType('Void')
+
+    def FuncMatch(self, env, expr, ty):
+        self.typeAt(env, expr, 1, None)
+        for n in range(2, len(expr)):
+            self.typeAt(env, expr, n, expr[1].ty)
+        return expr.setType(expr[1].ty)
+
+    def FuncCase(self, env, expr, ty):
+        self.typeAt(env, expr, 1, ty)
+        if len(expr) == 3:
+            self.typeAt(env, expr, 2, Typer.BoolType)
+        return expr.setType(expr[1].ty)
 
     def Param(self, env, expr, ty):
         name = str(expr[1])
