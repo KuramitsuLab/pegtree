@@ -40,10 +40,12 @@ def compile():
     name = file.name
     file.close() #tempfile cannot use utf-8 in python 2.7, so need to reopen
 
+    if req['autoSaving']:
+        save()
     createSourceFile(name, req['source'])
 
     try:
-        return createResponseJson('', compileCommand(name, cmd), '')
+        return createResponseJson('', compileCommand(name, cmd, req['editerInput']), '')
     except Exception as e:
         return createResponseJson('', 'compile error in python\n\n' + str(e), str(e))
 
@@ -72,7 +74,7 @@ def command():
         createSourceFile(name, req['source'])
 
     try:
-        return createResponseJson(input, compileCommand(name, cmd), '')
+        return createResponseJson(input, compileCommand(name, cmd, req['editerInput']), '')
     except Exception as e:
         return createResponseJson(input, 'compile error in python\n\n' + str(e), str(e))
 
@@ -90,10 +92,10 @@ def close():
 @app.post('/save')
 def save():
     if not hasattr(request, 'json') or not save_name: return
-    file = file_search(save_name)
-    if file is None: return
-    with file.open('w') as f:
-        f.write(request.json['source'])
+    file = file_search2(save_name)
+    if file is not None:
+        with file.open('w') as f:
+            f.write(request.json['source'])
 
 @app.post('/init')
 def init():
@@ -108,10 +110,12 @@ def createSourceFile(name, contents):
     with codecs.open(name, 'w', 'utf-8') as f:
         f.write(contents)
 
-def compileCommand(name, cmd):
+def compileCommand(name, cmd, isEditerInput):
     d = p_arg(cmd[2:])
-    # w = comp(cmd[:2] + restore_arg(d) + ([name] if 'output' in d else ['-o', str(file_search('output.k')), name]))
-    w = comp(cmd[:2] + restore_arg(d) + ([] if 'output' in d else ['-o', str(file_search('output.k'))]))
+    if isEditerInput:
+        w = comp(cmd[:2] + restore_arg(d) + ([name] if 'output' in d else ['-o', str(file_search('output.k')), name]))
+    else:
+        w = comp(cmd[:2] + restore_arg(d) + ([] if 'output' in d else ['-o', str(file_search('output.k'))]))
     w.file.seek(0)
     cont = w.file.read()
     w.file.close()
@@ -177,19 +181,10 @@ def restore_arg(d, data = restore_data):
             else:
                 for name in d[key]:
                     #if ':' in name: parse_name(name)
-                    if ':' in name:
-                        name = parse_name(name)
+                    name = parse_name(name)
+                    if name:
                         file = file_search2(name)
-                        if file is not None:
-                            arg.append(str(file))
-                        else:
-                            arg.append(name)
-                    elif name:
-                        file = file_search2(name)
-                        if file is not None:
-                            arg.append(str(file))
-                        else:
-                            arg.append(name)
+                        arg.append(str(file) if file is not None else name)
     return arg
 
 def playground(argv, main, parse_arg):
