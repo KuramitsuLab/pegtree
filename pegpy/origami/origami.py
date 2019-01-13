@@ -558,7 +558,7 @@ def exprfunc(c):
             return f
         elif name =='type':
             return lambda env, e: exprtype(env, f(env, e))
-        elif name.startsWith('#'):
+        elif name.startswith('#'):
             pass
         return lambda env, e: definedexpr(name)(f(env, e))
 

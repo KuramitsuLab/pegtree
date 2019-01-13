@@ -2,6 +2,8 @@
 
 var Playground;
 (function (Playground) {
+    Playground.autoSaving = true;
+    Playground.editerInput = false;
     function CreateEditor(query) {
         ace.require("ace/ext/language_tools");
         var editor = ace.edit(query);
@@ -38,7 +40,7 @@ $(function () {
         $.ajax({
             type: "POST",
             url: "/compile",
-            data: JSON.stringify({ source: zenEditor.getValue() }),
+            data: JSON.stringify({ source: zenEditor.getValue(), autoSaving: $('#autoSaving').prop('checked'), editerInput: $('#editerInput').prop('checked') }),
             dataType: 'json',
             contentType: "application/json; charset=utf-8",
             success: function (data) {
@@ -69,7 +71,7 @@ $(function () {
         $.ajax({
             url: '/command',
             type: 'POST',
-            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd }),
+            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd, editerInput: $('#editerInput').prop('checked') }),
             dataType: 'json',
             contentType: "application/json; charset=utf-8",
             timeout: 5000,
@@ -162,6 +164,21 @@ $(function () {
             data: JSON.stringify({ source: zenEditor.getValue()}),
             contentType: "application/json; charset=utf-8",
         });
+        GenerateServer(true);
+    });
+
+    $('autoSaving').select(function () {
+        console.log(Playground.autoSaving);
+        Playground.autoSaving = !Playground.autoSaving;
+        console.log(Playground.autoSaving);
+    });
+
+    console.log($('#editerInput').prop('checked'));
+
+    $('editerInput').select(function () {
+        console.log(Playground.editerInput);
+        Playground.editerInput = !Playground.editerInput;
+        console.log(Playground.editerInput);
     });
 
     $.ajax({
