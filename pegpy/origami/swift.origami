@@ -1,0 +1,48 @@
+// swift origami
+
+include common2.origami
+
+#FuncDecl        = "func ${1} (${2:-1}) -> ${type(1)} {\n\f\t${@ret(-1)}\n\b\t}" ","
+#FuncExpr        = "{(${*}) -> ${type(-1)} in ${@ret(-1)}}" ","
+#FuncMatchDecl   = "func ${1} (${2:-1}) -> ${type(1)} {\n\f\t${-1}\n\b\t}" ","
+#FuncMatch       = "if ${*}" " else if "
+#FuncCase@1      = true {\n\f\treturn ${1}\n\b\t}
+#FuncCase@2      = ${2} {\n\f\treturn ${1}\n\b\t}
+
+#Param@2         = _ ${1}: ${type(1)}
+#LetDecl@2       = let ${1}: ${type(2)} = ${2}
+#LetDecl@3       = let ${1}: ${2} = ${3}
+
+#TrueExpr        = true
+#FalseExpr       = false
+#NullExpr        = nil
+
+#TemplateExpr    = \"\"\"${1}\"\"\"
+
+#Float           = Double
+//#Char            = UInt8
+
+Int@1:Float->Int    = Int(${1})
+Int@1:String->Int   = Int(${1})!
+//Int@1:Char->Int     = Int(${1})
+Int@1:Bool->Int     = ${1} ? 1 : 0
+
+Float@1:Int->Float    = Double(${1})
+Float@1:String->Float = Double(${1})!
+//Float@1:Char->Float   = Double(${1})
+Float@1:Bool->Float   = ${1} ? 1.0 : 0.0
+
+String@1:Int->String   = String(${1})
+String@1:Float->String = String(${1})
+//String@1:Char->String  = String(${1})
+String@1:Bool->String  = String(${1})
+
+//Char@1:Int->Char    = UInt8(${1})
+//Char@1:Float->Char  = UInt8(${1})
+//Char@1:String->Char = UInt8(%s.utf8.first!)
+//Char@1:Bool->Char   = ${1} ? 1 : 0
+
+Bool@1:Int->Bool    = ${1} != 0 ? true : false
+Bool@1:Float->Bool  = ${1} != 0 ? true : false
+Bool@1:String->Bool = Bool(${1})!
+//Bool@1:Char->Bool   = ${1} != 0 ? true : false

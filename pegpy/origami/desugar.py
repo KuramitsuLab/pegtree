@@ -1,7 +1,7 @@
 #!/usr/local/bin/python
 
 from pegpy.origami.sexpr import SExpr
-from functools import lru_cache
+from functools import lru_cache, reduce
 
 import re
 
@@ -23,6 +23,13 @@ def safegroup(expr):
 
 def ret(expr):
     return expr.new('#Return', expr)
+
+def bytes(expr):
+    expr.data = str2byte(str(expr))
+    return expr
+
+def str2byte(s):
+    return reduce(lambda x, y: x + format(ord(y), '04x'), s, 'v_')
 
 funclist = globals()
 
@@ -49,10 +56,11 @@ def desugar_apply(f, e, args):
         e[i] = f(e[i])
 
 def desugar(env, e):
-    defined = env[e.key()]
-    if defined is not None and defined.code is not None:
-        code = desugar_find(defined.code)
-        #print('@desugar', e.asSymbol(), code)
-        for func, args in code:
-            f = desugar_func(func)
-            desugar_apply(f, e, args)
+    for key in e.keys():
+        defined = env[key]
+        if defined is not None and defined.code is not None:
+            code = desugar_find(defined.code)
+            #print('@desugar', e.asSymbol(), code)
+            for func, args in code:
+                f = desugar_func(func)
+                desugar_apply(f, e, args)

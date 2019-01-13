@@ -1,17 +1,55 @@
+// python origami
 
-include common.origami
+include common2.origami
 
 #Block           = "${*}" "\n\t"
 #FuncDecl        = def ${1}${2}:${indent++}\n\t${@ret(-1)}${indent--}
 #Params          = "(${1:})" ","
 #Param           = ${1}
 #FuncExpr        = "lambda ${*}: ${-1}" ","
+#FuncMatchDecl   = "def ${1}(${2:-1}):\f\n\t${-1}\b" ","
+#FuncMatch       = "if ${*}" "\n\telif "
+#FuncCase@1      = True:\n\f\treturn ${1}\b
+#FuncCase@2      = ${2}:\n\f\treturn ${1}\b
+
 #Return@0        = return
 #Return@1        = return ${1}
 #LetDecl@2       = ${1} = ${2}
 #LetDecl@3       = ${1} = ${3}
 
-#IfExpr : (Bool,a,a) -> a    = (${2} if ${1} else ${3})
+#IfExpr:(Bool,a,a) -> a = ${2} if ${1} else ${3}
 
-#IntExpr:Int     = ${1}
-//かつ@2 = (#And @1 (#Infix @2 - 1))
++@2:(String,String) -> String = ${1}+${2}
+
+||@2:(Bool,Bool) -> Bool = ${1} or ${2}
+&&@2:(Bool,Bool) -> Bool = ${1} and ${2}
+!@1:(Bool)->Bool         = not ${1}
+
+#TrueExpr        = True
+#FalseExpr       = False
+#NullExpr        = None
+
+Int@1:Float->Int    = int(${1})
+Int@1:String->Int   = int(${1})
+Int@1:Char->Int     = ord(${1})
+Int@1:Bool->Int     = int(${1})
+
+Float@1:Int->Float    = float(${1})
+Float@1:String->Float = float(${1})
+Float@1:Char->Float   = float(ord(${1}))
+Float@1:Bool->Float   = float(${1})
+
+String@1:Int->String   = str(${1})
+String@1:Float->String = str(${1})
+String@1:Char->String  = ${1}
+String@1:Bool->String  = str(${1})
+
+Char@1:Int->Char    = str(${1})
+Char@1:Float->Char  = str(${1})
+Char@1:String->Char = ${1}
+Char@1:Bool->Char   = str(${1})
+
+Bool@1:Int->Bool    = bool(${1})
+Bool@1:Float->Bool  = bool(${1})
+Bool@1:String->Bool = bool(${1})
+Bool@1:Char->Bool   = bool(${1})
