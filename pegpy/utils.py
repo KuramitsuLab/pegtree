@@ -147,6 +147,12 @@ def unquote_string(s):
         l.append(c)
     return ''.join(l)
 
+def safeint(s, default):
+    try:
+        return int(s)
+    except ValueError:
+        return default
+
 #Path
 
 def find_path(file, subdir='grammar'):
@@ -166,18 +172,6 @@ def find_importPath(sourcePath, importPath):
         path = Path(sourcePath).resolve().parent / importPath
         if not path.exists(): return importPath
     return str(path.absolute())
-
-
-COLOR = {
-    "Black": '0;30', "DarkGray": '1;30',
-    "Red": '0;31',     "LightRed": '1;31',
-    "Green": '0;32',     "LightGreen": '1;32',
-    "Orange": '0;33',     "Yellow": '1;33',
-    "Blue": '0;34',     "LightBlue": '1;34',
-    "Purple": '0;35',     "LightPurple": '1;35',
-    "Cyan": '0;36',     "LightCyan": '1;36',
-    "LightGray": '0;37',     "White": '1;37',
-}
 
 class Writer(object):
     __slots__ = ['file', 'istty', 'isVerbose']
@@ -212,13 +206,25 @@ class Writer(object):
 
     def verbose(self, *args):
         if self.isVerbose:
-            self.println(*args)
+            ss = map(lambda s : self.c('Blue', s), args)
+            self.println(*ss)
 
     def bold(self, s):
         return '\033[1m' + str(s) + '\033[0m' if self.istty else str(s)
 
+    COLOR = {
+        "Black": '0;30', "DarkGray": '1;30',
+        "Red": '0;31', "LightRed": '1;31',
+        "Green": '0;32', "LightGreen": '1;32',
+        "Orange": '0;33', "Yellow": '1;33',
+        "Blue": '0;34', "LightBlue": '1;34',
+        "Purple": '0;35', "LightPurple": '1;35',
+        "Cyan": '0;36', "LightCyan": '1;36',
+        "LightGray": '0;37', "White": '1;37',
+    }
+
     def c(self, color, s):
-        return '\033[{}m{}\033[0m'.format(COLOR[color],str(s)) + '' if self.istty else str(s)
+        return '\033[{}m{}\033[0m'.format(Writer.COLOR[color],str(s)) + '' if self.istty else str(s)
 
     def perror(self, pos3, msg='Syntax Error'):
         self.println(serror(pos3, self.c('Red', '[error] ' + str(msg))))
@@ -228,6 +234,5 @@ class Writer(object):
 
     def notice(self, pos3, msg):
         self.println(serror(pos3, self.c('Cyan', '[notice] '+ str(msg))))
-
 
 STDOUT = Writer()

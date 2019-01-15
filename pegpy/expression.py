@@ -420,6 +420,18 @@ class State(ParsingExpression):
     def __str__(self):
         return  self.func + '(' + str(self.inner) + ')'
 
+## Move
+
+class Move(ParsingExpression):
+    __slots__ = ['func']
+
+    def __init__(self, func):
+        self.func = func
+
+    def __str__(self):
+        return  self.func + '()'
+
+
 # @on(flag, e)
 class On(ParsingExpression):
     __slots__ = ['name', 'inner']
@@ -561,7 +573,7 @@ def isAlwaysConsumed(pe: ParsingExpression):
         @addmethod(Char, Any, Range, method)
         def char(pe): return True
 
-        @addmethod(Many, Not, And, Empty, method)
+        @addmethod(Many, Not, And, Empty, Move, method)
         def empty(pe): return False
 
         @addmethod(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
@@ -598,7 +610,7 @@ def first(pe: ParsingExpression, max=255):
         def first_char(pe, max):
             return 1 << ord(pe.a[0])
 
-        @addmethod(Any, method)
+        @addmethod(Any, Move, method)
         def first_any(pe, max):
             return (1 << (max+1))-1
 
@@ -673,7 +685,7 @@ def cdr(pe: ParsingExpression):
         def cdr_alt(pe):
             return Alt.new2(pe.left.cdr(), pe.right.cdr())
 
-        @addmethod(Not, Empty, method)
+        @addmethod(Not, Empty, Move, method)
         def cdr_empty(pe):
             return None
 
@@ -702,7 +714,7 @@ class T(Enum):
 def treeState(pe):
     if not hasattr(Char, 'treeState'):
         method = 'treeState'
-        @addmethod(Empty, Char, Any, Range, Not, Detree, method)
+        @addmethod(Empty, Char, Any, Range, Not, Detree, Move, method)
         def stateUnit(pe):
             return T.Unit
 
@@ -755,7 +767,7 @@ def checkTree(pe, inside):
     if not hasattr(LinkAs, 'checkTree'):
         method = 'checkTree'
 
-        @addmethod(Empty, Char, Any, Range, method)
+        @addmethod(Empty, Char, Any, Range, Move, method)
         def term(pe, inside):
             return pe
 
@@ -873,7 +885,7 @@ def load_tpeg(g):
     g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':^') & _ & N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag')
     g.Var = TreeAs('Name', Range.new('a-z', '$') & Range.new('A-Z', 'a-z', '0-9', '_')*0)
 
-    g.Func = TreeAs('Func', N%'$Identifier' & '(' & __ & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression __' & ')')
+    g.Func = TreeAs('Func', N%'$Identifier' & '(' & __ & (N%'$Expression _' & ',' & __)* 0 & (N%'$Expression __' | 0) & ')')
     g.Ref = TreeAs('Ref', N%'NAME')
     g.NAME = '"' & (ParsingExpression.new(r'\"') | ~Range.new('\\"\n') & ANY)* 0 & '"' | (~Range.new(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)+0
 
@@ -1049,6 +1061,8 @@ def setup_loader(Grammar, pgen):
                 else:
                     out.perror(a[0].pos3(), 'undefined annotation')
                     return self.conv(a[1])
+            if funcname == '@skip':
+                return Move('@skip')
             out.perror(a[0].pos3(), 'illegal annotation arguments')
             return EMPTY
 

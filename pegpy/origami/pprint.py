@@ -69,167 +69,135 @@ class SourceSection(object):
         for f, x in cmds:
             f(env, e, x, self)
 
-codekeys = {
-    '\t': 'indent', '\f': 'indent++', '\b': 'indent--', '\n': 'newline'
+## format function
+
+def typefmt(env, e, x, ss):
+    if e.ty is None:
+        ss.pushSTR(env['Any'].code)
+    else:
+        ss.pushEXPR(env, e.ty)
+
+def retfmt(env, e, x, ss):
+    if e.ty is None:
+        ss.pushSTR(env['Any'].code)
+    elif e.ty.isFuncType():
+        ss.pushEXPR(env, e.ty[-1])
+    else:
+        ss.pushEXPR(env, e.ty)
+
+FMTFUNC = {
+    'type': typefmt,
+    'ret':  retfmt,
 }
 
-esckeys = '*0123456789%'
+## builtin function
 
-def STR(env, e, s, ss):
-    ss.pushSTR(s)
+def STR(env, e, s, ss): ss.pushSTR(s)
+def EXPR(env, e, f, ss): ss.pushEXPR(env, e)
+def THIS(env, e, f, ss): f(env, e, ss)
 
 def pINDENT(env, e, s, ss): ss.pushINDENT()
 def pINC(env, e, s, ss): ss.incIndent()
 def pDEC(env, e, s, ss): ss.decIndent()
 def pLF(env, e, s, ss): ss.pushLF()
 
-commands = {
-    'indent': pINDENT,
+def pNL(env, e, s, ss):
+    ss.pushLF()
+    ss.pushINDENT()
+
+def pINCNL(env, e, s, ss):
+    ss.incIndent()
+    ss.pushLF()
+    ss.pushINDENT()
+
+def pDECNL(env, e, s, ss):
+    ss.decIndent()
+    ss.pushLF()
+    ss.pushINDENT()
+
+BUILTINS = {
+    'NL': pNL,
+    '+NL': pINCNL,
+    '-NL': pDECNL,
+
+    'TAB': pINDENT,
+    'LF': pLF,
     'indent++': pINC,
     'indent--': pDEC,
-    'newline': pLF,
-    '\t': pINDENT, '\f': pINC, '\b': pDEC, '\n': pLF,
+    '+': pINC,
+    '-': pDEC,
+    'this': THIS,
 }
 
-def expr0(env, e): return e[0]
-def expr1(env, e): return e[1]
-def expr2(env, e): return e[2]
-def expr3(env, e): return e[3]
-def expr4(env, e): return e[4]
-def expr1r(env, e): return e[-1]
-def expr2r(env, e): return e[-2]
-def expr3r(env, e): return e[-3]
-def expr4r(env, e): return e[-4]
-def this(env, e): return e
-def exprdata(env, e): return e.data
+def append_string(l, c):
+    if len(c) > 0: l.append((STR, c))
 
-def exprtype(env, e):
-    return e.ty
+DELIM = tuple([(STR, ',')])
 
-def definedexpr(name):
-    def curry(env, e):
-        print('@TODO', name)
-        return e
-    return curry
+def append_command(l, cmd, delim, f = EXPR):
+    #print('@cmd', cmd)
+    if cmd.endswith(')'):
+        idx = cmd.find('(')
+        name = cmd[0:idx]
+        arg = cmd[idx + 1:-1]
+        if name in FMTFUNC:
+            append_command(l, arg, delim, FMTFUNC[name])
+        else:
+            append_command(l, arg, delim, f)
+        return
 
-def exprfunc(c):
-    if c.endswith(')'):
-        name, p = c[:-1].split('(')
-        f = exprfunc(p)
-        if name.startswith('@'):
-            return f
-        elif name =='type':
-            return lambda env, e: exprtype(env, f(env, e))
-        elif name.startsWith('#'):
-            pass
-        return lambda env, e: definedexpr(name)(f(env, e))
+    if cmd in BUILTINS:
+        l.append((BUILTINS[cmd], f))
+        return
 
-    if c == '1': return expr1
-    elif c == '2': return expr2
-    elif c == '3': return expr3
-    elif c == '4': return expr4
-    elif c == '-1': return expr1r
-    elif c == '-2': return expr2r
-    elif c == '-3': return expr3r
-    elif c == '-4': return expr4r
-    elif c == 'this': return this
-    elif c == 's': return exprdata
-    return expr0
+    if cmd == '*': cmd = '1:'
+    if ':' in cmd:
+        if cmd.startswith(':'): cmd = '1' + cmd
+        if cmd.endswith(':'):
+            start, end = int(cmd[:-1]), None
+        else:
+            start, end = map(int, cmd.split(':'))
 
-def EXPR(env, e, f, ss):
-    ss.pushEXPR(env, f(env, e))
+        def SUB(env, e, f, ss):
+            if start < len(e):
+                nonfirst = False
+                for se in e[start:end]:
+                    if nonfirst: ss.exec(env, e, delim)
+                    if se == '#Done': continue
+                    f(env, se, None, ss)
+                    nonfirst = True
+        return l.append((SUB, f))
 
-def findindex(s, n):
-    n = str(n)
-    if s.find('%' + n) >= 0: return True
-    if s.find('${' + n + '}') >= 0: return True
-    if s.find('(' + n + ')}') >= 0: return True
-    return False
+    try :
+        idx = int(cmd)
+        def INDEX(env, e, f, ss):
+            #print('@idx', idx, '<', e, type(e.data), len(e))
+            f(env, e[idx], None, ss)
+        return l.append((INDEX, f))
 
-def startindex(code: str):
-    index = 1
-    if findindex(code, 1):
-        index = 2
-    if findindex(code, 2):
-        index = 3
-    if findindex(code, 3):
-        index = 4
-    return index
-
-def endindex(code: str):
-    index = 0
-    if findindex(code, -1):
-        index = -1
-    if findindex(code, -2):
-        index = -2
-    if findindex(code, -3):
-        index = -3
-    return index
-
-def delimfunc(start, end):
-    def curry(env, e, delim, ss):
-        if delim is None: delim = [(STR, ',')]
-        if start < len(e):
-            ss.pushEXPR(env, e[start])
-            if end == 0:
-                for se in e[start+1:]:
-                    ss.exec(env, se, delim)
-                    ss.pushEXPR(env, se)
-            else:
-                for se in e[start+1:end]:
-                    ss.exec(env, se, delim)
-                    ss.pushEXPR(env, se)
-    return curry
+    except ValueError:
+        def NAME(env, e, f, ss):
+            idx = e.find(cmd)
+            if idx != -1:
+                #print('@idx', cmd, idx, f)
+                f(env, e[idx], None, ss)
+        return l.append((NAME, f))
 
 @lru_cache(maxsize=512)
 def compile_code(code: str, delim = None):
-    if delim is not None:
-        delim = compile_code(delim, None)
-    def append_string(l, c):
-        if len(c) > 0: l.append((STR, c))
-    def append_command(l, c):
-        if c.endswith(')') or c in '0123456789-1-2-3-4this':
-            l.append((EXPR, exprfunc(c)))
-        elif ':' in c:
-            if c.startswith(':'):
-                c = str(startindex(code)) + c
-            if c.endswith(':'):
-                c = c + str(endindex(code))
-            s,e = map(int, c.split(':'))
-            l.append((delimfunc(s,e),delim))
-        elif c == '*':
-            l.append((delimfunc(startindex(code), endindex(code)), delim))
-        elif c in commands:
-            l.append((commands[c],None))
-    index = 1
+    delim = DELIM if delim is None else compile_code(delim, None)
     start = 0
-    i = 0
     l = []
-    while i < len(code):
-        if code[i] in codekeys:
-            append_string(l, code[start: i])
-            append_command(l, codekeys[code[i]])
-            start = i+1
-            i = start
+    while True:
+        spos = code.find('${', start)
+        if spos == -1:
+            append_string(l, code[start:])
+            break
+        epos = code.find('}', spos)
+        if epos == -1:
+            start = spos+1
             continue
-        if code[i] == '%' and i+1 < len(code) and code[i+1] in esckeys:
-            append_string(l, code[start: i])
-            append_command(l, code[i+1])
-            start = i+2
-            i = start
-            continue
-
-        if not code.startswith('${',i):
-            i += 1
-            continue
-        j = code.find('}', i + 1)
-        if j == -1:
-            i += 1
-            continue
-        append_string(l, code[start: i])
-        cmd = code[i+2:j]
-        append_command(l, cmd)
-        start = j+1
-        i = start
-    append_string(l, code[start: i])
+        append_string(l, code[start: spos])
+        append_command(l, code[spos+2:epos], delim)
+        start = epos+1
     return tuple(l)

@@ -7,7 +7,9 @@
 
 /* Starting Point */
 
-File = __  { (Statement __)* #Block } EOF
+File = __  { (Statement __)* #Source } EOF
+
+import 'origami.tpeg' as origami
 
 EOF          = !.
 NL           = '\n' / EOF
@@ -67,54 +69,7 @@ example Identifier (+)
 
 /* Type */
 
-example Type String
-example Type Dict[Int]
-example Type () -> int
-example Type int -> int -> int
-example Type int * int
-example Type {name, age}
-
-Type =
-	PrimaryType (
-	    base:^ { "[" Type ("," Type)* "]" #ParamType }
-	    base:^ { '*' _ Type ('*' _ Type)* #TupleType }
-	    / base:^ { '->' _ type: Type #FuncType }
-	)*
-
-PrimaryType =
-	{ 'typeof' "(" expr: Expression ")" #ExprType }
-	/ FuncType
-	/ "(" Type ")"
-	/ DataType
-	/ BaseType
-
-BaseType = !TKEYWORD TypeName
-
-TKEYWORD
-	= 'public' !W
-	/ 'let' !W
-
-TypeName = {
-	[A-Za-z$\x80-\xF7]	[A-Za-z0-9/.\x80-\xF7]* [']*
-	#BaseType
-} _
-
-FuncType = {
-	"(" ( Type ("," Type)* )? ")"
-	'->' _ Type
-	#FuncType
-}
-
-Types = {
-	( Type ("," Type)* )?
-}
-
-DataType =  {
-    "{"
-	(Identifier ("," Identifier)*)?
-	"}"
-	#DataType
-}
+Type = origami.Type
 
 /* Statement */
 
@@ -123,7 +78,6 @@ Statement =
 	/ LetDecl
 	/ AssumeDecl
 	/ CodeDecl
-    / FuncMatchDecl
 	/ FuncDecl
 	/ AssignStmt
 	/ Expression
@@ -161,9 +115,12 @@ Names = {
 }
 
 CodeDecl = {
-  'codemap' !W __
-  (CodeMap __)*
-  #CodeDecl
+  'codemap' !W _
+  @scope(
+    (@symbol(INDENT) origami.Statement)
+    (@match(INDENT) origami.Statement)*
+  )
+  #CodeMapTree
 }
 
 example CodeDecl, Statement '''
@@ -173,6 +130,10 @@ codemap
 '''
 
 /* LetDecl */
+
+example LetDecl, Statement '''
+let a : List[a] = [1,2,3]
+'''
 
 LetDecl = {
 	'let' SPC
@@ -195,6 +156,7 @@ AssignStmt = {
 example FuncDecl, Statement '''
 f(x) = x + 1
 '''
+
 example FuncDecl, Statement '''
 g(x) = {
     let x = 1
@@ -208,21 +170,12 @@ h(x) =
     x + 1
 '''
 
-FuncMatchDecl = {
-    name: Identifier
-    "(" params: Params ")"
-    (":" type: Type)?
-    '=' _
-    body: FuncMatch
-    #FuncMatchDecl
-}
-
 FuncDecl = {
 	name: Identifier
 	"(" params: Params ")"
     (":" type: Type)?
     '=' _
-    body: (IndentBlock / Expression)
+    body: (FuncMatch / IndentBlock / Expression)
 	#FuncDecl
 }
 
@@ -245,7 +198,7 @@ gcd(x,y) =
 
 FuncMatch = {
     FuncCase   FuncCase+
-    #FuncMatch
+    #Match
 }
 
 example FuncCase '''
@@ -254,7 +207,7 @@ example FuncCase '''
 
 FuncCase = {
     __ '|' _ expr: Expression ('if' _ case: Expression / 'otherwise' _)?
-    #FuncCase
+    #MatchCase
 }
 
 IndentBlock = {
@@ -377,7 +330,7 @@ SuffixExpr =
 	Primary (
 	    recv:^ { '.' _ name: Identifier "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { '.' _ name: Identifier #GetExpr }
-	    / recv:^ { "(" params: Expressions ")" #ApplyExpr }
+	    / recv:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
 	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
 	    / recv:^ { "<" type: Type ">" #CastExpr }
 	)*
@@ -487,9 +440,6 @@ FloatExpr = {
 	FLOAT #DoubleExpr
 } _
 
-Var1  = { [A-Za-z] [0-9]? [']* #NameExpr }  // xy => x * y
-      / '(' _ Expression ')'                // 2(n+1) => 2 * (n+1)
-
 FLOAT =
 	FRACTION EXPONENT?
     / DIGIT+ EXPONENT
@@ -501,57 +451,6 @@ FRACTION =
 EXPONENT =
 	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
 
-TrueExpr  = { [Tt] 'rue' !W  #TrueExpr } _
-FalseExpr = { [Ff] 'alse' !W #FalseExpr } _
-NullExpr  = { [Nn] ('ull' / 'one' / 'il' / 'othing' ) / 'NULL' #NullExpr } _
-
-/* CodeMap */
-
-OrigamiFile = __ { (Origami __)* #Block } EOF
-
-Origami =
-    / CodeInclude
-    / CodeRequire
-    / CodeMap
-
-CodeInclude = {
-    'include' SPC file: Code
-    #Include
-}
-
-CodeRequire = {
-    'require' SPC file: Code
-    #Require
-}
-
-CodeMap = {
-    name: Signature
-    (":" type: Type)?
-    ('=' _ expr: (StringExpr / Code))?
-    (delim: StringExpr)?
-    #CodeMap
-}
-
-Signature = {
-    '#'?
-    (OPNAME / NAME )
-    ('@' DIGIT+ )?
-    #Symbol
-} _
-
-Code = {
-    ( !NL . )*
-    #Symbol
-} NL _
-
-example CodeMap +@2 : (Int,Int)->Int = (%1+%2)
-example CodeMap +@2 : (Int,Int)->Int
-example CodeMap +@2 = (%1+%2)
-example CodeMap + = (%1+%2)
-example CodeMap + = "(%*)" ","
-
-example OrigamiFile '''
-+@2 : (Int,Int)->Int = (%1+%2)
-+@2 : (Int,Int)->Int
-+@2 = (%1+%2)
-'''
+TrueExpr  = { 'true' !W  #TrueExpr } _
+FalseExpr = { 'false' !W #FalseExpr } _
+NullExpr  = { 'null' !W #NullExpr } _

@@ -113,6 +113,7 @@ def peg(opt, out):
     g = load_grammar(opt)
     g.dump(out)
 
+'''
 def origami(opt, out):
     from pegpy.origami.origami import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
@@ -135,8 +136,9 @@ def origami(opt, out):
         for input in source_files:
             t = parser(read_inputs(input))
             out.println(repr(transpile(env, t, out)))
+'''
 
-def origami2(opt, out):
+def origami(opt, out):
     from pegpy.origami.origami2 import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
     if 'Snippet' in g: g = g['Snippet']
@@ -146,17 +148,19 @@ def origami2(opt, out):
     env = transpile_init(origami_files, out)
     if len(source_files) == 0:
         try:
+            linenum = 1
             while True:
-                s = readlines(bold('>>> '))
-                t = parser(s, '>>>')
-                out.println(repr(t))
+                s = readlines(bold('[{}]>>> '.format(linenum)))
+                t = parser(s, '[{}]>>> '.format(linenum))
+                linenum +=1
+                out.verbose(repr(t))
                 out.println(repr(transpile(env, t, out)))
         except (EOFError, KeyboardInterrupt):
             pass
         return None
     else:
         for input in source_files:
-            t = parser(read_inputs(input))
+            t = parser(read_inputs(input), input)
             out.println(repr(transpile(env, t, out)))
 
 

@@ -5,9 +5,9 @@ from pegpy.origami.pprint import SourceSection, compile_code
 
 import pegpy.utils as u
 
-g = Grammar('konoha6')
-g.load('konoha6.tpeg')
-origami_parser = nez(g['OrigamiFile'])
+g = Grammar()
+g.load('origami.tpeg')
+origami_parser = nez(g['File'])
 
 class Def(object):
     __slots__ = ['ty', 'libs', 'code', 'delim']
@@ -27,28 +27,16 @@ class Def(object):
     def getcode(self):
         return None if self.code is None else compile_code(self.code, self.delim)
 
-    @classmethod
-    def getkeys(cls, stmt, ty):
-        iname = stmt['name'].asString()
-        name = iname.split('@')[0] if '@' in iname else iname
-        keys = []
-        if ty is not None and ty.isFuncType():
-            iname = name + '@' + str(len(ty))
-            keys.append(iname + '@' + str(ty[0]))
-        keys.append(iname)
-        if iname != name:
-            keys.append(name)
-        return keys
-
 class Env(object):
-    __slots__ = ['parent', 'nameMap']
+    __slots__ = ['parent', 'ts', 'nameMap']
 
-    def __init__(self, parent = None):
+    def __init__(self, ts, parent = None):
         self.parent = parent
+        self.ts = ts
         self.nameMap = {}
 
     def newLocal(self):
-        return Env(self)
+        return Env(self.ts, self)
 
     def __contains__(self, item):
         if item in self.nameMap:
@@ -67,25 +55,45 @@ class Env(object):
     def __setitem__(self, item, value):
         self.nameMap[item] = value
 
+    def asType(self, expr, ty):
+        return self.ts.asType(self, expr, ty)
+
     def load(self, path, out):
         path = u.find_path(path, 'origami')
         f = path.open()
         data = f.read()
         f.close()
         t = origami_parser(data, path)
+        self.loadTree(path, t, out)
+
+    def loadTree(self, path, t, out):
         if t == 'err':
             out.verbose(u.serror(t.pos3()))
             return
-        libs = None
+        libs = ''
+        ts = self.ts
         for _, stmt in t:
             #print(stmt)
             if stmt == 'CodeMap':
-                ty = Expression.ofType(Expression.treeConv(stmt['type'])) if 'type' in stmt else None
-                keys = Def.getkeys(stmt, ty)
+                name = stmt['name'].asString()
+                psize = None
+                if '@' in name:
+                    name, psize = name.split('@')
+                    psize = u.safeint(psize, None)
+                if 'extends' in stmt:
+                    tys = ts.asType(self, Expression.treeConv(stmt['extends']), None)
+                    continue
+                ty = ts.asType(self, Expression.treeConv(stmt['type']),None) if 'type' in stmt else None
                 code = u.unquote_string(stmt['expr'].asString()) if 'expr' in stmt else None
                 delim = u.unquote_string(stmt['delim'].asString()) if 'delim' in stmt else None
                 d = Def(ty, libs, code, delim)
+                if ty is not None and ty.isFuncType():
+                    keys = Expression.makekeys(name, len(ty), ty[1])
+                else:
+                    keys = Expression.makekeys(name, psize, None)
                 self.add(keys, d)
+            elif stmt == 'Require':
+                libs = stmt['file'].asString()
             elif stmt == 'Include':
                 file = stmt['file'].asString()
                 file = u.find_importPath(path.absolute(), file)
@@ -99,6 +107,7 @@ class Env(object):
         else:
             self[keys[0]] = defined
             for key in keys[1:]:
+                if not '@' in key: break
                 if not key in self:
                     self[key] = defined
 
@@ -117,9 +126,10 @@ class Env(object):
 ## Typing
 
 class Origami(object):
-    __slot__ = ['methodMap']
-    def __init__(self):
+    __slot__ = ['methodMap', 'out']
+    def __init__(self, out):
         self.methodMap = {}
+        self.out = out
 
     def lookupMethod(self, key):
         if key in self.methodMap:
@@ -137,20 +147,24 @@ class Origami(object):
         return self.undefined
 
     def undefined(self, env, expr, ty):
-        if expr.tag.endswith('Type'):
-            ty = Expression.addType(str(expr), expr)
-            return ty
         #print('@undefined', expr.tag, expr)
-        return self.Apply(env, expr, ty)
+        return self.apply(env, expr, ty)
 
     VoidType = Expression.ofType('Void')
     BoolType = Expression.ofType('Bool')
 
+    def matchType(self, given, expected):
+        #print(expected, id(expected))
+        #print(given, id(given))
+        #print(expected == given, expected is given)
+        return expected is given
+
     def asType(self, env, expr, ty):
         if expr.isUntyped():
             desugar(env, expr)
-            expr = self.tryType(env, expr, ty)
-        if ty is None or expr.ty is None or expr.ty is ty:
+            method = self.lookupMethod(expr.key())
+            expr = method(env, expr, ty)
+        if ty is None or expr.ty is None or self.matchType(expr.ty, ty):
             return expr
         for key in Expression.makekeys(str(ty), 1, expr.ty):
             defined = env[key]
@@ -158,29 +172,47 @@ class Origami(object):
             expr = Expression.new('#Cast', expr, ty)
             expr.setCode(defined.getcode())
             return expr.setType(ty)
-        return expr.err('Type Error: Expected={} Given={}'.format(ty, expr.ty))
-
-    def tryType(self, env, expr, ty):
-        method = self.lookupMethod(expr.key())
-        return method(env, expr, ty)
+        expr = expr.err('type error {}=>{}'.format(expr.ty, ty), expr.getpos())
+        return expr.setType(ty)
 
     def typeAt(self, env, expr, n, ty):
         if isinstance(expr[n], Expression):
             expr[n] = self.asType(env, expr[n],ty)
 
-    def CastExpr(self, env, expr, ty):
-        self.typeAt(env, expr, 1, None)
-        ty = expr[2]
-        for key in Expression.makekeys(str(ty), 1, expr[1].ty):
+    def BaseType(self, env, expr, ty):
+        return Expression.ofType(expr[1])
+
+    def FuncType(self, env, expr, ty):
+        return Expression.ofFuncType(*map(lambda e: self.asType(env, e, None), expr[1:]))
+
+    def ParamType(self, env, expr, ty):
+        return Expression.ofParamType(*map(lambda e: self.asType(env, e, None), expr[1:]))
+
+    def Cast(self, env, expr, ty):
+        idx = expr.find('type')
+        if idx != -1:
+            self.typeAt(env, expr, idx, ty)
+            ty = expr[idx]
+        idx = expr.find('expr', 1)
+        self.typeAt(env, expr, idx, ty)
+        if ty is None or expr.ty is None or self.matchType(expr.ty, ty):
+            return expr
+        for key in Expression.makekeys(str(ty), 1, expr[idx].ty):
             defined = env[key]
             if defined is None: continue
             expr.setCode(defined.getcode())
             return expr.setType(ty)
-        if expr[1].ty is not None:
-            expr = expr.err('undefined cast {}=>{}'.format(expr[1].ty, ty), expr[2].getpos())
+        expr = expr.err('type error {}=>{}'.format(expr[idx].ty, ty), expr[idx].getpos())
         return expr.setType(ty)
 
-    def Scope(self, env, expr, ty):
+    def Source(self, env, expr, ty):
+        if len(expr) == 1: return expr.setType(ty)
+        for n in range(1, len(expr)-1):
+            self.typeAt(env, expr, n, Origami.VoidType)
+        self.typeAt(env, expr, -1, ty)
+        return expr.setType(expr[-1].ty)
+
+    def Block(self, env, expr, ty):
         lenv = env.newLocal()
         if len(expr) == 1: return expr.setType(ty)
         for n in range(1, len(expr)-1):
@@ -188,12 +220,11 @@ class Origami(object):
         self.typeAt(lenv, expr, -1, ty)
         return expr.setType(expr[-1].ty)
 
-    def Block(self, env, expr, ty):
-        if len(expr) == 1: return expr.setType(ty)
-        for n in range(1, len(expr)-1):
-            self.typeAt(env, expr, n, Origami.VoidType)
-        self.typeAt(env, expr, -1, ty)
-        return expr.setType(expr[-1].ty)
+    def CodeMapTree(self, env: Env, expr, ty):
+        t = expr.data
+        path = u.decpos3(*t.pos3())[0]
+        env.loadTree(path, t, env.ts.out)
+        return expr.done()
 
     def AssumeDecl(self, env, expr, ty):
         ty = expr[-1]
@@ -232,12 +263,17 @@ class Origami(object):
         expr.data.append(ty)
         return expr.setType('Void')
 
-    def Return(self, env, expr, ty):
-        if len(expr) == 2:
-            self.typeAt(env, expr, 1, None)
-            return expr.setType(expr[1].ty)
-        else:
-            return expr.setType('Void')
+    def checkFuncMatch(self, expr, names):
+        if expr == '#Block' and len(expr)>1:
+            expr = expr[-1]
+        if expr == '#Match':
+            n = 0
+            for case in expr:
+                if case == '#Case':
+                    if 'case' in case: continue
+                    e = Expression.new('#Infix', '==', names[0], n)
+                    case.data.append(e.label('case'))
+                n += 1
 
     def FuncExpr(self, env, expr, ty):
         lenv = env.newLocal()
@@ -249,29 +285,30 @@ class Origami(object):
             return expr.setType(ty)
         return expr
 
-    def LetDecl(self, env, expr, ty):
-        if len(expr) == 3:
-            self.typeAt(env, expr, 2, None)
-            ty = expr[2].ty
+    def Return(self, env, expr, ty):
+        if len(expr) == 2:
+            self.typeAt(env, expr, 1, None)
+            return expr.setType(expr[1].ty)
         else:
-            ty = expr[2]
-            self.typeAt(env, expr, 3, ty)
+            return expr.setType('Void')
+
+    def LetDecl(self, env, expr, ty):
+        ty = None
+        idx = expr.find('type')
+        if idx != -1:
+            self.typeAt(env, expr, idx, None)
+            ty = expr[idx]
+        idx = expr.find('expr', 'right')
+        self.typeAt(env, expr, idx, ty)
         if ty is not None:
-            name = str(expr[1])
+            idx = expr.find('name', 'left')
+            name = str(expr[idx])
+            expr[idx].setType(ty)
             env[name] = Def(ty, None, name)
         return expr.setType('Void')
 
     def VarDecl(self, env, expr, ty):
-        if len(expr) == 3:
-            self.typeAt(env, expr, 2, None)
-            ty = expr[2].ty
-        else:
-            ty = expr[2]
-            self.typeAt(env, expr, 3, ty)
-        if ty is not None:
-            name = str(expr[1])
-            env[name] = Def(ty, None, name)
-        return expr.setType('Void')
+        return self.LetDecl(env, expr, ty)
 
     def Assign(self, env, expr, ty):
         left = expr[1]
@@ -286,15 +323,15 @@ class Origami(object):
         self.typeAt(env, expr, 2, ty)
         return expr.setType('Void')
 
-    def Var(self, env, expr, ty):
-        key = expr.asSymbol()
+    def Name(self, env, expr, ty):
+        key = expr[1]
         defined = env[key]
         if defined is not None:
             expr.setCode(defined.getcode())
             return expr.setType(defined.ty)
-        return expr.err('Undefined Name: ' + key)
+        return expr.err('undefined name: ' + key)
 
-    def IfExpr(self, env, expr, ty):
+    def If(self, env, expr, ty):
         self.typeAt(env, expr, 1, Origami.BoolType)
         if len(expr) == 4:
             self.typeAt(env, expr, 2, ty)
@@ -310,16 +347,16 @@ class Origami(object):
 
     def Unary(self, env, expr, ty):
         op = Expression(expr[1], expr[2])
-        op = self.Apply(env, op, ty)
+        op = self.apply(env, op, ty)
         if op.isUncode():
             expr.ty = op.ty
             expr[2] = op[1]
             return expr
         return op
 
-    def GetExpr(self, env, expr, ty):
+    def Get(self, env, expr, ty):
         getter = Expression.new(expr[2], expr[1])
-        getter = self.Apply(env, getter, ty)
+        getter = self.apply(env, getter, ty)
         if getter.isUncode():
             expr.ty = getter.ty
             expr[1] = getter[1]
@@ -334,7 +371,7 @@ class Origami(object):
 
     def Infix(self, env, expr, ty):
         binary = Expression.new(expr[2], expr[1], expr[3])
-        binary = self.Apply(env, binary, ty)
+        binary = self.apply(env, binary, ty)
         if binary.isUncode():
             expr.ty = binary.ty
             expr[1] = binary[1]
@@ -343,19 +380,19 @@ class Origami(object):
         return binary
 
     def ApplyExpr(self, env, expr, ty):
-        app = Expression.new(*expr.data[1:])
-        app = self.Apply(env, app, ty)
+        app = Expression.new(*expr.data)
+        app = self.apply(env, app, ty)
         if app.isUncode():
             expr.ty = app.ty
-            for i in range(0, len(app)):
-                expr.data[i+1] = app[i]
+            for i in range(1, len(app)):
+                expr.data[i] = app[i]
             return expr
         return app
 
     def MethodExpr(self, env, expr, ty):
         app = ListExpr(expr.data[1:])
         app[0], app[1] = app[1], app[0]  # swap callee, funcname
-        app = self.Apply(env, app, ty)
+        app = self.apply(env, app, ty)
         if app.isUncode():
             expr.ty = app.ty
             app[0], app[1] = app[1], app[0] # swap callee, funcname
@@ -364,40 +401,50 @@ class Origami(object):
             return expr
         return app
 
-    def Apply(self, env, expr, ty):
+    def apply(self, env, expr, ty):
         for n in range(1, len(expr)):
             self.typeAt(env, expr, n, None)
-        #print('@keys', expr.keys())
         for key in expr.keys():
             defined = env[key]
-            #print(key, defined)
             if defined is None: continue
             expr.setCode(defined.getcode())
             if expr.isUntyped() and defined.ty is not None:
-                expr.setType(defined.ty[-1])
+                funcTy = defined.ty
+                #print('@ret', defined.ty, defined.ty[-1])
                 for n in range(1, len(expr)):
-                    self.typeAt(env, expr, n, defined.ty[n-1])
+                    self.typeAt(env, expr, n, funcTy[n-1])
+                expr.setType(funcTy[-1])
             if not expr.isUntyped() and not expr.isUncode():
                 break
         return expr
 
-    def TupleExpr(self, env, expr, ty):
+    def Tuple(self, env, expr, ty):
         if len(expr) == 2:
-            expr.data[0].data = '#Group'
+            expr.tag = '#Group'
             return self.Group(env, expr, ty)
+        if len(expr) == 1:
+            expr.tag = '#Empty'
+            return expr.setType('Void')
         for n in range(1, len(expr)):
             self.typeAt(env, expr, n, None)
         types = list(map(lambda e: e.ty, expr[1:]))
         if None not in types:
-            ty = Expression.ofParamType(['Tuple', *types])
+            types.insert(0, Expression.ofType('Tuple'))
+            ty = Expression.ofParamType(*types)
             return expr.setType(ty)
         return expr
 
-    def TrueExpr(self, env, expr, ty):
-        return expr.setType('Bool')
-
-    def FalseExpr(self, env, expr, ty):
-        return expr.setType('Bool')
+    def List(self, env, expr, ty):
+        listty = 'List'
+        valty = None
+        if ty is not None and ty.isParamType():
+            listty = ty[1]
+            valty = ty[2]
+        for n in range(1, len(expr)):
+            self.typeAt(env, expr, n, valty)
+        if len(expr)>1 and valty is None:
+            valty = expr[1].ty
+        return expr.setType(Expression.ofParamType(listty, valty))
 
     def Int(self, env, expr, ty):
         return expr.setType('Int')
@@ -414,9 +461,15 @@ class Origami(object):
     def Char(self, env, expr, ty):
         return expr.setType('Char')
 
+    def TrueExpr(self, env, expr, ty):
+        return expr.setType('Bool')
+
+    def FalseExpr(self, env, expr, ty):
+        return expr.setType('Bool')
+
 
 def transpile_init(origami_files, out):
-    env = Env()
+    env = Env(Origami(out))
     if len(origami_files) == 0:
         origami_files.append('common.origami')
     for file in origami_files:
@@ -428,8 +481,8 @@ def transpile(env, t, out):
         out.perror(t.pos3(), 'Syntax Error')
         return
     e = Expression.treeConv(t)
-    print('@expr', e)
-    Origami().asType(env, e, None)
+    #print('@expr', e)
+    env.asType(e, None)
     ss = SourceSection(out)
     ss.pushEXPR(env, e)
     return ss

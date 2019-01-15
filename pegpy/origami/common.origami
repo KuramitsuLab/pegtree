@@ -1,13 +1,19 @@
 // python origami
 
-#Block           = "${*}" ";\n\t"
-#FuncDecl        = "${type(1)} ${1}(${2:-1}){${indent++}\n\t${@ret(-1)};${indent--}}" ","
+#Source          = "${*}" "${NL}"
+#Block           = "{${+NL}${*}${-NL}}" "${NL}"
+#FuncDecl        = "function ${1}${2} ${@block.ret(-1)}"
+#Params          = "(${*})" ","
 #Param           = ${1}
-#FuncExpr        = "lambda ${*}: ${-1}" ","
+#FuncExpr        = "function (${1}): ${-1}"
 #Return@0        = return
 #Return@1        = return ${1}
-#LetDecl@2       = ${1} = ${2}
-#LetDecl@3       = ${1} = ${3}
+
+#LetDecl@3       = ${type(name)} ${name} = ${expr}
+#LetDecl@2       = ${name} = ${expr}
+#VarDecl@3       = ${type(name)} ${name} = ${expr}
+#VarDecl@2       = ${name} = ${expr}
+
 #Assign          = ${1} = ${2}
 
 #Group           = (${1})
@@ -20,13 +26,11 @@
 
 #IfExpr : (Bool,a,a) -> a    = ${@(1)} ? ${@(2)} : ${@(3)}
 
-#TemplateExpr    = '''${1}'''
-
 #TupleExpr       = "(${*})" ","
 #ListExpr        = "[${*}]" ","
 
-+@2:(Int,Int) -> Int = ${1}+${2}
-*@2:(Int,Int) -> Int = ${1}*${2}
++: (Int,Int) -> Int = ${1}+${2}
+*: (Int,Int) -> Int = ${1}*${2}
 
 +                = "(${*})" "+"
 +@2              = ${1}+${2}
@@ -57,10 +61,16 @@
 #FalseExpr       = false
 #NullExpr        = null
 
-TODO
+//TODO
 #StringExpr      = \"${s}\"
 #CharExpr        = '${s}'
 
 Float:Int->Float    = float(${1})
 
+#ParamType@2      = ${1}<${2}>
+List@2            = ${2}[]
+//#BaseType@Int     = int
 Void@1           = ${1}
+Any              = "/*FIXME*/"
+
+size:List[a]->Int = ${1}.length

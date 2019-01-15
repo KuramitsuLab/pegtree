@@ -50,7 +50,10 @@ class Expression(object):
         return str(self.data)
 
     def __repr__(self):
-        return str(self)
+        ty = '' if self.ty is None else ': ' + str(self.ty)
+        if isinstance(self.data, list):
+            return '(' + self.tag + ' ' + (' '.join(map(repr, self.data))) + ')' + ty
+        return str(self.data)+ty
 
     def __len__(self):
         if isinstance(self.data, list):
@@ -79,11 +82,17 @@ class Expression(object):
         else:
             self.data[item - 1] = value
 
-    def find(self, *argv):
+    def find(self, *names):
         if isinstance(self.data, list):
             for i, e in enumerate(self.data):
-                if e.context in argv:
+                if e.context in names:
+                    if e.context != names[0]:
+                        e.context = names[0]
                     return i+1
+        if isinstance(names[-1], int):
+            idx = names[-1]
+            self[idx].context = names[0]
+            return idx
         return -1
 
     def remove(self, idx):
@@ -95,24 +104,28 @@ class Expression(object):
 
     def keys(self):
         if isinstance(self.data, list):
+            if self.isParamType():
+                return Expression.makekeys(str(self.data[0]), len(self.data))
             return Expression.makekeys(self.tag, len(self.data), self.data[0].ty if len(self.data) > 0 else None)
+        if isinstance(self.data, list):
+            return [self.tag + '@' + self.data, self.tag]
         return [self.tag]
 
     ARGS = ['[]', '[a]', '[a,b]', '[a,b,c]', '[a,b,c,d]']
 
     def typekeys(self):
         if self.isParamType():
-            [str(self), str(self.data[0]) + Expression.ARGS[len(self.data)-1]]
+            return [str(self), str(self.data[0]) + Expression.ARGS[len(self.data)-1]]
         return [str(self)]
 
     def isType(self):
         return self.tag.endswith('Type')
 
     def isFuncType(self):
-        return self.tag.endswith('#FuncType')
+        return self.tag.endswith('FuncType')
 
     def isParamType(self):
-        return self.tag.endswith('#ParamType')
+        return self.tag.endswith('ParamType')
 
     def getpos(self):
         if self.pos3 is not None:
@@ -154,8 +167,7 @@ class Expression(object):
         ss.pushSTR(str(self))
 
     def done(self):
-        self.setType('Void')
-        self.setCode([])
+        self.tag = '#Done'
         return self
 
     ## class
@@ -172,6 +184,7 @@ class Expression(object):
         if ty is None:
             return [pname, name]
         l = []
+        #print('@typekey', ty, ty.typekeys())
         for tkey in ty.typekeys():
             l.append(pname + '@' + tkey)
         l.append(pname)
@@ -225,6 +238,8 @@ class Expression(object):
     @classmethod
     def treeConv(cls, t):
         tag = '#' + t.tag
+        if(tag.endswith('Tree')):
+            return Expression(tag, t, t.pos3())
         cons = []
         for n, v in t:
             e = Expression.treeConv(v)
@@ -240,39 +255,34 @@ class Expression(object):
     TYPES = {}
 
     @classmethod
-    def addType(cls, key, ty):
-        Expression.TYPES[key] = ty
-        ty.ty = TypeType
-        return ty
+    def internType(cls, key, ty =  None):
+        if not key in Expression.TYPES:
+            if ty is None:
+                ty = Expression('#BaseType', key)
+            Expression.TYPES[key] = ty
+            ty.ty = TypeType
+            return ty
+        return Expression.TYPES[key]
 
     @classmethod
     def ofType(cls, ty):
         if isinstance(ty, str):
-            if not ty in Expression.TYPES:
-                return Expression.addType(ty, Expression('#BaseType', ty))
-            return Expression.TYPES[ty]
-        key = str(ty)
-        if not key in Expression.TYPES:
-            return Expression.addType(key, ty)
-        return ty
+            return Expression.internType(ty)
+        if ty is None:
+            return Expression.internType('a')
+        return Expression.internType(str(ty), ty)
 
     @classmethod
     def ofParamType(cls, *types):
         types = list(map(Expression.ofType, types))
         ty = Expression('#ParamType', types)
-        key = str(ty)
-        if not key in Expression.TYPES:
-            return Expression.addType(key, ty)
-        return Expression.TYPES[key]
+        return Expression.internType(str(ty), ty)
 
     @classmethod
     def ofFuncType(cls, *types):
         types = list(map(Expression.ofType, types))
         ty = Expression('#FuncType', types)
-        key = str(ty)
-        if not key in Expression.TYPES:
-            return Expression.addType(key, ty)
-        return Expression.TYPES[key]
+        return Expression.internType(str(ty), ty)
 
     '''
     @classmethod

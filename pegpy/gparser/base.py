@@ -415,6 +415,14 @@ def gen_State(pe, **option):
             return False
         return unknown
 
+def gen_Move(pe, **option):
+    if pe.func == '@skip':
+        def skip(px):
+            px.pos = px.headpos
+            return px.pos < px.length
+        return skip
+    return gen_Empty(pe, **option)
+
 def setting(**option):
     pg = option['pg']
     method = option['method']
@@ -440,6 +448,7 @@ def setting(**option):
 
     # State
     setattr(State, method, pg.gen_State)
+    setattr(Move, method, pg.gen_Move)
 
     # Ref
     setattr(Ref, method, pg.gen_Ref)
