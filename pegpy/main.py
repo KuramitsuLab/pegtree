@@ -5,6 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from pegpy.peg import *
 from pegpy.gparser.gnez import gnez
 import pegpy.utils as u
+#import pegpy.gparser.cbase
 
 def bold(s):
     return '\033[1m' + str(s) + '\033[0m'
@@ -113,31 +114,6 @@ def peg(opt, out):
     g = load_grammar(opt)
     g.dump(out)
 
-'''
-def origami(opt, out):
-    from pegpy.origami.origami import transpile, transpile_init
-    g = load_grammar(opt, 'konoha6.tpeg')
-    if 'Snippet' in g: g = g['Snippet']
-    parser = switch_generator(opt, 'tpeg')(g)
-    origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
-    source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
-    env = transpile_init(origami_files, out)
-    if len(source_files) == 0:
-        try:
-            while True:
-                s = readlines(bold('>>> '))
-                t = parser(s, '>>>')
-                out.println(repr(t))
-                out.println(repr(transpile(env, t, out)))
-        except (EOFError, KeyboardInterrupt):
-            pass
-        return None
-    else:
-        for input in source_files:
-            t = parser(read_inputs(input))
-            out.println(repr(transpile(env, t, out)))
-'''
-
 def origami(opt, out):
     from pegpy.origami.origami2 import transpile, transpile_init
     g = load_grammar(opt, 'konoha6.tpeg')
@@ -162,8 +138,6 @@ def origami(opt, out):
         for input in source_files:
             t = parser(read_inputs(input), input)
             out.println(repr(transpile(env, t, out)))
-
-
 
 def macaron(opt, out, default = 'npl.tpeg'):
     from pegpy.origami.macaron import transpile
@@ -196,15 +170,16 @@ def update(opt, out):
     except:
         pass
 
-opt_data = {
+options = {
     'grammar': ['-g', '--grammar'],
     'start': ['-s', '--start'],
     'output': ['-o', '--output'],
     'extension': ['-X'],
     'option': ['-D'],
+    'verbose': ['--verbose'],
 }
 
-def parse_opt(argv, opt = opt_data):
+def parse_options(argv, opt = options):
     def parse_each(a, d):
         if a[0].startswith('-'):
             if len(a) > 1:
@@ -233,17 +208,16 @@ def usage(opt):
 
     print("Example:")
     print("  pegpy parse -g math.tpeg <inputs>")
-    print("  pegpy json -g math.tpeg <inputs>")
-    print("  pegpy origami -g konoha6.tpeg common.origami <inputs>")
+    print("  pegpy example -g math.tpeg <inputs>")
+    print("  pegpy origami -g konoha6.tpeg python3.origami <inputs>")
     print()
 
     print("The most commonly used nez commands are:")
     print(" parse      run an interactive parser")
+    print(" origami    source translation")
     print(" nezcc      generate a cross-language parser")
-    print(" origami    transpiler")
-    print(" bench      the bench mark")
     print(" json       output tree as json file")
-    print(" update     update pegpy")
+    print(" update     update pegpy (via pip)")
 
 class CommandError(Exception):
     def __init__(self, opt):
@@ -254,7 +228,7 @@ class CommandError(Exception):
 
 def main2(argv):
     cmd = argv[1]
-    opt = parse_opt(argv[2:])
+    opt = parse_options(argv[2:])
     names = globals()
     if cmd in names:
         out = init_output(opt)
@@ -270,7 +244,7 @@ def main():
 
         if functools.reduce(lambda x, y: x or y.startswith('edit') or y.startswith('sample'), argv[1:], False):
             from pegpy.playground.server import playground
-            playground(argv, main2, parse_opt)
+            playground(argv, main2, parse_options)
         else:
             main2(argv)
 
