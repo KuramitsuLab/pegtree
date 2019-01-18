@@ -2,8 +2,6 @@
 
 var Playground;
 (function (Playground) {
-    Playground.autoSaving = true;
-    Playground.editerInput = false;
     function CreateEditor(query) {
         ace.require("ace/ext/language_tools");
         var editor = ace.edit(query);
@@ -40,7 +38,7 @@ $(function () {
         $.ajax({
             type: "POST",
             url: "/compile",
-            data: JSON.stringify({ source: zenEditor.getValue(), autoSaving: $('#autoSaving').prop('checked'), editerInput: $('#editerInput').prop('checked') }),
+            data: JSON.stringify({ source: zenEditor.getValue() }),
             dataType: 'json',
             contentType: "application/json; charset=utf-8",
             success: function (data) {
@@ -52,7 +50,7 @@ $(function () {
                 if (data.error != "") console.log(data.error);
             },
             error: function () {
-                console.log("compile error");
+                console.log("error: compile");
             }
         });
     };
@@ -71,31 +69,24 @@ $(function () {
         $.ajax({
             url: '/command',
             type: 'POST',
-            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd, editerInput: $('#editerInput').prop('checked') }),
+            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd }),
             dataType: 'json',
             contentType: "application/json; charset=utf-8",
             timeout: 5000,
-        })
-        .done(function(data) {
-            if (data.input != "") {
-                zenEditor.setValue(data.input);
-                zenEditor.clearSelection();
-                zenEditor.gotoLine(0);
+            success: function(data) {
+                if (data.input != "") {
+                    zenEditor.setValue(data.input);
+                    zenEditor.clearSelection();
+                    zenEditor.gotoLine(0);
+                }
+                outputViewer.setValue(data.output);
+                outputViewer.clearSelection();
+                outputViewer.gotoLine(0);
+                if (data.error != "") console.log(data.error);
+            },
+            error:function(XMLHttpRequest, textStatus, errorThrown) {
+                console.log("error: command");
             }
-            if (timer) {
-                clearTimeout(timer);
-                timer = null;
-            }
-            outputViewer.setValue(data.output);
-            outputViewer.clearSelection();
-            outputViewer.gotoLine(0);
-            if (data.error != "") console.log(data.error);
-        })
-        .fail(function(XMLHttpRequest, textStatus, errorThrown) {
-            console.log("ajax通信に失敗しました");
-            console.log("XMLHttpRequest : " + XMLHttpRequest.status);
-            console.log("textStatus     : " + textStatus);
-            console.log("errorThrown    : " + errorThrown.message);
         });
         //resetTarget();
     });
@@ -157,30 +148,6 @@ $(function () {
         });
     });
 
-    $('#saveButton').click(function () {
-        $.ajax({
-            type: "POST",
-            url: "/save",
-            data: JSON.stringify({ source: zenEditor.getValue()}),
-            contentType: "application/json; charset=utf-8",
-        });
-        GenerateServer(true);
-    });
-
-    $('autoSaving').select(function () {
-        console.log(Playground.autoSaving);
-        Playground.autoSaving = !Playground.autoSaving;
-        console.log(Playground.autoSaving);
-    });
-
-    console.log($('#editerInput').prop('checked'));
-
-    $('editerInput').select(function () {
-        console.log(Playground.editerInput);
-        Playground.editerInput = !Playground.editerInput;
-        console.log(Playground.editerInput);
-    });
-
     $.ajax({
         type: "POST",
         url: "/init",
@@ -195,7 +162,7 @@ $(function () {
             //    setTargets(TargetNames[mode]);
         },
         error: function () {
-            console.log("error init");
+            console.log("error: init");
         }
     });
 });
