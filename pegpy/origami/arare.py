@@ -241,3 +241,11 @@ def emitJSON(env, c, ss, begin='{', end='},'):
     ss.end(env, end)
 
 
+def compile(input):
+    from pegpy.peg import Grammar,nez
+    g = Grammar()
+    g.load('arare.tpeg')
+    parser = nez(g)
+    env = ts.transpile_init(['js.origami'], TypeSystem, u.STDOUT)
+    t = parser(input)
+    return repr(ts.transpile(env, t, u.STDOUT))

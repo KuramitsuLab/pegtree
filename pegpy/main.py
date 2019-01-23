@@ -149,6 +149,14 @@ def nezcc(opt, out):
 def bench(opt):
     pass
 
+def test(opt, out):
+    from pegpy.origami.arare import compile
+    for f in opt['inputs']:
+        print(f)
+        print('---')
+        print(compile(read_inputs(f)))
+
+
 def update(opt, out):
     try:
         subprocess.check_call(['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
