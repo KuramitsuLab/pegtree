@@ -1,13 +1,9 @@
 // javascript origami
 
-include common2.origami
+include common.origami
 
 #FuncDecl        = "var ${1} = function(${*}) {\n\f\t${@ret(-1)}\n\b\t};" ","
 #FuncExpr        = "(${*})=>{${-1}}" ","
-#FuncMatchDecl   = "var ${1} = function(${*}) {\n\f\t${-1}\n\b\t};" ","
-#FuncMatch       = "if ${*}" " else if "
-#FuncCase@1      = (true) {\n\f\treturn ${1}\n\b\t}
-#FuncCase@2      = (${2}) {\n\f\treturn ${1}\n\b\t}
 
 #Return@0        = return;
 #Return@1        = return ${1};

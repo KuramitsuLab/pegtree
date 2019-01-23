@@ -468,8 +468,9 @@ class Origami(object):
         return expr.setType('Bool')
 
 
-def transpile_init(origami_files, out):
-    env = Env(Origami(out))
+def transpile_init(origami_files, TypeSystem, out):
+    if TypeSystem is None: TypeSystem = Origami
+    env = Env(TypeSystem(out))
     if len(origami_files) == 0:
         origami_files.append('common.origami')
     for file in origami_files:

@@ -53,6 +53,9 @@ class SourceSection(object):
             self.pushEXPR(env, e[1])
             return
         code = e.code
+        if type(code) == type(STR):
+            code(env, e, self)
+            return
         if code is None:
             keys = e.keys()
             #print('@pretty-printing', keys)
@@ -68,6 +71,31 @@ class SourceSection(object):
     def exec(self, env, e, cmds):
         for f, x in cmds:
             f(env, e, x, self)
+
+    def push(self, env, *argv):
+        for e in argv:
+            if isinstance(e, str):
+                self.pushSTR(e)
+            else:
+                self.pushEXPR(env, e)
+
+    def begin(self, env, *argv):
+        self.pushINDENT()
+        self.push(env, *argv)
+        self.incIndent()
+        self.pushLF()
+
+    def p(self, env, *argv):
+        self.pushINDENT()
+        self.push(env, *argv)
+        self.pushLF()
+
+    def end(self, env, *argv):
+        self.decIndent()
+        self.pushINDENT()
+        self.push(env, *argv)
+        self.pushLF()
+
 
 ## format function
 

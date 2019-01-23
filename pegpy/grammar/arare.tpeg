@@ -1,0 +1,375 @@
+/**
+ * Arare Grammar
+ *
+ * Authors:
+ *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
+ */
+
+
+
+Source = EOL? {
+    (Decl EOL)*
+    #Source
+} EOF
+
+example Source '''
+ボールは円である
+    色は青色
+    位置は(1,2)
+
+世界は箱庭である
+    名前はまだない
+    位置は(1,2)
+'''
+
+//import 'konoha6.tpeg' as konoha
+
+/* Indent-based Code Layout */
+
+EOF          = !.
+NL           = '\n' / EOF
+S            = [ \t\r　、，]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
+
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '//' ( !NL . )*
+
+EOL          = _ NL (_ NL)*
+INDENT       = '\n' S*
+
+/* Character */
+
+C  =
+    / HIRA
+    / KATA
+    / KANJI
+    / MARK
+    / [ａ-ｚＡ-Ｚ０-９]
+
+HIRA = [ぁ-ん]
+KATA = [ァ-ヶ]
+KANJI = [㐀-䶵一-龠々〇〻ー]
+MARK = [ー]
+
+W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
+DIGIT = [０-９]
+
+"{" = [{｛] _
+"}" = [}｝] _
+"[" = [[［【] _
+"]" = [\]］】] _
+"(" = [(（] _
+")" = [)）] _
+"=" = [=＝] ![=＝] _
+"." = [.．。] _
+"," = [,、] _
+";" = ([;；] _)+
+":" = [:：] _
+
+/* Reserved */
+
+RAWREF    = (!'」' C)+
+RESERVE   = '「' @defdict(RAWREF) '」'
+UNDEFINED = W (W/DIGIT)*
+
+REF       =
+    ADJECTIVE REF
+    / RESERVE
+    / @dict(RESERVE)
+    / RESERVED
+    / UNDEFINED
+
+
+
+ADJECTIVE = '明るい' / '暗い' / '奇妙な'
+
+RESERVED = 'あなた' / '大きさ' / '長さ'
+
+/* Identifier */
+
+Noun     = { REF #Name } _
+Type     = { REF #Type } _
+Var      = { [A-Za-z] [A-Za-z0-9]* #Var } _
+
+Param    = {
+    type: Type
+    name: Var
+}
+
+Name     = Var / Noun
+
+AssignRef
+    = Name (recv:^ { [の.．] name: Name #GetExpr })*
+
+example Name 明るいボール
+example Name 赤玉x
+example Param ボールx
+example Param ボール x
+
+example AssignRef ボールの色
+
+/* Statement */
+
+Decl =
+    / ConceptDecl
+    / VarDecl
+    / RuleDecl
+
+/* ClassDecl */
+
+example ConceptDecl,Decl '''
+世界は箱庭である
+    名前はまだない
+    位置は(1,2)
+'''
+
+ConceptDecl = {
+    left: Name 'は' _ right: Type 'である'? "."? _
+    body: Block
+    #ConceptDecl
+}
+
+/* ExistDecl */
+
+example ExistDecl '''
+ボールが5個ある.
+    場所は任意
+'''
+
+ExistDecl = {
+    name: Noun ('は'/'が') _ (size: Number '個') 'ある' "."? _
+    (body: Block)?
+    #ThereDecl
+}
+
+/* VarDecl */
+
+VarDecl = {
+    AssignRef "=" Expression
+    #Assign
+}
+
+/* RuleDecl */
+
+RuleDecl = CollisionRule
+
+example CollisionRule '''
+ボールxとボールyが衝突したとき
+    xとyを入れ替える
+'''
+
+CollisionRule = {
+    x: Param 'と' _ y: Param 'が' _ '衝突したとき' _
+    body: Block
+    #CollisionRule
+}
+
+/* Statement */
+
+Block = {
+    @scope(
+        @symbol(INDENT) Statement
+        (@match(INDENT) Statement)*
+    )
+    #Block
+}
+
+Statement =
+    / IfStmt
+    / ElseStmt
+    / Assign
+    / Swap
+
+IfStmt = {
+    ('もし' / 'if') _ right: Expression ('なら' 'ば'? /'then') _
+    then: (Block / Statement)
+    #IfStmt
+}
+
+ElseStmt = {
+    ('そうでなければ' / 'else') _
+    else: (Block / Statement)
+    #ElseStmt
+}
+
+Assign = {
+    left: AssignRef [はを=] _ right: Expression ('である'/'とする')? "."? _
+    #Assign
+}
+
+Swap = {
+    x: AssignRef 'と' _ y: AssignRef 'を' _ '入れ替える' "."? _
+    #Swap
+}
+
+/* Expression */
+
+Expression = Operator
+
+Operator =
+	AndExpr (left:^ { name: { OR #NameExpr } _ right: AndExpr #Infix })*
+
+OR = '||' / 'または'
+
+AndExpr =
+	EqExpr (left:^ { name: { AND #NameExpr } _ right: EqExpr #Infix })*
+
+AND = '&&' / 'かつ'
+
+EqExpr =
+	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
+
+EQ =
+	/ '==' !'='
+	/ 'が' _
+	/ '!=' !'='
+	/ '<=' !'='
+	/ '>=' !'='
+	/ '<'  !'<'
+	/ '>'  !'>'
+
+SumExpr =
+	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
+
+SUM =
+	/ '+' / '＋'
+	/ '-' / 'ー'
+
+ProdExpr =
+	UnaryExpr (left:^ { name: { PROD #NameExpr } _ right: UnaryExpr #Infix })*
+
+PROD =
+	/ '/' / '÷' / '／'
+	/ '*' / '×' / '＊'
+	/ '%' / '％'
+	/ '^'
+
+UnaryExpr
+	= { name: {PRE #NameExpr} _ expr: UnaryExpr #Unary }
+    / SuffixExpr
+
+PRE =
+    / '-' / 'ー'
+    / '!' / '！'
+    / '+' / '＋'
+
+SuffixExpr =
+	Primary (
+	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
+	    / recv:^ { [の.．] _ name: Name #GetExpr }
+	    / recv:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
+	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
+	    / recv:^ { "<" type: Name ">" #CastExpr }
+	)*
+
+LeftHand =
+    Name (
+	    recv:^ { [の.．] _ name: Name #GetExpr }
+    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+    )*
+
+
+Expressions = {
+	Expression? ( "," Expression )*
+}
+
+/* Primary */
+
+example Primary, Expression (1,2) //
+example Primary, Expression (1)
+example Primary, Expression () //
+example Primary, Expression [1,2,3]
+example Primary, Expression { name: 'naruto', age: 17 }
+example Primary, Expression {"name": 'naruto', "age": '17'}
+
+Primary =
+  /	GroupExpr
+  / ListExpr
+  / DataExpr
+  / Constant
+  / Name (recv:^ { 'と同じ' #ThatOf })?
+
+/* Defined */
+
+GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #TupleExpr }
+
+ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #ListExpr }
+
+DataExpr = { "{" (KeyValue ("," KeyValue)*) / (':' _) ","? "}" #DataExpr }
+
+KeyValue = {
+	name: (Name/StringExpr)
+	':' _
+	value: Expression
+}
+
+/* Literal */
+
+Constant =
+	/ StringExpr
+	/ CharExpr
+	/ FloatExpr
+	/ IntExpr
+	/ TrueExpr
+	/ FalseExpr
+	/ NullExpr
+
+example StringExpr, Expression "\n\u1234a\0"
+example CharExpr, Expression '\''
+example FloatExpr, Expression 1.1e-9
+example TrueExpr, Expression 有効
+
+TemplateContent =
+	'${' Expression '}'
+	/ { (!'\'\'\'' !'${' .)* #StringExpr }
+
+StringExpr = '"' { STRING_CONTENT* #StringExpr } '"' _
+CharExpr = '\'' { CHAR_CONTENT* #CharExpr } '\'' _
+STRING_CONTENT = ESCAPE / ![\"\n\\] .
+CHAR_CONTENT   = ESCAPE / !['\n\\] .
+ESCAPE =
+	'\\' ['\"\\bfnrt]
+	/ '\\' [0-3] [0-7] [0-7]
+    / '\\' [0-7] [0-7]
+    / '\\' [0-7]
+	/ '\\' 'u'+ HEX HEX HEX HEX
+
+IntExpr = {
+	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
+	#IntExpr
+} _
+
+DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
+HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
+BINARY = '0' [bB] [01] ( '_'* [01] )*
+OCTAL = '0' ( '_'* [0-7] )*
+DIGIT = [0-9]
+HEX = [a-fA-F0-9]
+LONG_SUFFIX = [lL]
+
+FloatExpr = {
+	FLOAT #DoubleExpr
+} _
+
+FLOAT =
+	FRACTION EXPONENT?
+    / DIGIT+ EXPONENT
+
+FRACTION =
+	!'_' ( '_'* DIGIT )* '.' DIGIT ( '_'* DIGIT )*
+    / DIGIT ( '_'* DIGIT )* '.' !'.'
+
+EXPONENT =
+	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
+
+TrueExpr  = { '有効'  #TrueExpr } _
+FalseExpr = { '無効' #FalseExpr } _
+NullExpr  = { 'まだ' ('ない'/'無い'/'なし'/'無し') #NullExpr } _
+
+/* Number */
+
+Number = { [0-9]+ #IntExpr }

@@ -114,14 +114,14 @@ def peg(opt, out):
     g = load_grammar(opt)
     g.dump(out)
 
-def origami(opt, out):
-    from pegpy.origami.origami2 import transpile, transpile_init
-    g = load_grammar(opt, 'konoha6.tpeg')
+def origami(opt, out, grammar='konoha6.tpeg', ts=None):
+    from pegpy.origami.typesys import transpile, transpile_init
+    g = load_grammar(opt, grammar)
     if 'Snippet' in g: g = g['Snippet']
     parser = switch_generator(opt, 'tpeg')(g)
     origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
     source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
-    env = transpile_init(origami_files, out)
+    env = transpile_init(origami_files, ts, out)
     if len(source_files) == 0:
         try:
             linenum = 1
@@ -139,24 +139,9 @@ def origami(opt, out):
             t = parser(read_inputs(input), input)
             out.println(repr(transpile(env, t, out)))
 
-def macaron(opt, out, default = 'npl.tpeg'):
-    from pegpy.origami.macaron import transpile
-    g = load_grammar(opt, default)
-    parser = switch_generator(opt, default)(g)
-    inputs = opt['inputs']
-    if len(inputs) == 0:
-        try:
-            while True:
-                s = readlines(bold('>>> '))
-                t = parser(s)
-                out.print(repr(transpile(t)))
-        except (EOFError, KeyboardInterrupt):
-            pass
-        return None
-    else:
-        for input in inputs:
-            t = parser(read_inputs(input))
-            out.println(transpile(t))
+def arare(opt, out):
+    from pegpy.origami.arare import TypeSystem
+    origami(opt,out,'arare.tpeg',TypeSystem)
 
 def nezcc(opt, out):
     pass

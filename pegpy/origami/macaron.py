@@ -1,5 +1,5 @@
 from pegpy.origami.sexpr import SExpr, ListExpr, AtomExpr
-from pegpy.origami.origami import Env, SourceSection
+from pegpy.origami.typesys import Env, SourceSection
 from functools import reduce
 
 class Def:
