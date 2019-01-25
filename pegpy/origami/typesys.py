@@ -28,15 +28,17 @@ class Def(object):
         return None if self.code is None else compile_code(self.code, self.delim)
 
 class Env(object):
-    __slots__ = ['parent', 'ts', 'nameMap']
+    __slots__ = ['parent', 'ts', 'nameMap', 'perror', 'ext']
 
-    def __init__(self, ts, parent = None):
+    def __init__(self, ts, parent = None, ext=None, perror=None):
         self.parent = parent
         self.ts = ts
         self.nameMap = {}
+        self.ext = ext
+        self.perror = lambda env, pos3, msg: self.ts.perror(pos3, msg) if perror is None else perror
 
     def newLocal(self):
-        return Env(self.ts, self)
+        return Env(self.ts, self, self.ext, self.perror)
 
     def __contains__(self, item):
         if item in self.nameMap:
@@ -141,6 +143,8 @@ class Origami(object):
                 return self.methodMap[key]
         if key.endswith('Expr'):
             name = key[1:].replace('Expr', '')
+            if name in ['True', 'False', 'None']:
+                name = name + '_'
             if hasattr(self, name):
                 self.methodMap[key] = getattr(self, name)
                 return self.methodMap[key]
@@ -461,10 +465,10 @@ class Origami(object):
     def Char(self, env, expr, ty):
         return expr.setType('Char')
 
-    def TrueExpr(self, env, expr, ty):
+    def True_(self, env, expr, ty):
         return expr.setType('Bool')
 
-    def FalseExpr(self, env, expr, ty):
+    def False_(self, env, expr, ty):
         return expr.setType('Bool')
 
 

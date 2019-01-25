@@ -5,8 +5,6 @@
  *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
  */
 
-
-
 Source = EOL? {
     (Decl EOL)*
     #Source
@@ -87,7 +85,7 @@ REF       =
 
 ADJECTIVE = '明るい' / '暗い' / '奇妙な'
 
-RESERVED = 'あなた' / '大きさ' / '長さ'
+RESERVED = '大きさ' / '速さ' / '長さ' / '傾き'
 
 /* Identifier */
 
@@ -116,6 +114,7 @@ example AssignRef ボールの色
 
 Decl =
     / ConceptDecl
+    / ThereDecl
     / VarDecl
     / RuleDecl
 
@@ -124,32 +123,37 @@ Decl =
 example ConceptDecl,Decl '''
 世界は箱庭である
     名前はまだない
-    位置は(1,2)
+    位置は(1,2)で固定
 '''
 
+"である" = 'である' / 'です'
+
 ConceptDecl = {
-    left: Name 'は' _ right: Type 'である'? "."? _
+    left: Name 'は' _ right: Type "である"? "."? _
     body: Block
     #ConceptDecl
 }
 
-/* ExistDecl */
+/* ThereDecl */
 
-example ExistDecl '''
+"ある" = 'ある' / 'いる'
+"個" = '個' / 'つ' / '人' / '匹'
+
+example ThereDecl,Decl '''
 ボールが5個ある.
     場所は任意
 '''
 
-ExistDecl = {
-    name: Noun ('は'/'が') _ (size: Number '個') 'ある' "."? _
-    (body: Block)?
+ThereDecl = {
+    name: (Param/Type) ('は'/'が') _ (size: Number "個")? "ある" "."? _
+    body: Block
     #ThereDecl
 }
 
 /* VarDecl */
 
 VarDecl = {
-    AssignRef "=" Expression
+    left: AssignRef "=" right: Expression
     #Assign
 }
 
@@ -162,8 +166,10 @@ example CollisionRule '''
     xとyを入れ替える
 '''
 
+"衝突した" = '衝突した' / 'ぶつかった'
+
 CollisionRule = {
-    x: Param 'と' _ y: Param 'が' _ '衝突したとき' _
+    x: Param 'と' _ y: Param 'が' _ "衝突した" 'とき' _
     body: Block
     #CollisionRule
 }
@@ -181,6 +187,7 @@ Block = {
 Statement =
     / IfStmt
     / ElseStmt
+    / Inc
     / Assign
     / Swap
 
@@ -195,6 +202,26 @@ ElseStmt = {
     else: (Block / Statement)
     #ElseStmt
 }
+
+
+Inc = {
+    left: AssignRef [はを] _ right: Degree INC "."? _
+    #Inc
+}
+
+Dec = {
+    left: AssignRef [はを] _ right: Degree DEC "."? _
+    #Inc
+}
+
+Degree = {
+    'かなり' / '少し'
+    #Symbol
+} / Number
+
+INC = '大きくなる' / '大きくする' / '増える' / '増やす'
+DEC = '小さくなる' / '小さくする' / '減る' / '減らす'
+
 
 Assign = {
     left: AssignRef [はを=] _ right: Expression ('である'/'とする')? "."? _
@@ -211,26 +238,26 @@ Swap = {
 Expression = Operator
 
 Operator =
-	AndExpr (left:^ { name: { OR #NameExpr } _ right: AndExpr #Infix })*
+	AndExpr (left:^ { OR _ right: AndExpr #Or })*
 
 OR = '||' / 'または'
 
 AndExpr =
-	EqExpr (left:^ { name: { AND #NameExpr } _ right: EqExpr #Infix })*
+	EqExpr (left:^ { AND _ right: EqExpr #And })*
 
-AND = '&&' / 'かつ'
+AND = '&&' / 'かつ' / 'で'
 
 EqExpr =
 	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
 
 EQ =
 	/ '==' !'='
-	/ 'が' _
 	/ '!=' !'='
 	/ '<=' !'='
 	/ '>=' !'='
 	/ '<'  !'<'
 	/ '>'  !'>'
+	/ 'が'
 
 SumExpr =
 	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
@@ -295,9 +322,9 @@ Primary =
 
 /* Defined */
 
-GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #TupleExpr }
+GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #Tuple }
 
-ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #ListExpr }
+ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #List }
 
 DataExpr = { "{" (KeyValue ("," KeyValue)*) / (':' _) ","? "}" #DataExpr }
 
@@ -312,8 +339,7 @@ KeyValue = {
 Constant =
 	/ StringExpr
 	/ CharExpr
-	/ FloatExpr
-	/ IntExpr
+	/ Number
 	/ TrueExpr
 	/ FalseExpr
 	/ NullExpr
@@ -366,10 +392,23 @@ FRACTION =
 EXPONENT =
 	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
 
-TrueExpr  = { '有効'  #TrueExpr } _
+/* Number,Unit */
+
+Number = (FloatExpr / IntExpr) ( ^{ Unit #Unit} )?
+
+Unit = {
+    UNIT
+    #Symbol
+}
+
+UNIT = [%％度]
+    / 'px' / 'pt'
+
+example Number,Expression 33.3%
+
+/* Const */
+
+TrueExpr  = { '有効' #TrueExpr } _
 FalseExpr = { '無効' #FalseExpr } _
 NullExpr  = { 'まだ' ('ない'/'無い'/'なし'/'無し') #NullExpr } _
 
-/* Number */
-
-Number = { [0-9]+ #IntExpr }
