@@ -270,6 +270,7 @@ FuncExpr = {
 
 LParams = {
   (Param ('\\' Param)* / '()')
+  #LParams
 }
 
 /* Operator */

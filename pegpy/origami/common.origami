@@ -1,8 +1,9 @@
-// python origami
+// common origami
 
 #Source          = "${*}" "${NL}"
 #Block           = "{${+NL}${*}${-NL}}" "${NL}"
 #FuncDecl        = "function ${1}${2} ${@block.ret(-1)}"
+#LParams         = "(${*})" ","
 #Params          = "(${*})" ","
 #Param           = ${1}
 #FuncExpr        = "function (${1}): ${-1}"
@@ -62,8 +63,8 @@
 #NullExpr        = null
 
 //TODO
-#StringExpr      = \"${s}\"
-#CharExpr        = '${s}'
+#StringExpr      = \"${1}\"
+#CharExpr        = '${1}'
 
 Float:Int->Float    = float(${1})
 

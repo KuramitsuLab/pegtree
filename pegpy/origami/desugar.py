@@ -1,6 +1,6 @@
 #!/usr/local/bin/python
 
-from functools import lru_cache, reduce
+from functools import lru_cache
 
 import re
 
@@ -41,19 +41,19 @@ def ret(expr):
         expr[2] = ret(expr[2])
         expr[3] = ret(expr[3])
         return expr
+    if expr == '#Match':
+        for i in range(1, len(expr)):
+            expr[i] = ret(expr[i])
+        return expr
+    if expr == '#MatchCase':
+        expr[1] = ret(expr[1])
+        return expr
     return expr.new('#Return', expr)
 
 def safegroup(expr):
     if expr == '#Infix':
         return expr.new('#Group', expr)
     return expr
-
-def bytes(expr):
-    expr.data = str2byte(str(expr))
-    return expr
-
-def str2byte(s):
-    return reduce(lambda x, y: x + format(ord(y), '04x'), s, 'v_')
 
 funclist = globals()
 
