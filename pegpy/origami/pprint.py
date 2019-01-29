@@ -1,4 +1,4 @@
-from functools import lru_cache
+from functools import lru_cache, reduce
 
 class SourceSection(object):
 
@@ -113,9 +113,13 @@ def retfmt(env, e, x, ss):
     else:
         ss.pushEXPR(env, e.ty)
 
+def bytefmt(env, e, x, ss):
+    ss.pushSTR(reduce(lambda x, y: x + format(ord(y), '04x'), str(e), 'v_'))
+
 FMTFUNC = {
     'type': typefmt,
     'ret':  retfmt,
+    'byte': bytefmt,
 }
 
 ## builtin function
