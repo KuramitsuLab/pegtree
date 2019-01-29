@@ -57,13 +57,13 @@
 ~@1              = ~${1}
 +@1              = ${1}
 
-#TrueExpr        = true
-#FalseExpr       = false
-#NullExpr        = null
+#True        = true
+#False       = false
+#Null        = null
 
 //TODO
-#StringExpr      = \"${s}\"
-#CharExpr        = '${s}'
+#String      = \"${1}\"
+#Char        = '${1}'
 
 Float:Int->Float    = float(${1})
 

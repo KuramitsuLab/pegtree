@@ -15,9 +15,9 @@ include common.origami
 
 +@2:(String,String) -> String = ${1}+${2}
 
-#TrueExpr        = true
-#FalseExpr       = false
-#NullExpr        = null
+#True        = true
+#False       = false
+#Null        = null
 
 Int@1:Float->Int    = Number(${1})
 Int@1:String->Int   = Number(${1})

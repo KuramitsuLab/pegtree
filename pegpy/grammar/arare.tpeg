@@ -70,35 +70,42 @@ DIGIT = [０-９]
 
 /* Reserved */
 
-RAWREF    = (!'」' C)+
+RAWREF    = (!'」' .)+
 RESERVE   = '「' @defdict(RAWREF) '」'
 UNDEFINED = W (W/DIGIT)*
 
-REF       =
-    ADJECTIVE REF
+REF =
+    / ADJECTIVE REF
     / RESERVE
     / @dict(RESERVE)
     / RESERVED
     / UNDEFINED
 
+ADJECTIVE =
+    / '明るい' / '暗い'
+    / '大きな' / '小さな'
+    / '赤い' / '青い' / '黒い' / '白い'
+    / '少し' / 'とても' / 'かなり'
 
-
-ADJECTIVE = '明るい' / '暗い' / '奇妙な'
-
-RESERVED = '大きさ' / '速さ' / '長さ' / '傾き'
+RESERVED = '大きさ' / '速さ' / '高さ' / '長さ' / '傾き' / '振り子'
 
 /* Identifier */
 
 Noun     = { REF #Name } _
-Type     = { REF #Type } _
+Concept  = { REF #Concept } _
 Var      = { [A-Za-z] [A-Za-z0-9]* #Var } _
 
 Param    = {
-    type: Type
+    type: Concept
     name: Var
+    #Param
 }
 
 Name     = Var / Noun
+
+SUBJECT = (![はがを =] .)+
+DEFINE = @defdict(SUBJECT)
+NewName = { DEFINE #Name }
 
 AssignRef
     = Name (recv:^ { [の.．] name: Name #GetExpr })*
@@ -117,26 +124,32 @@ Decl =
     / ThereDecl
     / VarDecl
     / RuleDecl
+    / AssumeDecl
 
 /* ClassDecl */
 
 example ConceptDecl,Decl '''
 世界は箱庭である
-    名前はまだない
-    位置は(1,2)で固定
+    名前はまだない。位置は(1,2)で固定
 '''
 
 "である" = 'である' / 'です'
 
 ConceptDecl = {
-    left: Name 'は' _ right: Type "である"? "."? _
-    body: Block
+    left: (Name / NewName) 'は' _ right: Concept "である"? "."? _ &EOL
+    (body: Block)?
     #ConceptDecl
+}
+
+AssumeDecl = {
+    left: (Name / NewName) 'は' _ right: Verb _
+    (body: Block)?
+    #AssumeDecl
 }
 
 /* ThereDecl */
 
-"ある" = 'ある' / 'いる'
+"ある" = 'ある' / 'あります' / 'いる' / 'います'
 "個" = '個' / 'つ' / '人' / '匹'
 
 example ThereDecl,Decl '''
@@ -145,21 +158,24 @@ example ThereDecl,Decl '''
 '''
 
 ThereDecl = {
-    name: (Param/Type) ('は'/'が') _ (size: Number "個")? "ある" "."? _
-    body: Block
+    name: (Param/Concept) ('は'/'が') _
+    (shape: Concept 'として')? _
+    (size: Number "個")? "ある" "."? _
+    (body: Block)?
     #ThereDecl
 }
 
 /* VarDecl */
 
 VarDecl = {
-    left: AssignRef "=" right: Expression
-    #Assign
+    left: AssignRef
+    "=" right: Expression
+    #VarDecl
 }
 
 /* RuleDecl */
 
-RuleDecl = CollisionRule
+RuleDecl = CollisionRule / TimeRule
 
 example CollisionRule '''
 ボールxとボールyが衝突したとき
@@ -167,70 +183,89 @@ example CollisionRule '''
 '''
 
 "衝突した" = '衝突した' / 'ぶつかった'
+"とき" = 'とき' / '時' / 'ら' / '場合'
 
 CollisionRule = {
-    x: Param 'と' _ y: Param 'が' _ "衝突した" 'とき' _
+    x: (Param / Name) 'と' _
+    y: (Param / Name) 'が' _ "衝突した" "とき" _
     body: Block
     #CollisionRule
+}
+
+"秒" = '秒' / '分' / '時'
+// ( 'かつ' _ )?
+
+TimeRule = {
+    '時刻' time: Var _ "秒"? '経過し' ('た'/ _ ('かつ' _)? cond: Expression 'の') "とき" _
+    body: Block
+    #TimeRule
 }
 
 /* Statement */
 
 Block = {
     @scope(
-        @symbol(INDENT) Statement
-        (@match(INDENT) Statement)*
+        @symbol(INDENT) Statement ("." Statement)* "."?
+        (@match(INDENT) Statement ("." Statement)* "."? )*
     )
     #Block
 }
 
 Statement =
     / IfStmt
-    / ElseStmt
-    / Inc
-    / Assign
     / Swap
+    / Print
+    / Assign
+    / Action
+
+example IfStmt,Statement '''
+もし A なら
+    A = 1
+そうでなければ
+    A = 2
+'''
 
 IfStmt = {
     ('もし' / 'if') _ right: Expression ('なら' 'ば'? /'then') _
     then: (Block / Statement)
+    (
+        @match(INDENT)
+        ('そうでなければ' / 'else') _
+        else: (Block / Statement)
+    )?
     #IfStmt
 }
 
-ElseStmt = {
-    ('そうでなければ' / 'else') _
-    else: (Block / Statement)
-    #ElseStmt
+Swap = {
+    x: AssignRef 'と' _ y: AssignRef 'を' _ '入れ替える'
+    #Swap
 }
-
-
-Inc = {
-    left: AssignRef [はを] _ right: Degree INC "."? _
-    #Inc
-}
-
-Dec = {
-    left: AssignRef [はを] _ right: Degree DEC "."? _
-    #Inc
-}
-
-Degree = {
-    'かなり' / '少し'
-    #Symbol
-} / Number
-
-INC = '大きくなる' / '大きくする' / '増える' / '増やす'
-DEC = '小さくなる' / '小さくする' / '減る' / '減らす'
-
 
 Assign = {
-    left: AssignRef [はを=] _ right: Expression ('である'/'とする')? "."? _
+    left: (AssignRef/NewName) [はを=] _ right: Expression ("である"/'とする')?
+    &("." / EOL)
     #Assign
 }
 
-Swap = {
-    x: AssignRef 'と' _ y: AssignRef 'を' _ '入れ替える' "."? _
-    #Swap
+// "ほいや"と表示する
+
+Print = {
+    expr: Expression [をと] _ right: Verb
+    #Print
+}
+
+example Action, Statement '''
+態度を大きくする.
+'''
+
+Action = {
+    left: (AssignRef/NewName) [はを] _ right: Verb
+    #Action
+}
+
+Verb = {
+    (!"." !'\n' .)+
+    #Verb
 }
 
 /* Expression */
@@ -287,11 +322,14 @@ PRE =
 SuffixExpr =
 	Primary (
 	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
+	    / recv:^ { SUFFIX #Suffix } _
 	    / recv:^ { [の.．] _ name: Name #GetExpr }
 	    / recv:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
 	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
 	    / recv:^ { "<" type: Name ">" #CastExpr }
 	)*
+
+SUFFIX = 'のいずれか' / 'のいづれか' / 'のどれか'
 
 LeftHand =
     Name (
@@ -299,19 +337,17 @@ LeftHand =
     	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
     )*
 
-
 Expressions = {
 	Expression? ( "," Expression )*
 }
 
 /* Primary */
 
-example Primary, Expression (1,2) //
-example Primary, Expression (1)
-example Primary, Expression () //
-example Primary, Expression [1,2,3]
+//example Primary, Expression (1,2) //
+//example Primary, Expression (1)
+//example Primary, Expression () //
+//example Primary, Expression [1,2,3]
 example Primary, Expression { name: 'naruto', age: 17 }
-example Primary, Expression {"name": 'naruto', "age": '17'}
 
 Primary =
   /	GroupExpr
@@ -322,15 +358,15 @@ Primary =
 
 /* Defined */
 
-GroupExpr = { "(" (Expression ("," Expression)* )?  ")" #Tuple }
+GroupExpr = { "(" Expression ("," Expression)*  ")" #Tuple }
 
-ListExpr = { "[" (Expression ("," Expression)* )? ","?  "]" #List }
+ListExpr = { "[" (Expression ("," Expression)* )? ","*  "]" #List }
 
-DataExpr = { "{" (KeyValue ("," KeyValue)*) / (':' _) ","? "}" #DataExpr }
+DataExpr = { "{" KeyValue (","* KeyValue)* ","* "}" #Data }
 
 KeyValue = {
-	name: (Name/StringExpr)
-	':' _
+	name: (Name/StringExpr/CharExpr)
+	":"
 	value: Expression
 }
 
@@ -344,17 +380,13 @@ Constant =
 	/ FalseExpr
 	/ NullExpr
 
-example StringExpr, Expression "\n\u1234a\0"
-example CharExpr, Expression '\''
-example FloatExpr, Expression 1.1e-9
-example TrueExpr, Expression 有効
+//example StringExpr, Expression "\n\u1234a\0"
+//example CharExpr, Expression '\''
+//example FloatExpr, Expression 1.1e-9
+//example TrueExpr, Expression 有効
 
-TemplateContent =
-	'${' Expression '}'
-	/ { (!'\'\'\'' !'${' .)* #StringExpr }
-
-StringExpr = '"' { STRING_CONTENT* #StringExpr } '"' _
-CharExpr = '\'' { CHAR_CONTENT* #CharExpr } '\'' _
+StringExpr = '"' { STRING_CONTENT* #String } '"' _
+CharExpr = '\'' { CHAR_CONTENT* #Char } '\'' _
 STRING_CONTENT = ESCAPE / ![\"\n\\] .
 CHAR_CONTENT   = ESCAPE / !['\n\\] .
 ESCAPE =
@@ -366,7 +398,7 @@ ESCAPE =
 
 IntExpr = {
 	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
-	#IntExpr
+	#Int
 } _
 
 DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
@@ -378,7 +410,7 @@ HEX = [a-fA-F0-9]
 LONG_SUFFIX = [lL]
 
 FloatExpr = {
-	FLOAT #DoubleExpr
+	FLOAT #Double
 } _
 
 FLOAT =
@@ -408,7 +440,7 @@ example Number,Expression 33.3%
 
 /* Const */
 
-TrueExpr  = { '有効' #TrueExpr } _
-FalseExpr = { '無効' #FalseExpr } _
-NullExpr  = { 'まだ' ('ない'/'無い'/'なし'/'無し') #NullExpr } _
+TrueExpr  = { '有効' / 'true' #True } _
+FalseExpr = { '無効' / 'false' #False } _
+NullExpr  = { 'まだ'? ('null' / 'ない'/'無い'/'なし'/'無し') #Null } _
 
