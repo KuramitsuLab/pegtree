@@ -1,17 +1,18 @@
 // swift origami
 
-include common2.origami
+include common.origami
 
-#FuncDecl        = "func ${1} (${2:-1}) -> ${type(1)} {\n\f\t${@ret(-1)}\n\b\t}" ","
-#FuncExpr        = "{(${*}) -> ${type(-1)} in ${@ret(-1)}}" ","
-#FuncMatchDecl   = "func ${1} (${2:-1}) -> ${type(1)} {\n\f\t${-1}\n\b\t}" ","
-#FuncMatch       = "if ${*}" " else if "
-#FuncCase@1      = true {\n\f\treturn ${1}\n\b\t}
-#FuncCase@2      = ${2} {\n\f\treturn ${1}\n\b\t}
+#FuncDecl        = func ${1} ${2} -> ${type(1)} ${@block.ret(-1)}
+#FuncExpr        = {${1} -> ${type(-1)} in ${@ret(-1)}}
+#Match           = "if ${1:}" " else if "
+#MatchCase@1     = true ${@block(1)}
+#MatchCase@2     = ${2} ${@block(1)}
 
-#Param@2         = _ ${1}: ${type(1)}
-#LetDecl@2       = let ${1}: ${type(2)} = ${2}
-#LetDecl@3       = let ${1}: ${2} = ${3}
+#Param           = _ ${1}: ${type(1)}
+#LetDecl@2       = let ${name}: ${type(expr)} = ${expr}
+#LetDecl@3       = let ${name}: ${type} = ${expr}
+#VarDecl@2       = var ${name}: ${type(expr)} = ${expr}
+#VarDecl@3       = var ${name}: ${type} = ${expr}
 
 #TrueExpr        = true
 #FalseExpr       = false

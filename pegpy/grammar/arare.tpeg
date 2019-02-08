@@ -103,7 +103,7 @@ Param    = {
 
 Name     = Var / Noun
 
-SUBJECT = (![はがを =] .)+
+SUBJECT = (![はがを =\n] .)+
 DEFINE = @defdict(SUBJECT)
 NewName = { DEFINE #Name }
 
@@ -124,6 +124,7 @@ Decl =
     / ThereDecl
     / VarDecl
     / RuleDecl
+    / Command
     / AssumeDecl
 
 /* ClassDecl */
@@ -214,8 +215,8 @@ Block = {
 Statement =
     / IfStmt
     / Swap
-    / Print
     / Assign
+    / Command
     / Action
 
 example IfStmt,Statement '''
@@ -249,9 +250,9 @@ Assign = {
 
 // "ほいや"と表示する
 
-Print = {
+Command = {
     expr: Expression [をと] _ right: Verb
-    #Print
+    #Command
 }
 
 example Action, Statement '''
@@ -322,7 +323,7 @@ PRE =
 SuffixExpr =
 	Primary (
 	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
-	    / recv:^ { SUFFIX #Suffix } _
+	    / recv:^ { name: { SUFFIX #Name }  #Suffix } _
 	    / recv:^ { [の.．] _ name: Name #GetExpr }
 	    / recv:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
 	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
@@ -368,6 +369,7 @@ KeyValue = {
 	name: (Name/StringExpr/CharExpr)
 	":"
 	value: Expression
+	#DataEntry
 }
 
 /* Literal */

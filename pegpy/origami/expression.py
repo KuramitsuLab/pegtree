@@ -63,7 +63,7 @@ class Expression(object):
     def __getitem__(self, item):
         if isinstance(item, slice):
             # do your handling for a slice object:
-            dec = lambda x : x if x is None else x-1
+            dec = lambda x : x if (x is None) or (x < 0) else x-1
             return self.data[dec(item.start): dec(item.stop): item.step]
         else:
             if item < 0: item = len(self) + item
@@ -94,6 +94,11 @@ class Expression(object):
             self[idx].context = names[0]
             return idx
         return -1
+
+    def get(self, *names):
+        idx = self.find(*names)
+        if idx == -1: return None
+        return self[idx]
 
     def remove(self, idx):
         if idx > 0 and isinstance(self.data, list):

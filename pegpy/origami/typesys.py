@@ -57,6 +57,10 @@ class Env(object):
     def __setitem__(self, item, value):
         self.nameMap[item] = value
 
+    def __delitem__(self, item):
+        if item in self.nameMap:
+            del self.nameMap[item]
+
     def asType(self, expr, ty):
         return self.ts.asType(self, expr, ty)
 
@@ -383,7 +387,7 @@ class Origami(object):
             return expr
         return binary
 
-    def ApplyExpr(self, env, expr, ty):
+    def Apply(self, env, expr, ty):
         app = Expression.new(*expr.data)
         app = self.apply(env, app, ty)
         if app.isUncode():
