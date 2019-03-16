@@ -1,0 +1,55 @@
+// haskell origami
+
+include common2.origami
+
+#FuncDecl        = "${1} ${2:-1} = ${-1}" " "
+#FuncExpr        = "\${:-1} -> ${-1}" " "
+#FuncMatchDecl   = "${1} ${2:-1}\n\f\t${-1}\b" " "
+#FuncMatch       = "${*}" "\n\t"
+#FuncCase@1      = | otherwise = ${1}
+#FuncCase@2      = | ${2} = ${1}
+
+#Return@0        =
+#Return@1        = ${1}
+
+/@2:(Int,Int) -> Int        = ${1} `div` ${2}
+%@2:(Int,Int) -> Int        = ${1} `mod` ${2}
+!=@2:(Int,Int) -> Bool      = ${1} /= ${2}
+
+!=@2:(Float,Float) -> Bool        = ${1} /= ${2}
+
+!=@2:(String,String) -> String = ${1} /= ${2}
+
+!=@2:(Bool,Bool) -> Bool = ${1} /= ${2}
+!@1:(Bool)->Bool         = not ${1}
+
+//^@2:(Int,Int) -> Int        = ${1} ^ ${2}
+
+#IfExpr:(Bool,a,a) -> a = if ${1} then ${2} else ${3}
+
++@2:(String,String) -> String = ${1} ++ ${2}
+
+Int@1:Float->Int    = truncate ${1}
+Int@1:String->Int   = read ${1} :: Int
+//Int@1:Char->Int     = ord(${1})
+//Int@1:Bool->Int     = int(${1})
+
+Float@1:Int->Float    = ${1} :: Float
+Float@1:String->Float = read ${1} :: Float
+//Float@1:Char->Float   = float(ord(${1}))
+//Float@1:Bool->Float   = float(${1})
+
+String@1:Int->String   = show ${1}
+String@1:Float->String = show ${1}
+//String@1:Char->String  = ${1}
+//String@1:Bool->String  = str(${1})
+
+//Char@1:Int->Char    = str(${1})
+//Char@1:Float->Char  = str(${1})
+//Char@1:String->Char = ${1}
+//Char@1:Bool->Char   = str(${1})
+
+//Bool@1:Int->Bool    = bool(${1})
+//Bool@1:Float->Bool  = bool(${1})
+//Bool@1:String->Bool = bool(${1})
+//Bool@1:Char->Bool   = bool(${1})

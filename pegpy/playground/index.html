@@ -1,13 +1,21 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>pegpy Playground</title><link rel="stylesheet" href="css/bootstrap.css"/><style type="text/css" media="screen">#zen-editor {
-  height: 600px;
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>pegpy playground</title>
+  <link rel="stylesheet" href="css/bootstrap.css"/>
+  <style type="text/css" media="screen">
+#zen-editor {
+  height: 250px;
   border: 1px solid black;
   border-radius: 3px;
 }
 #output-viewer {
-  height: 600px;
+  height: 250px;
   border: 1px solid black;
   border-radius: 3px;
-}</style></head>
+}
+  </style>
+</head>
 <body>
   <div style="max-width: 1280px; min-width: 780px;" class="container">
     <div class="header">
@@ -20,38 +28,38 @@
       <br>
     </div>
   </div>
-<div style="max-width: 1280px; min-width: 780px;" class="container">
-  <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
-    <nav role="navigation" class="navbar navbar-default">
-      <div class="container-fluid">
-        <ul class="nav navbar-nav navbar-right">
-          <li id="SampleCont" class="dropdown">
-            <a id="SampleText" href="#" data-toggle="dropdown" class="dropdown-toggle">Sample<b class="caret"></b></a>
-            <ul id="zen-sample" class="dropdown-menu"></ul>
-          </li>
-        </ul>
-      </div>
-    </nav>
+  <div style="max-width: 1280px; min-width: 780px;" class="container">
+    <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
+      <!--nav role="navigation" class="navbar navbar-default">
+        <div class="container-fluid">
+          <ul class="nav navbar-nav navbar-right">
+            <li id="SampleCont" class="dropdown">
+              <a id="SampleText" href="#" data-toggle="dropdown" class="dropdown-toggle">Sample<b class="caret"></b></a>
+              <ul id="zen-sample" class="dropdown-menu"></ul>
+            </li>
+          </ul>
+        </div>
+      </nav-->
     <div id="zen-editor"></div>
+    </div>
+    <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
+      <!--nav role="navigation" class="navbar navbar-default">
+        <div class="container-fluid">
+          <ul class="nav navbar-nav navbar-right">
+            <li id="TargetCont" class="dropdown">
+            </li>
+          </ul>
+        </div>
+      </nav-->
+      <div id="output-viewer"></div>
+    </div>
   </div>
-  <div class="col-lg-6 col-md-6 col-sm-6 col-xs-6">
-    <nav role="navigation" class="navbar navbar-default">
-      <div class="container-fluid">
-        <ul class="nav navbar-nav navbar-right">
-          <li id="TargetCont" class="dropdown">
-          </li>
-        </ul>
-      </div>
-    </nav>
-    <div id="output-viewer"></div>
+  <div class="script">
+    <script type="text/javascript" src="js/jquery.js"></script>
+    <script type="text/javascript" src="js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="js/ace/ace.js"></script>
+    <script type="text/javascript" src="js/ace/ext-language_tools.js"></script>
+    <script type="text/javascript" src="index.js"></script>
   </div>
-</div>
-<div class="script">
-  <script type="text/javascript" src="js/jquery.js"></script>
-  <script type="text/javascript" src="js/bootstrap.min.js"></script>
-  <script type="text/javascript" src="js/ace/ace.js"></script>
-  <!--+js('js/LibLibZen.js')--><!--+js('js/libzen.js')-->
-  <script type="text/javascript" src="js/ace/ext-language_tools.js"></script>
-  <script type="text/javascript" src="index.js"></script>
-</div>
-</body></html>
+</body>
+</html>

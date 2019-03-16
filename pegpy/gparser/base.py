@@ -304,7 +304,13 @@ def adddict(px, s):
 
 def gen_State(pe, **option):
     pf = option['emit'](pe.inner, **option)
-    if pe.func == '@scope':
+    if pe.func == '@ref':
+        if 'peg' in option and pe.name in option['peg']:
+            return option['emit'](option['peg'][pe.name], **option)
+        else :
+            return pf
+
+    elif pe.func == '@scope':
         def scope(px):
             state = px.state
             if pf(px):
@@ -409,6 +415,14 @@ def gen_State(pe, **option):
             return False
         return unknown
 
+def gen_Move(pe, **option):
+    if pe.func == '@skip':
+        def skip(px):
+            px.pos = px.headpos
+            return px.pos < px.length
+        return skip
+    return gen_Empty(pe, **option)
+
 def setting(**option):
     pg = option['pg']
     method = option['method']
@@ -434,20 +448,32 @@ def setting(**option):
 
     # State
     setattr(State, method, pg.gen_State)
+    setattr(Move, method, pg.gen_Move)
 
     # Ref
     setattr(Ref, method, pg.gen_Ref)
 
 
 class ParserContext:
-  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state', 'memo']
+  __slots__ = ['inputs', 'length', 'pos', 'headpos', 'ast', 'state', 'dict', 'memo']
 
   def __init__(self, urn, inputs, pos, slen):
       self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
       self.headpos = self.pos
       self.ast = None
       self.state = None
+      self.dict = {}
       self.memo = {}
+
+def findpeg(p):
+    if isinstance(p, Ref):
+        return p.peg if not '.' in p.name else None
+    if hasattr(p, 'right'):
+        peg = findpeg(p.right)
+        return peg if peg is not None else findpeg(p.left)
+    if hasattr(p, 'inner'):
+        return findpeg(p.inner)
+    return None
 
 def generate(p, **option):
     if not hasattr(Char, option['method']):
@@ -455,6 +481,8 @@ def generate(p, **option):
 
     if not isinstance(p, ParsingExpression): # Grammar
         p = Ref(p.start().name, p)
+
+    if not 'peg' in option: option['peg'] = findpeg(p)
 
     pf = getattr(p, option['method'])(**option)
     conv = option['conv'] if 'conv' in option else None

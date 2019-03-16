@@ -1,0 +1,56 @@
+// javascript origami
+
+include common.origami
+
+#FuncDecl        = var ${1} = function${2} ${@block.ret(-1)};
+#FuncExpr        = ${1}=>{${-1}}
+
+#Return@0        = return;
+#Return@1        = return ${1};
+#LetDecl@2       = var ${name} = ${expr};
+#LetDecl@3       = var ${name} = ${expr};
+#VarDecl@2       = var ${name} = ${expr};
+#VarDecl@3       = var ${name} = ${expr};
+#Match           = "if ${1:}" " else if "
+#MatchCase@2     = (${2}) ${@block(1)}
+#MatchCase@1     = (true) ${@block(1)}
+
+#Tuple           = "[${1:}]" ","
+#List            = "[${1:}]" ","
+#Data            = "{${1:}}" ","
+#DataEntry       = "'${1}': ${2}"
+
++@2:(String,String) -> String = ${1}+${2}
+
+#True        = true
+#False       = false
+#Null        = null
+
+#TrueExpr        = true
+#FalseExpr       = false
+#NullExpr        = null
+
+Int@1:Float->Int    = Number(${1})
+Int@1:String->Int   = Number(${1})
+Int@1:Char->Int     = ${1}.charCodeAt(0)
+Int@1:Bool->Int     = Number(${1})
+
+Float@1:Int->Float    = Number${1})
+Float@1:String->Float = Number(${1})
+Float@1:Char->Float   = ${1}.charCodeAt(0)
+Float@1:Bool->Float   = Number(${1})
+
+String@1:Int->String   = ${1} + ''
+String@1:Float->String = ${1} + ''
+String@1:Char->String  = ${1}
+String@1:Bool->String  = ${1} + ''
+
+Char@1:Int->Char    = ${1} + ''
+Char@1:Float->Char  = ${1} + ''
+Char@1:String->Char = ${1}
+Char@1:Bool->Char   = ${1} + ''
+
+Bool@1:Int->Bool    = Boolean(${1})
+Bool@1:Float->Bool  = Boolean(${1})
+Bool@1:String->Bool = Boolean(${1})
+Bool@1:Char->Bool   = Boolean(${1})

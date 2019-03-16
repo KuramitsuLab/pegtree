@@ -23,6 +23,7 @@ gen_Detree= base.gen_Detree
 
 # State
 gen_State= base.gen_State
+gen_Move = base.gen_Move
 
 # Ref
 gen_Ref= base.gen_Ref

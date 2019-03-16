@@ -1,8 +1,6 @@
 
 include common.origami
 
-#Block           = "${*}" "\n\t"
-#FuncDecl        = "${type(1)} ${1}(${2:-1})${indent++} {\n\t${@ret(-1)}${indent--}\n}" ","
 #Param@2         = ${type(1)} ${1}
 #Param           = ${1}
 

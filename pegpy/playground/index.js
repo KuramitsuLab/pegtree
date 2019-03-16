@@ -38,19 +38,19 @@ $(function () {
         $.ajax({
             type: "POST",
             url: "/compile",
-            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd}),
+            data: JSON.stringify({ source: zenEditor.getValue() }),
             dataType: 'json',
             contentType: "application/json; charset=utf-8",
-            success: function (res) {
-                outputViewer.setValue(res.source);
+            success: function (data) {
+                outputViewer.setValue(data.output);
                 outputViewer.clearSelection();
                 if (ShowTopFlag) {
                     outputViewer.gotoLine(0);
                 }
-                if (res.error != "") console.log(res.error);
+                if (data.error != "") console.log(data.error);
             },
             error: function () {
-                console.log("compile error");
+                console.log("error: compile");
             }
         });
     };
@@ -65,11 +65,33 @@ $(function () {
     });
 
     $("#cmd").on("change", function (cm, obj) {
-        resetTarget();
-        GenerateServer(true);
+        let cmd = document.querySelector("form").elements.cmd.value;
+        $.ajax({
+            url: '/command',
+            type: 'POST',
+            data: JSON.stringify({ source: zenEditor.getValue(), cmd: cmd }),
+            dataType: 'json',
+            contentType: "application/json; charset=utf-8",
+            timeout: 5000,
+            success: function(data) {
+                if (data.input != "") {
+                    zenEditor.setValue(data.input);
+                    zenEditor.clearSelection();
+                    zenEditor.gotoLine(0);
+                }
+                outputViewer.setValue(data.output);
+                outputViewer.clearSelection();
+                outputViewer.gotoLine(0);
+                if (data.error != "") console.log(data.error);
+            },
+            error:function(XMLHttpRequest, textStatus, errorThrown) {
+                console.log("error: command");
+            }
+        });
+        //resetTarget();
     });
 
-    var TargetNames = {
+    /*var TargetNames = {
         origami: ['Python3', 'Niko', 'macaron'],
         macaron: ['macaron'],
         parse: ['TPEG'],
@@ -116,46 +138,7 @@ $(function () {
         if (Object.keys(TargetNames).indexOf(mode) !== -1) {
             setTargets(TargetNames[mode]);
         }
-    }
-
-    var Samples = ["ifexpr", "fib"];
-
-    var sample_bind = function (n) {
-        $('#sample-' + Samples[n]).click(function () {
-            url = '/sample/' + Samples[n]
-            $.ajax({
-                url: url,
-                type: 'POST',
-                timeout: 5000,
-            })
-            .done(function(data) {
-                zenEditor.setValue(data);
-                zenEditor.clearSelection();
-                zenEditor.gotoLine(0);
-                if (timer) {
-                    clearTimeout(timer);
-                    timer = null;
-                }
-                outputViewer.setValue('');
-                GenerateServer(true);
-            })
-            .fail(function(XMLHttpRequest, textStatus, errorThrown) {
-                console.log("ajax通信に失敗しました");
-                console.log("XMLHttpRequest : " + XMLHttpRequest.status);
-                console.log("textStatus     : " + textStatus);
-                console.log("errorThrown    : " + errorThrown.message);
-                // alert(errorThrown.message);
-            });
-        });
-    };
-
-    for (var i = 0; i < Samples.length; i++) {
-        $("#zen-sample").append('<li id="sample-' + Samples[i] + '-li"><a href="#" id="sample-' + Samples[i] + '">' + Samples[i] + '</a></li>');
-        sample_bind(i);
-    }
-
-    var SyntaxNames = ['Konoha6', 'NPL', 'Math', 'Python3', 'Java8', 'JavaScript', 'CSV', 'XML', 'JSON', 'UTF-8', 'EMail']
-    var SyntaxFiles = ['konoha6.tpeg', 'npl.tpeg', 'math.tpeg', 'python3.tpeg', 'java8.tpeg', 'js.tpeg', 'csv.tpeg', 'xml.tpeg', 'json.tpeg', 'utf8.tpeg', 'email.tpeg']
+    }*/
 
     $('#closeButton').click(function () {
         window.open('about:blank','_self').close();
@@ -166,36 +149,20 @@ $(function () {
     });
 
     $.ajax({
-        url: '/sample/input',
-        type: 'POST',
-        timeout: 5000,
-    })
-    .done(function(data) {
-        zenEditor.setValue(data);
-        zenEditor.clearSelection();
-        zenEditor.gotoLine(0);
-    })
-    .fail(function(XMLHttpRequest, textStatus, errorThrown) {
-        console.log("ajax通信に失敗しました");
-        console.log("XMLHttpRequest : " + XMLHttpRequest.status);
-        console.log("textStatus     : " + textStatus);
-        console.log("errorThrown    : " + errorThrown.message);
-        // alert(errorThrown.message);
-    });
-
-    $.ajax({
         type: "POST",
         url: "/init",
         dataType: 'json',
         success: function (res) {
             document.querySelector("form").elements.cmd.value = res.cmd;
-            mode = res.cmd.trim().split(' ')[0];
-            if (Object.keys(TargetNames).indexOf(mode) !== -1)
-                setTargets(TargetNames[mode]);
-            GenerateServer(true);
+            zenEditor.setValue(res.input);
+            zenEditor.clearSelection();
+            zenEditor.gotoLine(0);
+            //mode = res.cmd.trim().split(' ')[0];
+            //if (Object.keys(TargetNames).indexOf(mode) !== -1)
+            //    setTargets(TargetNames[mode]);
         },
         error: function () {
-            console.log("error init");
+            console.log("error: init");
         }
     });
 });

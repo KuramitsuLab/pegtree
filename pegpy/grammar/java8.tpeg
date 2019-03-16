@@ -11,18 +11,23 @@
  */
 
 File = _ {
-	 $(PackageDeclaration)?
-	 $(ImportDeclaration)*
-	 $(TypeDeclaration / OrigamiTopLevel)*
+	 PackageDeclaration?
+	 ImportDeclaration*
+	 TypeDeclaration*
 	 #Source
 } _ EOT
 
 
-OrigamiTopLevel = AssertStatement
-                / BlockStatement
-                / { ";"  #MultiStmt }
+/* ORIGAMI use Sinipet */
+
+Snippet = _ {
+    PackageDeclaration?
+    (ImportDeclaration / TypeDeclaration / Statement / Expression )*
+    #Block
+} EOT
 
 /* Code Layout (Whitespace) */
+
 _            = ( S / BLOCKCOMMENT / LINECOMMENT )*
 __           = !S
 S            = [ \n\r\t\u000B\u000C]
@@ -201,7 +206,8 @@ Annotations = {
 	#Modifiers
 }
 
-Annotation = { "@"
+Annotation = {
+    "@"
 	name: QualifiedName
 	("(" $value(ElementValuePairList/ElementValue) ")")?
 	#Annotation
@@ -406,10 +412,10 @@ AnnotationTypeElementDeclaration = {
 VariableDeclaration = {
 	(anno: AModifiers)?
 	type: Type
-	VARDECL
+	VarDecl
 }
 
-VARDECL
+VarDecl
 	= { name: VarName ( "=" expr: Initializer )? !',' #VarDecl }
 	/ { list: InitDeclList #MultiVarDecl }
 
@@ -764,8 +770,8 @@ TryStatement = { "try" list: ResourceList try: Block catch: ({ (Catch)* #List })
              / { "try" try: Block catch: ({ (Catch)+ #List }) #TryStmt }
 ResourceList = "(" { Resource ( ";" Resource )* #JavaResourceList } ";"? ")"
 Resource     = { (anno: AModifiers)? type: Type name: Identifier "=" expr: Expression #VarDecl }
-Catch        = { "catch" "(" CATCH_PARAM ")" body: Block #CatchClause }
-CATCH_PARAM  = (anno: AModifiers)? type: ClassOrInterfaceType name: Identifier
+Catch        = { "catch" "(" catchParam ")" body: Block #CatchClause }
+catchParam   = (anno: AModifiers)? type: ClassOrInterfaceType name: Identifier
              / (anno: AModifiers)? type: ({ ClassOrInterfaceType ( "|" ClassOrInterfaceType )+ #JavaMultiExceptions }) name: Identifier
 
 // switch
@@ -904,9 +910,10 @@ UnaryExpression
 MethodCall =
   NewCall
   (recv:^ { "." (TypeArguments)?
-  name: Identifier
-  param: ArgumentExpressionList
-  #MethodExpr })*
+    name: Identifier
+    param: ArgumentExpressionList
+    #MethodExpr
+    })*
 
 NewCall =
   Index
@@ -937,7 +944,6 @@ MethodRef =
 
 Inc = Dec (recv:^ { "++" #PostIncExpr })*
 Dec = PrimaryExpression (recv:^ {"--" #PostDecExpr })*
-
 
 /* Primary */
 
@@ -1273,3 +1279,4 @@ example Literal '''
 example Literal '''
 "S\u00ED Se\u00F1or"
 '''
+

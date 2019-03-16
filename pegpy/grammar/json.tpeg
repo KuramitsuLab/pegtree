@@ -67,7 +67,6 @@ example INT 42
 File
 	= S* Value S* !.
 
-
 /* Code Layout, Tokens */
 
 S = [ \t\n\r]
@@ -91,29 +90,23 @@ Value
 	/ False
 	/ ObjectId
 
-/*
 Object
-	= { "{" ($_(Member) ("," $_(Member) )* )? "}" #Object }
-*/
-
-
-Object
-	= { "{" (member:(Member) ("," member:(Member) )* )? "}" #Object }
+	= { "{" ( Member ("," Member )* )? "}" #Object }
 
 Member
-	= { key:(String) ":" val:(Value) #Member }
+	= { key: String ":" value: Value #KV }
 
 Key
 	= String
 
 ObjectId 
-        = 'ObjectId' '("' { id: ID #ObjectId } '")'
+        = 'ObjectId' '("' { ID #Symbol } '")'
 
 ID
         = [0-9a-z]+
 
 Array
-	= { "["  (val:Value ("," val:Value )* )? "]" #List }
+	= { "[" (Value ("," Value )* )? "]" #List }
 
 
 String
@@ -134,9 +127,6 @@ Number
 
 INT
 	= [0-9]+
-
-INT2
-	= '0' / [1-9] DIGIT*
 
 DIGIT
 	= [0-9]

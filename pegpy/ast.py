@@ -1,6 +1,4 @@
-
 import pegpy.utils as u
-
 
 class SourcePosition(object):
     def __init__(self, inputs, spos, epos):
@@ -183,21 +181,22 @@ class TreeLinkIter(object):
 
 class ParseTreeConv(object):
     def __init__(self, *args):
-        self.dict = {}
-        for c in args: self.dict[c.__name__] = c
+        self.classDict = {}
+        for c in args:
+            self.classDict[c.__name__] = c
 
     def setpos(self, s, t):
         if hasattr(s, 'pos3'):
-            s.pos3 = (t.inputs, t.spos, t.epos)
+            s.pos3 = t.pos3()
         return s
 
-    def conv(self, t: ParseTree):
+    def conv(self, t: ParseTree, out = u.STDOUT):
         tag = t.tag
         if hasattr(self, tag):
             f = getattr(self, tag)
-            return self.setpos(f(t), t)
-        if tag in self.dict:
-            c = self.dict[tag]
+            return self.setpos(f(t, out), t)
+        if tag in self.classDict:
+            c = self.classDict[tag]
             if t.isString():
                 return self.setpos(c(t.asString()),t)
             elif t.isArray():
@@ -207,10 +206,10 @@ class ParseTreeConv(object):
                 for name in c.__slots__:
                     sub = t[name]
                     if sub is None:
-                        print ('TODO', name, c)
+                        out.verbose('@TODO', name, c)
                         continue
                     d[name] = self.conv(sub)
                 return self.setpos(c(**d), t)
-        print('@TODO', tag)
+        out.verbose('@TODO', tag)
         return t
 

@@ -124,13 +124,11 @@ def inUnary(e):
 
 # PEG Grammar
 
-
 class Empty(ParsingExpression):
     def __str__(self):
         return "''"
 
 EMPTY = Empty()
-
 
 class Char(ParsingExpression):
     __slots__ = ['a']
@@ -323,6 +321,7 @@ class Not(ParsingExpression):
     def __str__(self):
         return '!' + grouping(self.inner, inUnary)
 
+FAIL  = ~EMPTY
 
 class Many(ParsingExpression):
     __slots__ = ['inner']
@@ -421,6 +420,18 @@ class State(ParsingExpression):
     def __str__(self):
         return  self.func + '(' + str(self.inner) + ')'
 
+## Move
+
+class Move(ParsingExpression):
+    __slots__ = ['func']
+
+    def __init__(self, func):
+        self.func = func
+
+    def __str__(self):
+        return  self.func + '()'
+
+
 # @on(flag, e)
 class On(ParsingExpression):
     __slots__ = ['name', 'inner']
@@ -497,10 +508,6 @@ class Ref(ParsingExpression):
         return self.peg[self.name].inner
 
     @classmethod
-    def isInlineName(cls, name):
-        return name[0].islower()
-
-    @classmethod
     def isPatternOnlyName(cls, name):
         return name.isupper()
 
@@ -520,7 +527,6 @@ class Ref(ParsingExpression):
         rule = self.peg[self.name]
         setattr(rule, prefix, value)
 
-
 class Rule(Ref):
     __slots__ = ['peg', 'name', 'inner', 'pos3']
 
@@ -534,6 +540,22 @@ class Rule(Ref):
 
     def deref(self):
         return self.inner
+
+    @classmethod
+    def isInlineName(cls, name):
+        return (name[0].islower() and not '.' in name)
+
+    @classmethod
+    def isUnitName(cls, name):
+        return not name[0].isalpha() or (name[0].isupper() and not cls.isTreeName(name))
+
+    @classmethod
+    def isTreeName(cls, name):
+        if name[0].isupper():
+            for c in name:
+                if c.islower(): return True
+            return False
+        return False
 
 ## Properties
 
@@ -551,7 +573,7 @@ def isAlwaysConsumed(pe: ParsingExpression):
         @addmethod(Char, Any, Range, method)
         def char(pe): return True
 
-        @addmethod(Many, Not, And, Empty, method)
+        @addmethod(Many, Not, And, Empty, Move, method)
         def empty(pe): return False
 
         @addmethod(Many1, LinkAs, TreeAs, FoldAs, Detree, Meta, method)
@@ -588,7 +610,7 @@ def first(pe: ParsingExpression, max=255):
         def first_char(pe, max):
             return 1 << ord(pe.a[0])
 
-        @addmethod(Any, method)
+        @addmethod(Any, Move, method)
         def first_any(pe, max):
             return (1 << (max+1))-1
 
@@ -663,7 +685,7 @@ def cdr(pe: ParsingExpression):
         def cdr_alt(pe):
             return Alt.new2(pe.left.cdr(), pe.right.cdr())
 
-        @addmethod(Not, Empty, method)
+        @addmethod(Not, Empty, Move, method)
         def cdr_empty(pe):
             return None
 
@@ -692,7 +714,7 @@ class T(Enum):
 def treeState(pe):
     if not hasattr(Char, 'treeState'):
         method = 'treeState'
-        @addmethod(Empty, Char, Any, Range, Not, Detree, method)
+        @addmethod(Empty, Char, Any, Range, Not, Detree, Move, method)
         def stateUnit(pe):
             return T.Unit
 
@@ -745,7 +767,7 @@ def checkTree(pe, inside):
     if not hasattr(LinkAs, 'checkTree'):
         method = 'checkTree'
 
-        @addmethod(Empty, Char, Any, Range, method)
+        @addmethod(Empty, Char, Any, Range, Move, method)
         def term(pe, inside):
             return pe
 
@@ -863,7 +885,7 @@ def load_tpeg(g):
     g.BindFold = TreeAs('Fold', (left <= N%'Var' & ':^') & _ & N%'Tag' & (inner <= (N%'Expression __' | N%'Empty')) & N%'ETag')
     g.Var = TreeAs('Name', Range.new('a-z', '$') & Range.new('A-Z', 'a-z', '0-9', '_')*0)
 
-    g.Func = TreeAs('Func', N%'$Identifier' & '(' & __ & (N%'$Expression _' & ',' & __)* 0 & N%'$Expression __' & ')')
+    g.Func = TreeAs('Func', N%'$Identifier' & '(' & __ & (N%'$Expression _' & ',' & __)* 0 & (N%'$Expression __' | 0) & ')')
     g.Ref = TreeAs('Ref', N%'NAME')
     g.NAME = '"' & (ParsingExpression.new(r'\"') | ~Range.new('\\"\n') & ANY)* 0 & '"' | (~Range.new(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)+0
 
@@ -933,20 +955,19 @@ def load_tpeg(g):
 # Loader loader
 
 def setup_loader(Grammar, pgen):
-    import pegpy.utils as u
     from pegpy.ast import ParseTreeConv
 
     class PEGConv(ParseTreeConv):
         def __init__(self, *args):
             super(PEGConv, self).__init__(*args)
 
-        def Empty(self, t):
+        def Empty(self, t, out):
             return EMPTY
 
-        def Any(self, t):
+        def Any(self, t, out):
             return ANY
 
-        def Char(self, t):
+        def Char(self, t, out):
             s = t.asString()
             if s.find(r'\x') >= 0:
                 sb = []
@@ -962,7 +983,7 @@ def setup_loader(Grammar, pgen):
                     sb.append(c)
                 return ParsingExpression.new(''.join(sb))
 
-        def Class(self, t):
+        def Class(self, t, out):
             s = t.asString()
             sb = []
             while len(s) > 0:
@@ -974,22 +995,22 @@ def setup_loader(Grammar, pgen):
                     sb.append(c)
             return Range.new(*sb)
 
-        def Option(self, t):
+        def Option(self, t, out):
             inner = self.conv(t['inner'])
             return Ore(inner, EMPTY)
 
-        def TreeAs(self, t):
+        def TreeAs(self, t, out):
             name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             return TreeAs(name, inner)
 
-        def LinkAs(self, t):
+        def LinkAs(self, t, ouy):
             name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             #print('@LinkAs', LinkAs(name, inner))
             return LinkAs(name, inner)
 
-        def Append(self, t):
+        def Append(self, t, out):
             name = ''
             tsub = t['inner']
             if tsub == 'Func':
@@ -1000,13 +1021,13 @@ def setup_loader(Grammar, pgen):
                 inner = self.conv(tsub)
             return LinkAs(name, inner)
 
-        def Fold(self, t):
+        def Fold(self, t, out):
             left = t['left'].asString() if 'left' in t else ''
             name = t['name'].asString() if 'name' in t else ''
             inner = self.conv(t['inner'])
             return FoldAs(left, name, inner)
 
-        def Func(self, t):
+        def Func(self, t, out):
             a = t.asArray()
             funcname = a[0].asString()
             if len(a) > 2:
@@ -1017,6 +1038,8 @@ def setup_loader(Grammar, pgen):
             if len(a) > 1:
                 if funcname == '@if':
                     return If(a[1].asString())
+                elif funcname == '@ref':
+                    return State('@ref', self.conv(a[1]))
                 elif (funcname == '@scope' or funcname == '@block'):
                     return State('@scope', self.conv(a[1]))
                 elif funcname == '@symbol':
@@ -1025,7 +1048,7 @@ def setup_loader(Grammar, pgen):
                     return State('@match', self.conv(a[1]))
                 elif funcname == '@matchin':
                     return State('@matchin', self.conv(a[1]))
-                elif funcname == '@exists':
+                elif funcname == '@exists' or funcname == '@exist':
                     return State('@exists', EMPTY, str(self.conv(a[1])))
                 elif funcname == '@equals':
                     return State('@equals', self.conv(a[1]))
@@ -1035,41 +1058,49 @@ def setup_loader(Grammar, pgen):
                     return State('@dict', self.conv(a[1]))
                 elif funcname == '@defdict':
                     return State('@defdict', self.conv(a[1]))
-            print('@TODO', funcname)
+                else:
+                    out.perror(a[0].pos3(), 'undefined annotation')
+                    return self.conv(a[1])
+            if funcname == '@skip':
+                return Move('@skip')
+            out.perror(a[0].pos3(), 'illegal annotation arguments')
             return EMPTY
 
-    def checkRef(pe, consumed: bool, name: str, visited: dict):
+    def checkRef(pe, consumed: bool, name: str, visited: dict, out):
         if isinstance(pe, Seq):
-            pe.left = checkRef(pe.left, consumed, name, visited)
+            pe.left = checkRef(pe.left, consumed, name, visited, out)
             if not consumed:
                 consumed = isAlwaysConsumed(pe.left)
-            pe.right = checkRef(pe.right, consumed, name, visited)
+            pe.right = checkRef(pe.right, consumed, name, visited, out)
             return pe
         if isinstance(pe, Ore) or isinstance(pe, Alt):
-            pe.left = checkRef(pe.left, consumed, name, visited)
-            pe.right = checkRef(pe.right, consumed, name, visited)
+            pe.left = checkRef(pe.left, consumed, name, visited, out)
+            pe.right = checkRef(pe.right, consumed, name, visited, out)
             return pe
         if hasattr(pe, 'inner'):
-            pe.inner = checkRef(pe.inner, consumed, name, visited)
+            pe.inner = checkRef(pe.inner, consumed, name, visited, out)
             return pe
         if isinstance(pe, Ref):
             if not consumed and pe.name == name:
-                u.perror(pe.pos3, msg='Left Recursion: ' + str(pe.name))
+                out.perror(pe.pos3, msg='left recursion: ' + str(pe.name))
                 return pe
             if not pe.isNonTerminal():
-                u.perror(pe.pos3, msg='Undefined Name: ' + str(pe.name))
-                return Char(pe.name)
-            if Ref.isInlineName(pe.name):
+                if pe.name[0] == '"': return Char(pe.name[1:-2])
+                if not pe.name[0].isupper(): return Char(pe.name)
+                out.perror(pe.pos3, msg='undefined name: ' + str(pe.name))
+                return FAIL if Rule.isUnitName(pe.name) else TreeAs('', FAIL)
+            if Rule.isInlineName(pe.name):
+                out.notice(pe.pos3, msg='inlining: ' + str(pe.name) + ' => ' + str(pe.deref()))
                 return pe.deref()
             if not pe.name in visited:
                 visited[pe.name] = True
-                checkRef(pe.deref(), consumed, name, visited)
+                checkRef(pe.deref(), consumed, name, visited, out)
         return pe
 
     PEGconv = PEGConv(Ore, Alt, Seq, And, Not, Many, Many1, TreeAs, FoldAs, LinkAs, Ref)
     pegparser = pgen(load_tpeg(Grammar('tpeg')))
 
-    def load_grammar(g, path):
+    def load_grammar(g, path, out = u.STDOUT):
         if path.find('=') == -1:
             f = u.find_path(path).open()
             data = f.read()
@@ -1078,9 +1109,10 @@ def setup_loader(Grammar, pgen):
         else:
             t = pegparser(path)
         if t == 'err':
-            u.perror(t.pos3())
+            out.perror(t.pos3())
+            return
         # load
-        for stmt in t.asArray():
+        for _, stmt in t:
             if stmt == 'Rule':
                 name = stmt['name'].asString()
                 pexr = stmt['inner']
@@ -1094,20 +1126,36 @@ def setup_loader(Grammar, pgen):
                     g.example(n.asString(), doc)
             elif stmt == 'Import':
                 importPath = stmt['name'].asString()
-                if 'as' in stmt:
-                    ns = stmt['as'] + '.'
-                    print('@TODO import file as ns')
+                if path.find('=') == -1:
+                    importPath = u.find_importPath(path, importPath)
+                if 'ns' in stmt:
+                    ns = stmt['ns'].asString()
+                    ng = Grammar()
+                    load_grammar(ng, importPath)
+                    g.rulemap[ns] = ng
                 else:
-                    if path.find('=') == -1:
-                        importPath = u.find_importPath(path, importPath)
                     load_grammar(g, importPath)
-        g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}))
-        g.forEachRule(lambda pe: checkTree(pe.inner, None))
+
+        g.forEachRule(lambda rule: checkRef(rule.inner, False, rule.name, {}, out))
+
+        def treeRule(rule):
+            pe = checkTree(rule.inner, None)
+            if not Rule.isInlineName(rule.name):
+                ts = treeState(rule.inner)
+                if ts == T.Unit and not Rule.isUnitName(rule.name):
+                    out.warning(rule.pos3, 'illegal naming: use {}'.format(rule.name.upper()))
+                elif ts == T.Tree and not Rule.isTreeName(rule.name):
+                    out.warning(rule.pos3, 'illegal naming: use camel case')
+                elif ts == T.Mut or ts == T.Fold:
+                    out.warning(rule.pos3, 'illegal naming: allowed only inline')
+            return pe
+        g.forEachRule(treeRule)
+
+        '''
         def dummy(pe):
             print('@first', first(pe.inner, g.max))
             return pe.inner
+        '''
         #g.forEachRule(dummy)
 
     Grammar.load = load_grammar
-
-# setup_loader()

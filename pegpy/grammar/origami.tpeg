@@ -1,0 +1,189 @@
+/**
+ * ORIGAMI
+ * Author:
+ *    Kimio Kuramitsu (https://github.com/kkuramitsu/)
+ */
+
+/* Starting Point */
+
+File = __  { (Statement EOL __)* #Block } EOF
+
+example OrigamiFile '''
++@2 : (Int,Int)->Int = (%1+%2)
++@2 : (Int,Int)->Int
++@2 = (%1+%2)
+'''
+
+/* Token */
+
+EOF          = !.
+NL           = '\n' / EOF
+S            = [ \t\r　]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
+
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '//' ( !NL . )*
+
+EOL          = _ NL (_ NL)*
+INDENT       = '\n' S*
+
+/* Token */
+
+"{" = '{' __
+"}" = __ '}' _
+"[" = '[' __
+"]" = __ ']' _
+"(" = '(' __
+")" = __ ')' _
+"<" = '<' _
+">" = '>' _
+"=" = '=' !'=' _
+"," = ',' __
+";" = (';' _)+
+":" = ':' __
+
+/* Statement */
+
+Statement =
+    / Include
+    / Require
+    / CodeMap
+    / SyntaxError
+
+Include = {
+    'include' SPC file: (String / RawCode)
+    #Include
+}
+
+Require = {
+    'require' SPC file: (String / RawCode)
+    #Require
+}
+
+example CodeMap +@2 : (Int,Int)->Int = (%1+%2)
+example CodeMap +@2 : (Int,Int)->Int
+example CodeMap +@2 = (%1+%2)
+example CodeMap + = (%1+%2)
+example CodeMap + = "(%*)" ","
+
+CodeMap = {
+    name: (String / Signature)
+    (":" type: Type)?
+    ('<:' _ extends: Types)?
+    ('=' _ expr: (String / RawCode))?
+    (delim: String)?
+    #CodeMap
+}
+
+Signature = {
+    ( ![:= \t\n] . )*
+    #Symbol
+} _
+
+RawCode = {
+    ( !NL  . )*
+    #Symbol
+} _
+
+/* SyntaxError */
+
+SyntaxError = @skip() {
+    ( !NL  . )*
+    #err
+}
+
+/* Macro */
+
+Macro = '(#' {
+    Symbol Argument*
+    #OrigamiMacro
+} ')' _
+
+Symbol  = {
+    ( ![ \t\n] . )*
+    #Symbol
+} _
+
+Argument = Macro / String / Symbol
+
+/* String */
+
+String =
+    / '"' { STRING_CONTENT* #StringExpr } '"' _
+    / '\'' { CHAR_CONTENT* #CharExpr } '\'' _
+
+STRING_CONTENT = ESCAPE / ![\"\\] .
+CHAR_CONTENT   = ESCAPE / !['\\] .
+ESCAPE =
+	'\\' ['\"\\bfnrt]
+	/ '\\' [0-3] [0-7] [0-7]
+    / '\\' [0-7] [0-7]
+    / '\\' [0-7]
+	/ '\\' 'u'+ HEX HEX HEX HEX
+
+HEX = [0-9A-Fa-f]
+
+
+/* Type */
+
+example Type String
+example Type Dict[Int]
+example Type () -> int
+example Type int -> int -> int
+example Type int * int
+example Type {name, age}
+
+Type =
+	PrimaryType (
+	    base:^ { "[" Type ("," Type)* "]" #ParamType }
+	    / base:^ { '*' _ Type ('*' _ Type)* #TupleType }
+	    / base:^ { '->' _ type: Type #FuncType }
+	)*
+
+PrimaryType =
+	{ 'typeof' "(" expr: @ref(Expression) ")" #ExprType }
+	/ FuncType
+	/ "(" Type ")"
+	/ DataType
+	/ BaseType
+
+BaseType = !TKEYWORD TypeName
+
+TKEYWORD
+	= 'public' !W
+	/ 'let' !W
+
+TypeName = {
+	[A-Za-z$\x80-\xF7]	[A-Za-z0-9/.\x80-\xF7]* [']*
+	#BaseType
+} _
+
+FuncType = {
+	"(" ( Type ("," Type)* )? ")"
+	'->' _ Type
+	#FuncType
+}
+
+DataType =  {
+    "{"
+	(Identifier ("," Identifier)*)?
+	"}"
+	#DataType
+}
+
+Types = {
+    Type ("," Type)*
+	#UnionType
+}
+
+/* Identifier (dummy) */
+
+Expression = Identifier
+Identifier = { NAME [']* #NameExpr } _
+
+NAME       = [a-zA-Z_\x80-\xF7] W*
+W          = [a-zA-Z0-9\x80-\xF7]
