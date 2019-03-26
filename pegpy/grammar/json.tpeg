@@ -110,20 +110,20 @@ Array
 
 
 String
-	= '"' { ('\\"' / '\\\\' / !'"' .)* #String } '"' S*
+	= '"' { str: (('\\"' / '\\\\' / !'"' .)*) #String } '"' S*
 
 True
-        = { 'true'  #True } S*
+        = { val: 'true'  #True } S*
 
 False
-        = { 'false' #False } S*
+        = { val: 'false' #False } S*
 
 Null
-        = { 'null'  #Null } S*
+        = { val: 'null'  #Null } S*
 
 Number
-        = { '-'? INT FRAC EXP? #Float } S*
-        / { '-'? INT #Int } S*
+        = { val:('-'? INT FRAC EXP?) #Float } S*
+        / { val:('-'? INT) #Int } S*
 
 INT
 	= [0-9]+

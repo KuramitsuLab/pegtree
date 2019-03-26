@@ -57,7 +57,7 @@ def emit_python_record(tab):
   def python_record(b):
     args = ', '.join(map(lambda item: f'{item[0]}: {item[1]}', b.items()))
     inits = '\n'.join(map(lambda key: f'{tab}{tab}self.{key} = {key}', b.keys()))
-    return f'def __init__(self, {args}):\n{inits}'
+    return f'def __init__(self, {args}):\n{inits}\n'
   return python_record
 
 
@@ -76,9 +76,12 @@ def python():
   )
 
 
-def provider(env, f='typeprovider', form=fsharp()):
+def provider(env, f='typeprovider', form=python(), start=None):
+    if start:
+      env.start = start
     setting(form, env.start, f)
     env.variable2source(env.start, generate(env, f)(env), form)
+    setattr(Formater, 'first', True)
     return env.get_source()
 
 
@@ -86,14 +89,14 @@ def generate(env, f='typeprovider'):
     return getattr(env.start_shape(), f)()
 
 
-def ADTarray(s, form):
+def ADTarray(sf, form):
   def curry(env):
-    return form.array(s)
+    return form.array(sf(env))
   return curry
 
 
 def emit_ADTarray(s, emit, form):
-  return ADTarray(s.s.emit(), form)
+  return ADTarray(emit(s.s), form)
 
 
 def ADTnull(form):
@@ -102,14 +105,14 @@ def ADTnull(form):
   return curry
 
 
-def ADTnullable(s, form):
+def ADTnullable(sf, form):
   def curry(env):
-    return form.nullable(s)
+    return form.nullable(sf(env))
   return curry
 
 
 def emit_ADTnullable(s, emit, form):
-  return ADTnullable(s.s.emit(), form)
+  return ADTnullable(emit(s.s), form)
 
 
 def ADTrecord(b, form):
@@ -119,18 +122,15 @@ def ADTrecord(b, form):
 
 
 def emit_ADTrecord(s, emit, form):
-  print(s)
-  s.map(emit)
-  return ADTrecord(s.b, form)
+  return ADTrecord(s.map(emit), form)
 
 
 def emit_ADTcommon(s, emit, form, memo):
   key = s.get_name()
-  s.map(emit)
   def curry(env):
     if not(key in memo):
       memo[key] = key
-      env.common2source(key, form.common(key, list(map(lambda f: f(env), s.b))), form)
+      env.common2source(key, form.common(key, list(map(lambda f: f(env), s.map(emit)))), form)
     return memo[key]
   return curry
 
