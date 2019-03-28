@@ -2,6 +2,23 @@ from pegpy.ttp.tree_types import String, KeyValue, Tuple, List, Union, Option, V
 from pegpy.expression import ParsingExpression, Empty, Any, Char, Range, Seq, Ore, Alt, Not, And, Many, Many1, TreeAs, LinkAs, Detree, State, Ref
 from pegpy.ttp.ttpexpr import Fold, exp_transer
 
+
+def inference(p, f='typeinference'):
+    setting(f)
+    env= Env()
+    generate(p, f)(env)
+    return env
+
+
+def generate(p, f='typeinference'):
+    if not isinstance(p, ParsingExpression):  # Grammar
+      p.forEachRule(exp_transer)
+      p = Ref(p.start().name, p)
+    elif isinstance(p, Ref):
+      p.peg.forEachRule(exp_transer)
+    return getattr(p, f)()
+
+
 class Env(object):
 
   __slots__ = ['E', 'Gamma']
@@ -9,6 +26,12 @@ class Env(object):
   def __init__(self):
     self.E = {}
     self.Gamma = {}
+  
+  def __str__(self):
+    s = 'Env = {\n'
+    for l, r in self.E.items():
+      s += f' {l} = {str(r)}\n'
+    return s + '}'
 
 
 def TEmpty():
@@ -33,7 +56,7 @@ def TNtFunc(nonterm, tf):
 
 
 def TNt(pe, emit):
-  return TNtFunc(pe.uname(), emit(pe.deref()))
+  return TNtFunc(pe.name, emit(pe.deref()))
 
 
 def TSeqFunc(tf1, tf2):
@@ -71,14 +94,14 @@ def TOreFunc(tf1, tf2):
     if isinstance(tau1, Variable) and isinstance(tau2, Variable):
       return Union([tau1, tau2])
     if isinstance(tau1, KeyValue) and isinstance(tau2, KeyValue):
-      tau = dict([(key, Option(val)) for key, val in tau1.items()])
-      for key, val in tau2:
-        if key in tau:
+      tau_inner = dict([(key, Option(val)) for key, val in tau1.inner])
+      for key, val in tau2.inner:
+        if key in tau_inner:
           # TODO: SubType
-          tau[key] = tau[key].inner
+          tau_inner[key] = tau_inner[key].inner
         else:
-          tau[key] = val
-      return tau
+          tau_inner[key] = val
+      return KeyValue(list(tau_inner.items()))
     return Error(f'Inference Error ocurred in TOre({tau1}, {tau2})')
   return curry
 
@@ -94,7 +117,7 @@ def TAndFunc(tf):
 
 
 def TAnd(pe, emit):
-  return TAndFunc(emit(pe))
+  return TAndFunc(emit(pe.inner))
 
 
 def TNot():
@@ -111,30 +134,29 @@ def TRepFunc(tf):
 
 
 def TRep(pe, emit):
-  return TRepFunc(emit(pe))
+  return TRepFunc(emit(pe.inner))
 
 
-def TNodeFunc(nlabel, tf):
+def TNode(pe, emit):
+  nlabel = pe.name
   def curry(env):
+    if nlabel == '':
+      return emit(pe.inner)(env)
     if not (nlabel in env.Gamma):
       env.Gamma[nlabel] = Variable(nlabel)
-      env.E[nlabel] = Variable(tf(env))
+      env.E[nlabel] = emit(pe.inner)(env)
     return env.Gamma[nlabel]
   return curry
 
 
-def TNode(pe, emit):
-  return TNodeFunc(pe.name, emit(pe))
-
-
 def TEdgeFunc(elabel, tf):
   def curry(env):
-    return KeyValue({elabel: tf(env)})
+    return KeyValue([(elabel, tf(env))])
   return curry
 
 
 def TEdge(pe, emit):
-  return TEdgeFunc(pe.name, emit(pe))
+  return TEdgeFunc(pe.name, emit(pe.inner))
 
 
 def TFoldFunc(tf1, elabel, tf2, nlabel):
@@ -144,7 +166,7 @@ def TFoldFunc(tf1, elabel, tf2, nlabel):
       env.E[nlabel] = Union([tau1, Tuple([Variable(nlabel), tau2])])
       return Variable(nlabel)
     elif elabel != '' and isinstance(tau2, KeyValue):
-      tau2[elabel] = Variable(nlabel)
+      tau2.inner = [(elabel, Variable(nlabel))] + tau2.inner
       env.E[nlabel] = Union([tau1, tau2])
       return Variable(nlabel)
     return Error(f'Inference Error ocurred in TFord({tau1}, {elabel}, {tau2}, {nlabel})')

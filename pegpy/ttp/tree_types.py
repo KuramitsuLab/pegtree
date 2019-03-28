@@ -17,7 +17,7 @@ class KeyValue(TreeType):
     self.inner = inner
   
   def __str__(self):
-    return f'{{{",".join([f"{key}: {value}" for key, value in self.inner.items()])}}}'
+    return f'{{{",".join([f"{key}: {str(value)}" for key, value in self.inner])}}}'
 
 
 class Tuple(TreeType):
@@ -28,7 +28,7 @@ class Tuple(TreeType):
     self.inner = inner
   
   def __str__(self):
-    return f'{"x".join(self.inner)}'
+    return f'{"x".join(map(lambda e: str(e), self.inner))}'
 
 
 class List(TreeType):
@@ -50,7 +50,7 @@ class Union(TreeType):
     self.inner = inner
   
   def __str__(self):
-    return f'{" | ".join(self.inner)}'
+    return f'{" | ".join(map(lambda e: str(e), self.inner))}'
 
 
 class Option(TreeType):
@@ -61,7 +61,7 @@ class Option(TreeType):
     self.inner = inner
   
   def __str__(self):
-    return f'Option[{self.inner}]'
+    return f'Option[{str(self.inner)}]'
 
 
 class Variable(TreeType):
