@@ -1,5 +1,6 @@
 from pegpy.ttp.tree_types import String, KeyValue, Tuple, List, Union, Option, Variable, Error
-
+from pegpy.expression import ParsingExpression, Empty, Any, Char, Range, Seq, Ore, Alt, Not, And, Many, Many1, TreeAs, LinkAs, Detree, State, Ref
+from pegpy.ttp.ttpexpr import Fold, exp_transer
 
 class Env(object):
 
@@ -58,8 +59,8 @@ def TSeqFunc(tf1, tf2):
   return curry
 
 
-def TSeq(pe1, pe2, emit):
-  return TSeqFunc(emit(pe1), emit(pe2))
+def TSeq(pe, emit):
+  return TSeqFunc(emit(pe.left), emit(pe.right))
 
 
 def TOreFunc(tf1, tf2):
@@ -70,15 +71,20 @@ def TOreFunc(tf1, tf2):
     if isinstance(tau1, Variable) and isinstance(tau2, Variable):
       return Union([tau1, tau2])
     if isinstance(tau1, KeyValue) and isinstance(tau2, KeyValue):
-      # TODO: Option
-      tau1.inner.update(tau2.inner)
-      return tau1
+      tau = dict([(key, Option(val)) for key, val in tau1.items()])
+      for key, val in tau2:
+        if key in tau:
+          # TODO: SubType
+          tau[key] = tau[key].inner
+        else:
+          tau[key] = val
+      return tau
     return Error(f'Inference Error ocurred in TOre({tau1}, {tau2})')
   return curry
 
 
-def TOre(pe1, pe2, emit):
-  return TOreFunc(emit(pe1), emit(pe2))
+def TOre(pe, emit):
+  return TOreFunc(emit(pe.left), emit(pe.right))
 
 
 def TAndFunc(tf):
@@ -118,7 +124,7 @@ def TNodeFunc(nlabel, tf):
 
 
 def TNode(pe, emit):
-  return TNodeFunc(pe.label, emit(pe))
+  return TNodeFunc(pe.name, emit(pe))
 
 
 def TEdgeFunc(elabel, tf):
@@ -128,8 +134,52 @@ def TEdgeFunc(elabel, tf):
 
 
 def TEdge(pe, emit):
-  return TEdgeFunc(pe.label, emit(pe))
+  return TEdgeFunc(pe.name, emit(pe))
+
+
+def TFoldFunc(tf1, elabel, tf2, nlabel):
+  def curry(env):
+    tau1, tau2 = tf1(env), tf2(env)
+    if elabel == '' and isinstance(tau2, Variable):
+      env.E[nlabel] = Union([tau1, Tuple([Variable(nlabel), tau2])])
+      return Variable(nlabel)
+    elif elabel != '' and isinstance(tau2, KeyValue):
+      tau2[elabel] = Variable(nlabel)
+      env.E[nlabel] = Union([tau1, tau2])
+      return Variable(nlabel)
+    return Error(f'Inference Error ocurred in TFord({tau1}, {elabel}, {tau2}, {nlabel})')
+  return curry
+
+
+def TFold(pe, emit):
+  return TFoldFunc(emit(pe.e1), pe.left, emit(pe.e2), pe.name)
 
 
 def TAbs():
   return lambda _: String()
+
+
+def setting(f='typeinference'):
+
+  def emit(pe): return getattr(pe, f)()
+  
+  setattr(Empty, f, lambda self: TEmpty())
+  setattr(Any, f, lambda self: TChar())
+  setattr(Char, f, lambda self: TChar())
+  setattr(Range, f, lambda self: TChar())
+
+  setattr(Seq, f, lambda pe: TSeq(pe, emit))
+  setattr(Ore, f, lambda pe: TOre(pe, emit))
+  setattr(Alt, f, lambda pe: TOre(pe, emit))
+  setattr(Not, f, lambda self: TNot())
+  setattr(And, f, lambda pe: TAnd(pe, emit))
+  setattr(Many, f, lambda pe: TRep(pe, emit))
+  setattr(Many1, f, lambda pe: TRep(pe, emit))
+
+  setattr(TreeAs, f, lambda pe: TNode(pe, emit))
+  setattr(LinkAs, f, lambda pe: TEdge(pe, emit))
+  setattr(Fold, f, lambda pe: TFold(pe, emit))
+  setattr(Detree, f, lambda self: TAbs())
+
+  # Ref
+  setattr(Ref, f, lambda pe: TNt(pe, emit))
