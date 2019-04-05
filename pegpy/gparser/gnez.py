@@ -46,7 +46,8 @@ class GParserContext:
 
   def __init__(self, inputs, urn, pos, slen):
     s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-    self.inputs, self.pos, self.length = u.encsrc(s, urn, pos,slen)
+    # self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
+    self.inputs, self.pos, self.length = s, 0, len(s)
     self.headpos = self.pos
     self.ast = None
     self.result = {}
