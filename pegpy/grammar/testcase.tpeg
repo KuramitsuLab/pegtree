@@ -1,0 +1,24 @@
+/* testcase */
+A1 = a
+A2 = "a"
+A3 = ほげ
+A4 = O_NAME
+B1 = !a
+B2 = &a
+B3 = a+
+B4 = a*
+B5 = $a
+C1 = ''
+C2 = 'a'
+C3 = [ab]
+C4 = 'a' / 'b'
+C5 = 'ab'
+F1 = @ref(A)
+G1 = a b / c
+G2 = a (b / c)
+T1 = { #T } a
+T2 = a ^ { a #T}
+T3 = key:A
+T4 = :A
+
+from math.tpeg import Expression
