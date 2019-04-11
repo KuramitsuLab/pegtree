@@ -73,15 +73,29 @@ def exisinstance(lobj, robj, lclass, rclass):
 
 
 def concat(l, r):
-  if exisinstance(l, r, Null, NonNullableShape):
-    return Null()
-  if isinstance(l, Null) and isinstance(r, NonNullableShape):
-    return r
-  if isinstance(l, NonNullableShape) and isinstance(r, Null):
+  if l == r:
     return l
-  if exisinstance(l, r, Value, Value):
-    return Value()
-  return Error()
+  if isinstance(l, Nullable) and isinstance(r, Nullable):
+    return Nullable(concat(l.s, r.s))
+  if isinstance(l, Nullable):
+    return concat(l.s, r)
+  if isinstance(r, Nullable):
+    return concat(l, r.s)
+  if isinstance(l, Array):
+    return Array(concat(l.s, r))
+  if isinstance(r, Array):
+    return Array(concat(l, r.s))
+  if isinstance(l, Null):
+    return r
+  if isinstance(r, Null):
+    return l
+  if exisinstance(l, r, Variable, Variable):
+    return Error(message=f'cannot concatinate l:{l}, r:{r}')
+  if isinstance(l, Variable):
+    return l
+  if isinstance(r, Variable):
+    return r
+  return Error(message=f'cannot concatinate l:{l}, r:{r}')
 
 
 
@@ -96,14 +110,30 @@ def emit_SSeq(pe, emit):
 
 
 def union(l, r):
-  if exisinstance(l, r, Null, NonNullableShape):
-    return Null()
+  if isinstance(l, Common) and isinstance(r, Common):
+    for relem in r.b:
+      l.push(relem)
+    return l
+  if isinstance(l, Common):
+    l.push(r)
+    return l
+  if isinstance(r, Common):
+    r.push(l)
+    return r
+  if l == r:
+    return l
+  if isinstance(l, Nullable) and l.s == r:
+    return l
+  if isinstance(r, Nullable) and l == r.s:
+    return r
   if isinstance(l, Null) and isinstance(r, NonNullableShape):
     return Nullable(r)
   if isinstance(l, NonNullableShape) and isinstance(r, Null):
     return Nullable(l)
-  if isinstance(l, Error) or isinstance(r, Error):
-    return Error()
+  if isinstance(l, Null) and isinstance(r, NullableShape):
+    return r
+  if isinstance(l, NullableShape) and isinstance(r, Null):
+    return l
   return Common(l, r)
 
 
@@ -119,7 +149,7 @@ def emit_SOre(pe, emit):
 
 def Smany(pf):
   def curry(env):
-    return Array(pf(env))
+    return pf(env)
   return curry
 
 
@@ -187,7 +217,23 @@ def emit_SRef(pe, memo, emit):
 def Lseq(left, right):
   def curry(env):
     l = left(env)
-    l.update(right(env))
+    r = right(env)
+    if isinstance(r, Error):
+      return r
+    for key, val in r.items():
+      if key in l:
+        if exisinstance(l[key], val, Array, Array) and l[key].s == val.s:
+          continue
+        if isinstance(l[key], Array) and l[key].s == val:
+          continue
+        if isinstance(val, Array) and l[key] == val.s:
+          l[key] = val
+          continue
+        if l[key] == val:
+          continue
+        return Error(message=f"don't match shape val:{val}, l[key]:{l[key]}")
+      else:
+        l[key] = val
     return l
   return curry
 
@@ -205,6 +251,40 @@ def Llink(tag, pf):
 def xiemit_LLinkAs(pe, emit):
   return Llink(pe.name, emit(pe.inner))
 
+
+def value_map(f, d):
+  return dict([(k, f(v)) for k, v in d.items()])
+
+
+def Lsubrep(xi):
+  def curry(env):
+    return value_map(Array, xi(env))
+  return curry
+
+
+def xiemit_LSubRep(pe, xiemit):
+  return Lsubrep(xiemit(pe.inner))
+
+
+def Lsubore(lf, rf):
+  def curry(env):
+    left = lf(env)
+    right = rf(env)
+    for key, val in left.items():
+      if not(key in right) and not(isinstance(val, Nullable) or isinstance(val, Array)):
+          left[key] = Nullable(val)
+    for key, val in right.items():
+      if not( key in left):
+        if isinstance(val, Nullable) or isinstance(val, Array):
+          left[key] = val
+        else:
+          left[key] = Nullable(val)
+    return left
+  return curry
+
+
+def xiemit_LSubOre(pe, xiemit):
+  return Lsubore(xiemit(pe.left), xiemit(pe.right))
 
 def Labsorb():
   def curry(env):
@@ -245,12 +325,12 @@ def setting(f = 'shapeinference', l = 'link'):
   setattr(Range, l, lambda self: Labsorb())
 
   setattr(Seq, l, lambda pe: xiemit_LSeq(pe, xiemit))
-  setattr(Ore, l, lambda self: Labsorb())
+  setattr(Ore, l, lambda pe: xiemit_LSubOre(pe, xiemit))
   setattr(Alt, l, lambda self: Labsorb())
   setattr(Not, l, lambda self: Labsorb())
   setattr(And, l, lambda self: Labsorb())
-  setattr(Many, l, lambda self: Labsorb())
-  setattr(Many1, l, lambda self: Labsorb())
+  setattr(Many, l, lambda pe: xiemit_LSubRep(pe, xiemit))
+  setattr(Many1, l, lambda pe: xiemit_LSubRep(pe, xiemit))
 
   setattr(TreeAs, l, lambda self: Labsorb())
   setattr(LinkAs, l, lambda pe: xiemit_LLinkAs(pe, emit))
