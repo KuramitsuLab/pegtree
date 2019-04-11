@@ -11,13 +11,14 @@ Source = EOL? {
 } EOF
 
 example Source '''
+世界は箱庭である
+    名前はまだない
+    位置は(1,2)
+
 ボールは円である
     色は青色
     位置は(1,2)
 
-世界は箱庭である
-    名前はまだない
-    位置は(1,2)
 '''
 
 //import 'konoha6.tpeg' as konoha
@@ -37,7 +38,7 @@ BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
 LINECOMMENT  = '//' ( !NL . )*
 
 EOL          = _ NL (_ NL)*
-INDENT       = '\n' S*
+INDENT       = '\n' [ \t]+
 
 /* Character */
 
@@ -103,7 +104,7 @@ Param    = {
 
 Name     = Var / Noun
 
-SUBJECT = (![はがを =\n] .)+
+SUBJECT = (![はがをと =\n] .)+
 DEFINE = @defdict(SUBJECT)
 NewName = { DEFINE #Name }
 
@@ -143,9 +144,17 @@ ConceptDecl = {
 }
 
 AssumeDecl = {
-    left: (Name / NewName) 'は' _ right: Verb _
+    left: (AssignRef / NewName)
+    'は' _
+    right: (ExpressionList "."? _ &EOL / Adj "."? _ &EOL)
     (body: Block)?
     #AssumeDecl
+}
+
+VarDecl = {
+    left: (AssignRef / NewName)
+    [=＝] _ right: Expression
+    #VarDecl
 }
 
 /* ThereDecl */
@@ -167,12 +176,6 @@ ThereDecl = {
 }
 
 /* VarDecl */
-
-VarDecl = {
-    left: AssignRef
-    "=" right: Expression
-    #VarDecl
-}
 
 /* RuleDecl */
 
@@ -264,6 +267,11 @@ Action = {
     #Action
 }
 
+Adj = {
+    (!"." !'\n' .)+
+    #Adj
+}
+
 Verb = {
     (!"." !'\n' .)+
     #Verb
@@ -271,17 +279,22 @@ Verb = {
 
 /* Expression */
 
+example Expression 1,2
+
+ExpressionList =
+    Expression (^ { ([,、，と] _ Expression)+ #List })?
+
 Expression = Operator
 
 Operator =
 	AndExpr (left:^ { OR _ right: AndExpr #Or })*
 
-OR = '||' / 'または'
+OR = '||' / 'or' / 'または'
 
 AndExpr =
 	EqExpr (left:^ { AND _ right: EqExpr #And })*
 
-AND = '&&' / 'かつ' / 'で'
+AND = '&&' / 'and' / 'かつ' / 'で'
 
 EqExpr =
 	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
@@ -327,7 +340,7 @@ SuffixExpr =
 	    / recv:^ { [の.．] _ name: Name #GetExpr }
 	    / recv:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
 	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
-	    / recv:^ { "<" type: Name ">" #CastExpr }
+//	    / recv:^ { "<" type: Name ">" #CastExpr }
 	)*
 
 SUFFIX = 'のいずれか' / 'のいづれか' / 'のどれか'
@@ -348,6 +361,7 @@ Expressions = {
 //example Primary, Expression (1)
 //example Primary, Expression () //
 //example Primary, Expression [1,2,3]
+
 example Primary, Expression { name: 'naruto', age: 17 }
 
 Primary =

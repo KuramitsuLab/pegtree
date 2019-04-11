@@ -108,14 +108,11 @@ def lfold(ltag,e):
         return FoldAs(ltag, e.name, ParsingExpression.new(e.inner))
     return e
 
-
 def grouping(e, f):
     return '(' + str(e) + ')' if f(e) else str(e)
 
-
 def inSeq(e):
     return isinstance(e, Ore) or isinstance(e, Alt)
-
 
 def inUnary(e):
     return (isinstance(e, Ore) and e.right != EMPTY) \
@@ -194,7 +191,6 @@ class Any(ParsingExpression):
         return '.'
 
 ANY = Any()
-
 
 class Seq(ParsingExpression):
     __slots__ = ['left', 'right']
