@@ -16,9 +16,21 @@ C5 = 'ab'
 F1 = @ref(A)
 G1 = a b / c
 G2 = a (b / c)
-T1 = { #T } a
-T2 = a ^ { a #T}
-T3 = key:A
-T4 = :A
 
-from math.tpeg import Expression
+Ta = '(' {} ')'
+TA = '(' {} ')'
+ta = '(' {} ')'
+Tb = {Ta}
+TB = {Ta}
+tb = {Ta}
+
+Tc = { x: 'a' }
+TC = { x: 'a' }
+
+Td = 'x' / { x: 'a' } / 'b'
+td = 'a' / { x: 'a' } / 'b'
+
+Te = {'a'} {'b'} Ta
+te = {'a'} {'b'} Ta
+
+//from math.tpeg import Expression
