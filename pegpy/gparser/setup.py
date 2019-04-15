@@ -1,7 +1,11 @@
 from distutils.core import setup
-from Cython.Build import cythonize
+from distutils.extension import Extension
+from Cython.Distutils import build_ext
+
+ext_modules = [Extension("cgpeg", ["cython_gpeg.py"],  libraries=["m"])]
 
 setup(
-    name = "Cython Parser",
-    ext_modules = cythonize('cbase.py'), # accepts a glob pattern
+    name='Cython GPEG Parser',
+    cmdclass={'build_ext': build_ext},
+    ext_modules=ext_modules
 )

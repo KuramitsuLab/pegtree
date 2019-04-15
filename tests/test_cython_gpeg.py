@@ -1,6 +1,6 @@
 import unittest
 import tests
-from pegpy.gparser.cython_gpeg import Grammar, cgpeg
+from pegpy.gparser.cgpeg import Grammar, cgpeg
 from pegpy.expression import ParsingExpression
 from pathlib import Path
 
