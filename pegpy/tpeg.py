@@ -29,39 +29,7 @@ EMPTY = Empty()
 ANY = Any()
 FAIL = Not(EMPTY)
 
-def char1(x):
-    return Char(x) if x != '' else EMPTY
-
-def seq2(x, y):
-    if x is None or y is None:
-        return None
-    if isinstance(y, Empty):
-        return x
-    if isinstance(x, Empty):
-        return y
-    if isinstance(x, Char) and isinstance(y, Char):
-        return Char(x.text + y.text)
-    return Seq(x, y)
-
-def alt2(x, y, c=Alt):
-    if isinstance(x, Char) and len(x.text) == 1:
-        if isinstance(y, Char) and len(y.text) == 1:
-            return Range(x.text + y.text, ())
-        if isinstance(y, Range):
-            return Range(x.text + y.chars, y.ranges)
-    if isinstance(x, Range):
-        if isinstance(y, Char) and len(y.text) == 1:
-            return Range(x.chars + y.text, y.ranges)
-        if isinstance(y, Range):
-            return Range(x.chars + y.chars, x.ranges, y.ranges)
-    return c(x, y)
-
-def ore2(x, y):
-    if x is None or y is None:
-        return None
-    if x == EMPTY:
-        return EMPTY
-    return alt2(x, y, Ore)
+# define methods
 
 PEs = [
     Empty, Char, Range, Any, Seq, Ore, Alt, And, Not, Many, Many1, Ref,
@@ -72,28 +40,7 @@ def defmethod(name, f, cs=PEs):
     for c in cs:
         setattr(c, name, f)
 
-defmethod('__and__', lambda x, y: seq2(x, Xe(y)))  # x & y
-defmethod('__rand__', lambda x, y: seq2(Xe(x), Xe(y)))  # x & y
-defmethod('__or__', lambda x, y: ore2(x, Xe(y)))  # x | y
-defmethod('__truediv__', lambda x, y: ore2(x, Xe(y)))  # x / y
-defmethod('__invert__', lambda x: Not(x))  # ~x
-
-def piter(p):
-    if hasattr(p, 'inner'):
-        yield p.inner
-    if hasattr(p, 'right'):
-        yield p.left
-        yield p.right
-
-defmethod('__iter__', lambda p: piter(p))  #
-
-def flaten(p, ps, c=Seq):
-    if isinstance(p, c):
-        flaten(p.left, ps, c)
-        flaten(p.right, ps, c)
-    else:
-        ps.append(p)
-
+'''
 def setmethod(*ctags):
     def _match(func):
         methodname = ctags[0]
@@ -113,6 +60,79 @@ def addmethod(*ctags):
                 setattr(c, methodname, func)
         return func
     return _match
+'''
+
+def setop():
+    def char1(x):
+        return Char(x) if x != '' else EMPTY
+
+    def seq2(x, y):
+        if isinstance(x, Empty):
+            return y
+        if isinstance(y, Empty):
+            return x
+        if isinstance(x, Char) and isinstance(y, Char):
+            return Char(x.text + y.text)
+        return Seq(x, y)
+
+    def alt2(x, y, c=Alt):
+        if isinstance(x, Char) and len(x.text) == 1:
+            if isinstance(y, Char) and len(y.text) == 1:
+                return Range(x.text + y.text, ())
+            if isinstance(y, Range):
+                return Range(x.text + y.chars, y.ranges)
+        if isinstance(x, Range):
+            if isinstance(y, Char) and len(y.text) == 1:
+                return Range(x.chars + y.text, y.ranges)
+            if isinstance(y, Range):
+                return Range(x.chars + y.chars, x.ranges + y.ranges)
+        return c(x, y)
+
+
+    def ore2(x, y):
+        if x is None or y is None:
+            return None
+        if x == EMPTY:
+            return EMPTY
+        return alt2(x, y, Ore)
+
+    def Xe(p):
+        if isinstance(p, str):
+            return char1(p)
+        if isinstance(p, dict):
+            for key in p:
+                return Edge(key, Xe(p[key]))
+            return EMPTY
+        return p
+
+    defmethod('__and__', lambda x, y: seq2(x, Xe(y)))  # x & y
+    defmethod('__rand__', lambda x, y: seq2(Xe(x), Xe(y)))  # x & y
+    defmethod('__or__', lambda x, y: ore2(x, Xe(y)))  # x | y
+    defmethod('__truediv__', lambda x, y: ore2(x, Xe(y)))  # x / y
+    defmethod('__invert__', lambda x: Not(x))  # ~x
+
+
+    def piter(p):
+        if hasattr(p, 'inner'):
+            yield p.inner
+        if hasattr(p, 'right'):
+            yield p.left
+            yield p.right
+
+
+    defmethod('__iter__', lambda p: piter(p))  #
+
+
+setop()
+
+
+def flaten(p, ps, c=Seq):
+    if isinstance(p, c):
+        flaten(p.left, ps, c)
+        flaten(p.right, ps, c)
+    else:
+        ps.append(p)
+
 
 def setdup(method, f):
     setattr(Empty, method, lambda p, a : p)
@@ -216,49 +236,45 @@ class Grammar(dict):
 
 # TPEG Setting
 
-def Xe(p):
-    if isinstance(p, str):
-        return char1(p)
-    if isinstance(p, dict):
-        for key in p:
-            return Edge(key, Xe(p[key]))
-        return EMPTY
-    return p
-
-
-def crange(*ps):
-    chars = []
-    ranges = []
-    for x in ps:
-        if isinstance(x, str):
-            chars.append(x)
-        else:
-            ranges.append(tuple(x))
-    return Range(''.join(chars), ranges)
-
-
-def seq(*ps):
-    if len(ps) == 0:
-        return EMPTY
-    if len(ps) == 1:
-        return Xe(ps[0])
-    return Seq(Xe(ps[0]), seq(*ps[1:]))
-
-
-def many(*ps): return Many(seq(*ps))
-def many1(*ps): return Many1(seq(*ps))
-def option(*ps): return Ore(seq(*ps), EMPTY)
-def TreeAs(node, *ps): return Node(seq(*ps), node)
-def ListAs(*ps): return Node(seq(*ps), '')
-def FoldAs(edge, node, *ps): return Fold(edge, seq(*ps), node)
 
 def TPEG(g):
+    def Xe(p):
+        if isinstance(p, str):
+            return Char(p)
+        if isinstance(p, dict):
+            for key in p:
+                return Edge(key, Xe(p[key]))
+            return EMPTY
+        return p
+
+    def seq(*ps):
+        if len(ps) == 0:
+            return EMPTY
+        if len(ps) == 1:
+            return Xe(ps[0])
+        return Seq(Xe(ps[0]), seq(*ps[1:]))
+    def many(*ps): return Many(seq(*ps))
+    def many1(*ps): return Many1(seq(*ps))
+    def option(*ps): return Ore(seq(*ps), EMPTY)
+    def TreeAs(node, *ps): return Node(seq(*ps), node)
+    def ListAs(*ps): return Node(seq(*ps), '')
+    def FoldAs(edge, node, *ps): return Fold(edge, seq(*ps), node)
+    def crange(*ps):
+        chars = []
+        ranges = []
+        for x in ps:
+            if isinstance(x, str):
+                chars.append(x)
+            else:
+                ranges.append(tuple(x))
+        return Range(''.join(chars), ranges)
+    #
     c = crange
     e = seq
     def ref(p): return g.newRef(p)
 
     __ = ref('__')
-    _ = ref('__')
+    _ = ref('_')
     EOS = ref('EOS')
     EOL = ref('EOL')
     S = ref('S')
@@ -296,8 +312,7 @@ def TPEG(g):
 
     g['Example'] = TreeAs('Example', 'example', S, _, {
                           'names': ref('Names')}, {'doc': ref('Doc')}) & EOS
-    g['Names'] = ListAs({'': Identifier}, _, many(
-        c(',&'), _, {'': Identifier}, _))
+    g['Names'] = ListAs({'': Identifier}, _, many(c(',&'), _, {'': Identifier}, _))
     DELIM = Xe("'''")
     DOC1 = TreeAs("Doc", many(~e(DELIM, EOL), ANY))
     DOC2 = TreeAs("Doc", many(~c('\r\n'), ANY))
@@ -307,7 +322,7 @@ def TPEG(g):
         FoldAs('left', 'Alt', __, '|', _, {'right': Expression}))
     g['Choice'] = ref('Sequence') & option(
         FoldAs('left', 'Ore', __, '/', _, {'right': ref('Choice')}))
-    SS = e(S, _, ~EOL) | many1(_, EOL) & S & _
+    SS =  e(S, _, ~EOL) | e(many1(_, EOL), S, _)
     g['Sequence'] = ref('Predicate') & option(
         FoldAs('left', 'Seq', SS, {'right': ref('Sequence')}))
 
@@ -344,7 +359,7 @@ def TPEG(g):
     g['Params'] = ListAs({'': Expression}, many(_, ',', __, {'': Expression}), __)
     g['Ref'] = TreeAs('Ref', ref('REF'))
     g['REF'] = e('"', many(Xe('\\"') | e(~c('\\"\n'), ANY)), '"') | many1(~c(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)
-    g.N = ['Start']
+    g.N = ['Start', 'Sequence']
     return g
 
 TPEGGrammar = TPEG(Grammar())
@@ -367,13 +382,19 @@ def decpos4(pos4):
         len0 = len(line) + 1
         linenum += 1
         if cols < len0:
+            cols -= 1
             break
         cols -= len0
     epos = cols + (epos - spos)
     length = len(line) - cols if len(line) < epos else epos - cols
     if length <= 0:
         length = 1
-    mark = (' ' * cols) + ('^' * length)
+    mark = []
+    for i in range(cols):
+        c =line[i]
+        if c != '\t' and c != '　' : c = ' '
+        mark.append(c)
+    mark = ''.join(mark) + ('^' * length)
     return (urn, spos, linenum, cols, bytestr(line), mark)
 
 def serror4(pos4, msg='SyntaxError'):
@@ -538,7 +559,6 @@ class ParseTree(object):
         s = self.inputs[self.spos:self.epos]
         return s.decode('utf-8') if isinstance(s, bytes) else s
 
-    '''
     def dump(self, w, indent=''):
         if self.child is None:
             s = self.inputs[self.spos:self.epos]
@@ -551,6 +571,7 @@ class ParseTree(object):
             child.dump(w, indent2)
         w.println(indent + w.bold("]"))
 
+    '''
     def asJSON(self, tag='__class__', hook=None):
         listCount = 0
         cur = self.child
@@ -677,7 +698,6 @@ def gen_Range(pe, **option):
     return bitmatch
 
 # Any
-
 
 def gen_Any(pe, **option):
     def match_any(px):
@@ -1091,6 +1111,9 @@ def formTree(pe, a):
     return pe.formTree(a)
 
 def grammar_factory():
+    def char1(x):
+        return Char(x) if x != '' else EMPTY
+
     def unquote(s):
         if s.startswith('\\'):
             if s.startswith('\\n'): return '\n', s[2:]
@@ -1167,10 +1190,10 @@ def grammar_factory():
             return Not(self.conv(t['inner'], logger))
 
         def Seq(self, t, logger):
-            return seq2(self.conv(t['left'], logger), self.conv(t['right'], logger))
+            return self.conv(t['left'], logger) & self.conv(t['right'], logger)
 
         def Ore(self, t, logger):
-            return ore2(self.conv(t['left'], logger), self.conv(t['right'], logger))
+            return self.conv(t['left'], logger) / self.conv(t['right'], logger)
 
         def Alt(self, t, logger):
             return Alt(self.conv(t['left'], logger), self.conv(t['right'], logger))
@@ -1258,7 +1281,7 @@ def grammar_factory():
 
     pegparser = generate(TPEGGrammar)
 
-    def load_grammar(g, file, logger=STDLOG):
+    def load_grammar(g, file, logger):
         if isinstance(file, Path):
             f = file.open()
             data = f.read()
@@ -1289,7 +1312,7 @@ def grammar_factory():
                     example(g, n.asString(), doc.getpos4())
             elif stmt == 'Import':
                 urn = stmt['name'].asString()
-                lg = grammar(urn, basepath)
+                lg = grammar(urn, basepath, logger)
                 for _, n in stmt['names']:
                     lname = n.asString()  # ns.Expression
                     name = lname
@@ -1326,7 +1349,7 @@ def grammar_factory():
 
     GrammarDB = {}
 
-    def grammar(urn, basepath=''):
+    def grammar(urn, basepath='', logger=STDLOG):
         paths = []
         if basepath == '':
             paths.append('')
@@ -1341,7 +1364,7 @@ def grammar_factory():
         if key in GrammarDB:
             return GrammarDB
         peg = Grammar()
-        load_grammar(peg, path)
+        load_grammar(peg, path, logger)
         GrammarDB[key] = peg
         return peg
     
@@ -1352,6 +1375,6 @@ grammar = grammar_factory()
 ## grammar loader
 
 #peg = grammar('math.tpeg')
-peg = grammar('testcase.tpeg')
+#peg = grammar('testcase.tpeg')
 #print(peg)
 
