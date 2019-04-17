@@ -40,29 +40,28 @@ def defmethod(name, f, cs=PEs):
     for c in cs:
         setattr(c, name, f)
 
-'''
-def setmethod(*ctags):
-    def _match(func):
-        methodname = ctags[0]
-        cs = ctags[1:] if len(ctags) > 1 else PEs
-        for c in cs:
-            setattr(c, methodname, func)
-        return func
-    return _match
+
+def setdup(method, f):
+    setattr(Empty, method, lambda p, a: p)
+    setattr(Char, method, lambda p, a: p)
+    setattr(Range, method, lambda p, a: p)
+    setattr(Any, method, lambda p, a: p)
+    setattr(Ref, method, lambda p, a: p)
+    setattr(And, method, lambda p, a: And(f(p[0], a)))
+    setattr(Not, method, lambda p, a: Not(f(p[0], a)))
+    setattr(Many, method, lambda p, a: Many(f(p[0], a)))
+    setattr(Many1, method, lambda p, a: Many1(f(p[0], a)))
+    setattr(Seq, method, lambda p, a: Seq(f(p[0], a), f(p[1], a)))
+    setattr(Ore, method, lambda p, a: Ore(f(p[0], a), f(p[1], a)))
+    setattr(Alt, method, lambda p, a: Alt(f(p[0], a), f(p[1], a)))
+    setattr(Node, method, lambda p, a: Node(f(p[0], a), p[1]))
+    setattr(Edge, method, lambda p, a: Edge(p[0], f(p[1], a)))
+    setattr(Fold, method, lambda p, a: Fold(p[0], f(p[1], a), p[2]))
+    setattr(Abs, method, lambda p, a:  Abs(f(p[0], a)))
+    setattr(Action, method, lambda p, a: Action(f(p[0], a), p[1], p[2], p[3]))
 
 
-def addmethod(*ctags):
-    def _match(func):
-        methodname = ctags[0]
-        cs = ctags[1:] if len(ctags) > 1 else PEs
-        for c in cs:
-            if not hasattr(c, methodname):
-                setattr(c, methodname, func)
-        return func
-    return _match
-'''
-
-def setop():
+def setmethod():
     def char1(x):
         return Char(x) if x != '' else EMPTY
 
@@ -88,7 +87,6 @@ def setop():
                 return Range(x.chars + y.chars, x.ranges + y.ranges)
         return c(x, y)
 
-
     def ore2(x, y):
         if x is None or y is None:
             return None
@@ -109,6 +107,7 @@ def setop():
     defmethod('__rand__', lambda x, y: seq2(Xe(x), Xe(y)))  # x & y
     defmethod('__or__', lambda x, y: ore2(x, Xe(y)))  # x | y
     defmethod('__truediv__', lambda x, y: ore2(x, Xe(y)))  # x / y
+    defmethod('__div__', lambda x, y: alt2(x, Xe(y)))  # x // y
     defmethod('__invert__', lambda x: Not(x))  # ~x
 
 
@@ -123,39 +122,15 @@ def setop():
     defmethod('__iter__', lambda p: piter(p))  #
 
 
-setop()
+    def flatten(p, ps, c=Seq):
+        if isinstance(p, c):
+            flatten(p.left, ps, c)
+            flatten(p.right, ps, c)
+        else:
+            ps.append(p)
 
+    defmethod('flatten', flatten)  #
 
-def flaten(p, ps, c=Seq):
-    if isinstance(p, c):
-        flaten(p.left, ps, c)
-        flaten(p.right, ps, c)
-    else:
-        ps.append(p)
-
-
-def setdup(method, f):
-    setattr(Empty, method, lambda p, a : p)
-    setattr(Char, method, lambda p, a : p)
-    setattr(Range, method, lambda p, a : p)
-    setattr(Any, method, lambda p, a: p)
-    setattr(Ref, method, lambda p, a: p)
-    setattr(And, method, lambda p, a: And(f(p[0], a)))
-    setattr(Not, method, lambda p, a: Not(f(p[0], a)))
-    setattr(Many, method, lambda p, a: Many(f(p[0], a)))
-    setattr(Many1, method, lambda p, a: Many1(f(p[0], a)))
-    setattr(Seq, method, lambda p, a: Seq(f(p[0], a), f(p[1], a)))
-    setattr(Ore, method, lambda p, a: Ore(f(p[0], a), f(p[1], a)))
-    setattr(Alt, method, lambda p, a: Alt(f(p[0], a), f(p[1], a)))
-    setattr(Node, method, lambda p, a: Node(f(p[0], a), p[1]))
-    setattr(Edge, method, lambda p, a: Edge(p[0], f(p[1], a)))
-    setattr(Fold, method, lambda p, a: Fold(p[0], f(p[1], a), p[2]))
-    setattr(Abs, method, lambda p, a:  Abs(f(p[0], a) ))
-    setattr(Action, method, lambda p, a: Action(f(p[0], a), p[1], p[2], p[3]))
-
-# String
-
-def setup_repr():
     def grouping(e, f):
         return '(' + repr(e) + ')' if f(e) else repr(e)
 
@@ -196,10 +171,14 @@ def setup_repr():
     Abs.__repr__ = lambda p: f'@abs({p.inner})'
     Action.__repr__ = lambda p: f'@{p.func}{p.params}'
 
-setup_repr()
+    # Ref
 
-Ref.uname = lambda p : p.name[0] if p.name[0].isdigit() else (p.peg.gid + p.name)
-Ref.deref = lambda p: p.peg[p.name]
+    Ref.uname = lambda p : p.name[0] if p.name[0].isdigit() else (p.peg.gid + p.name)
+    Ref.deref = lambda p: p.peg[p.name]
+
+setmethod()
+
+# Grammar 
 
 GrammarId = 0
 
@@ -234,8 +213,7 @@ class Grammar(dict):
             self['EMPTY'] = EMPTY
         return self.N[0]
 
-# TPEG Setting
-
+# TPEG Grammar Definition
 
 def TPEG(g):
     def Xe(p):
@@ -571,31 +549,6 @@ class ParseTree(object):
             child.dump(w, indent2)
         w.println(indent + w.bold("]"))
 
-    '''
-    def asJSON(self, tag='__class__', hook=None):
-        listCount = 0
-        cur = self.child
-        while cur is not None:
-            if cur.tag is not None and len(cur.tag) > 0:
-                listCount = -1
-                break
-            listCount += 1
-            cur = cur.prev
-        if listCount == 0:
-            return self.asString() if hook is None else hook(self)
-        if listCount == -1:
-            d = {}
-            if self.tag is not None and len(self.tag) > 0:
-                d[tag] = self.tag
-            cur = self.child
-            while cur is not None:
-                if not cur.tag in d:
-                    d[cur.tag] = cur.child.asJSON(tag, hook)
-                cur = cur.prev
-            return d
-        else:
-            return self.asArray()
-    '''
 
 class TreeLinkIter(object):
     __slots__ = ['stack']
@@ -1196,7 +1149,7 @@ def grammar_factory():
             return self.conv(t['left'], logger) / self.conv(t['right'], logger)
 
         def Alt(self, t, logger):
-            return Alt(self.conv(t['left'], logger), self.conv(t['right'], logger))
+            return self.conv(t['left'], logger) // self.conv(t['right'], logger)
 
         def Node(self, t, logger):
             node = t.getString('node', '')
