@@ -11,7 +11,7 @@ setup(
     author='Kimio Kuramitsu and His Laboratory',
     description='PEG/TPEG for Python',
     install_requires=['setuptools'],
-        packages=['pegpy', 'pegpy.gparser', 'pegpy.origami'],
+        packages=['pegpy', 'pegpy.nez', 'pegpy.origami'],
         package_data={'pegpy': ['grammar/*.tpeg',
                                 'grammar/*.gpeg', 'origami/*.origami']},
     entry_points={

@@ -584,8 +584,7 @@ class ParseTreeConv(object):
 ######################################################################
 
 class ParserContext:
-    __slots__ = ['urn', 'inputs', 'pos', 'epos',
-                 'headpos', 'ast', 'state', 'dict', 'memo']
+    __slots__ = ['urn', 'inputs', 'pos', 'epos', 'headpos', 'ast', 'state', 'memo']
 
     def __init__(self, urn, inputs, spos, epos):
         self.urn = urn
@@ -595,7 +594,6 @@ class ParserContext:
         self.headpos = spos
         self.ast = None
         self.state = None
-        self.dict = {}
         self.memo = {}
 
 # setup parser
@@ -796,14 +794,14 @@ def gen_Edge(pe, **option):
     pf = gen_Pexp(pe.inner, **option)
     merge = option.get('merge', Merge)
 
-    def link(px):
+    def edge(px):
         prev = px.ast
         if pf(px):
             px.ast = merge(prev, edge, px.ast)
             return True
         return False
 
-    return link
+    return edge
 
 
 def gen_Fold(pe, **option):
@@ -836,9 +834,149 @@ def gen_Abs(pe, **option):
 
     return unit
 
-# SymbolTable
+# StateTable
+
+State = namedtuple('State', 'val prev')
+
+def iter(state):
+    cur = state
+    while cur is not None:
+        yield cur.val
+        cur = cur.prev
 
 def gen_Action(pe, **option):
+    fname = pe.func
+    params = pe.params
+
+    if fname == 'lazy':  # @lazy(A)
+        name = pe.inner.name
+        peg = option.get('peg')
+        return gen_Pexp(peg.newRef(name)) if name in peg else gen_Pexp(pe.inner)
+
+    if fname == 'skip':  # @recovery({..})
+        def skip(px):
+            px.pos = px.headpos
+            return px.pos < px.epos
+        return skip
+
+    # SPEG
+    if fname == 'symbol':   # @symbol(A)
+        name = str(params[0])
+        pf = gen_Pexp(pe.inner, **option)
+        def symbol(px):
+            pos = px.pos
+            if pf(px):
+                px.state[name] = State(px.inputs[pos:px.pos], px.state.get(name, None))
+                return True
+            return False
+        return symbol
+
+    if fname == 'exists':   # @exists(A)
+        name = str(params[0])
+        return lambda px: name in px.state
+
+    if fname == 'match':   # @match(A)
+        name = str(params[0])
+        def match(px):
+            state = px.state.get(name, None)
+            if state is not None and px.inputs.startswith(state.val, px.pos):
+                px.pos += len(state.val)
+                return True
+            return False
+        return match
+
+    if fname == 'scope':  # @scope(e, A)
+        name = str(params[1])
+        pf = gen_Pexp(pe.inner, **option)
+        def scope(px):
+            state = px.state.get(name)
+            res = pf(px)
+            px.state[name] = state
+            return res
+        return scope
+
+    if fname == 'newscope':  # @newscope(e, A)
+        name = str(params[1])
+        pf = gen_Pexp(pe.inner, **option)
+        def newscope(px):
+            state = px.state.get(name, None)
+            px.state[name] = None
+            res = pf(px)
+            px.state[name] = state
+            return res
+        return newscope
+
+    if fname == 'on':  # @on(!A, e)
+        name = str(params[0])
+        pf = gen_Pexp(pe.inner, **option)
+        if name.startswith('!'):
+            name = name[1:]
+            def off(px):
+                state = px.state.get(name, None)
+                px.state[name] = False
+                res = pf(px)
+                px.state[name] = state
+                return res
+            return off
+
+        else:
+            def on(px):
+                state = px.state.get(name, None)
+                px.state[name] = True
+                res = pf(px)
+                px.state[name] = state
+                return res
+            return on
+
+    if fname == 'if':  # @if(A)
+        name = str(params[0])
+        def cond(px):
+            return px.state.get(name, False)
+        return cond
+
+
+    if fname == '@as':  # @as(NAME)
+        name = str(params[0])
+        pf = gen_Pexp(pe.inner, **option)
+        def defdict(px):
+            pos = px.pos
+            if pf(px):
+                s = px.inputs[pos:px.pos]
+                if len(s) == 0: return True
+                if name in px.state:
+                    d = px.state[name].val
+                else:
+                    d = {}
+                    px.state[name] = State(d, None)
+                key = s[0]
+                if not key in d:
+                    d[key] = [s]
+                    return True
+                l = px.dict[key]
+                slen = len(s)
+                for i in range(len(l)):
+                    if slen > len(l[i]):
+                        l.insert(i, s)
+                        break
+                return True
+            return False
+        return defdict
+
+    if fname == '@is':   ## @is(NAME)
+        def refdict(px):
+            if px.pos < px.epos:
+                key = px.inputs[px.pos]
+                state = px.state.get(name, None)
+                if key in state.val:
+                    for s in state.val[key]:
+                        if px.inputs.startswith(s, px.pos):
+                            px.pos += len(s)
+                            return True
+            return False
+        return refdict
+
+
+
     print('@TODO: gen_Action', pe.func)
     return gen_Pexp(pe.inner, **option)
 
