@@ -793,15 +793,13 @@ def gen_Edge(pe, **option):
     edge = pe.edge
     pf = gen_Pexp(pe.inner, **option)
     merge = option.get('merge', Merge)
-
-    def edge(px):
+    def fedge(px):
         prev = px.ast
         if pf(px):
             px.ast = merge(prev, edge, px.ast)
             return True
         return False
-
-    return edge
+    return fedge
 
 
 def gen_Fold(pe, **option):
@@ -1346,10 +1344,11 @@ def grammar_factory():
                 return Seq(left, right)
             Seq.checkRec = checkSeq
 
+            #consumed, peg, name, visited, logger = a
             def checkAction(pe, a):
                 if pe.func == 'NT':
                     nt = pe.inner
-                    consumed, peg, name, visited, logger = a
+                    consumed, peg, name, _, logger = a
                     if not consumed and nt.name == name:
                         logger.perror(pe.pos4, msg='left recursion: ' + str(name))
                         name = name + '__'   # renaming
@@ -1361,7 +1360,7 @@ def grammar_factory():
             Action.checkRec = checkAction
 
             def checkRef(pe, a):
-                consumed, peg, name, visited, logger = a
+                _, peg, _, visited, _ = a
                 if id(pe.peg) == id(peg) and not pe.name in visited:
                     visited[pe.name] = True
                     peg[pe.name].checkRec(a)
