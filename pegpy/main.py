@@ -231,19 +231,19 @@ def update(options):
         pass
 
 
-def main(argv):
-    cmd = argv[1]
-    options = parse_options(argv[2:])
-    names = globals()
-    if cmd in names:
-        names[cmd](options)
-    else:
+def main(argv=sys.argv):
+    try:
+        names = globals()
+        if len(argv) > 0:
+            cmd = argv[1]
+            options = parse_options(argv[2:])
+            if cmd in names:
+                names[cmd](options)
+                return
         raise CommandUsageError()
+    except CommandUsageError:
+        usage()
 
 
 if __name__ == "__main__":
-    argv = sys.argv
-    try:
-        main(sys.argv)
-    except CommandUsageError:
-        usage()
+    main(sys.argv)
