@@ -225,6 +225,7 @@ def test(opt, out):
 
 def update(options):
     try:
+        # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(
             ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
     except:
@@ -234,7 +235,7 @@ def update(options):
 def main(argv=sys.argv):
     try:
         names = globals()
-        if len(argv) > 0:
+        if len(argv) > 1:
             cmd = argv[1]
             options = parse_options(argv[2:])
             if cmd in names:
