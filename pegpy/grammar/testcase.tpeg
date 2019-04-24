@@ -1,0 +1,36 @@
+/* testcase */
+A1 = a
+A2 = "a"
+A3 = ほげ
+A4 = O_NAME
+B1 = !a
+B2 = &a
+B3 = a+
+B4 = a*
+B5 = $a
+C1 = ''
+C2 = 'a'
+C3 = [ab]
+C4 = 'a' / 'b'
+C5 = 'ab'
+F1 = @ref(A)
+G1 = a b / c
+G2 = a (b / c)
+
+Ta = '(' {} ')'
+TA = '(' {} ')'
+ta = '(' {} ')'
+Tb = {Ta}
+TB = {Ta}
+tb = {Ta}
+
+Tc = { x: 'a' }
+TC = { x: 'a' }
+
+Td = 'x' / { x: 'a' } / 'b'
+td = 'a' / { x: 'a' } / 'b'
+
+Te = {'a'} {'b'} Ta
+te = {'a'} {'b'} Ta
+
+//from math.tpeg import Expression

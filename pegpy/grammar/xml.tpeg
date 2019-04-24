@@ -31,17 +31,15 @@ Attribute
 String
 	= '"' { (!'"' .)* #Value } '"'
 
-Content
-	= Xml 
-	/ CDataSec 
-	/ Text
+Content 
+	= Xml / CDataSec / Text
 
-CDataSec
+CDataSec 
 	= '<![CDATA[' { CDATA #CDATA } ']]>' S*
 
 CDATA
 	= (!']]>' !'<![CDATA[' .)*
-	  ('<![CDATA[' CDATA ']]>' CDATA)?
+	('<![CDATA[' CDATA ']]>' CDATA)?
 
 COMMENT
 	= '<!--' (!'-->' .)* '-->' S*
