@@ -1,8 +1,4 @@
-from pegpy.expression import Char, Empty, Any, Range, Seq, Ore, Alt, Not, And, Many, Many1, TreeAs, LinkAs, FoldAs, Detree, Ref
-from pegpy.ast import ParseTree, TreeLink
-import pegpy.utils as u
-from pegpy.peg import Grammar
-from pegpy.expression import ParsingExpression, Ref
+from pegpy.tpeg import Ref, Char
 
 import cython
 
