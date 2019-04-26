@@ -2,11 +2,18 @@ from pegpy.tpeg import Ref, Char
 
 import cython
 
+if not cython.compiled:
+  from string import memcmp
 
+@cython.cclass
 class GParserContext:
-  __slots__ = ['inputs', 'length', 'headpos', 'pos2ast']
 
-  def __init__(self, inputs, urn, pos, slen):
+  inputs: cython.p_char
+  length: cython.int
+  headpos: cython.int
+  pos2ast: dict
+
+  def __init__(self, inputs: cython.p_char, pos: cython.int, slen: cython.int):
     # s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
     s = inputs
     # self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
@@ -15,7 +22,9 @@ class GParserContext:
     self.pos2ast = {pos: None}
 
 
-def check_empty(prev_pos2ast: dict, new_pos2ast: dict) -> bool:
+@cython.cfunc
+@cython.returns(cython.bint)
+def check_empty(prev_pos2ast: dict, new_pos2ast: dict) -> cython.bint:
   if len(new_pos2ast) == 0:
     return False
   else:
@@ -23,42 +32,49 @@ def check_empty(prev_pos2ast: dict, new_pos2ast: dict) -> bool:
     return True
 
 
-def emit_char(c):
-  def curry(px: GParserContext):
+# ParseFunc
+
+# Empty
+
+@cython.cclass
+class ParseFunc:
+  def __init__(self):
+    pass
+
+  @cython.cfunc
+  def p(self, px: GParserContext) -> cython.bint:
+    return True
+
+
+# Char
+@cython.cclass
+class GChar(ParseFunc):
+  bs: cython.p_char
+  blen: cython.int
+
+  def __init__(self, chars: bytes, blen: int):
+    self.bs = chars
+    self.blen = blen
+
+  @cython.ccall
+  @cython.locals(new_pos2ast=dict, pos=cython.int, ast=object)
+  def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
-      if pos < px.length and px.inputs[pos] == c:
-        new_pos2ast[pos + 1] = ast
+      if memcmp(px.inputs + pos, self.bs, self.blen) == 0:
+        new_pos2ast[pos + self.blen] = ast
         px.headpos = max(pos, px.headpos)
     return check_empty(px.pos2ast, new_pos2ast)
-  return curry
 
-
-def emit_multi(s, slen):
-  def curry(px):
-    new_pos2ast = {}
-    for pos, ast in px.pos2ast.items():
-      if px.inputs.startswith(s, pos):
-        new_pos2ast[pos + slen] = ast
-        px.headpos = max(pos, px.headpos)
-    return check_empty(px.pos2ast, new_pos2ast)
-  return curry
-
-
-pf_char = {}
 
 def gen_GChar(pe):
-  if len(pe.a) > 1:
-    return emit_multi(pe.a, len(pe.a))
-  if not pe.a in pf_char:
-    pf_char[pe.a] = emit_char(pe.a)
-  return pf_char[pe.a]
+    return GChar(bytes(pe.a, 'UTF-8'), len(bytes(pe.a, 'UTF-8')))
 
 
 def emit_GRef(ref: Ref, memo: dict, emit):
     key = ref.uname()
     if not key in memo:
-        memo[key] = lambda px: memo[key](px)
+        memo[key] = lambda px: memo[key].p(px)
         memo[key] = emit(ref.deref())
     return memo[key]
 
@@ -126,8 +142,8 @@ def generate_gparser(f, conv=None):
       #    inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
       if epos is None:
         epos = len(inputs)
-    px = GParserContext(inputs, urn, pos, epos)
-    if not f(px):
+    px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
+    if not f.p(px):
       return ParseTree("err", px.inputs, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
