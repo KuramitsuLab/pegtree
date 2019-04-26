@@ -1,24 +1,26 @@
 import unittest
+from pegpy.tpeg import STDLOG
 
-from pegpy.peg import nez, Grammar
-import pegpy.expression as pe
+def exTest(self, grammar, combinator):
 
-def exTest(self, grammar, combinator=nez):
+  parsers = {}
+  test = 0
+  ok = 0
+  logger = STDLOG
 
-  p = {}
-
-  for testcase in grammar.examples:
-      name, input, output = testcase
-      if not name in p:
-          p[name] = combinator(pe.Ref(name, grammar))
-      res = p[name](input)
-      t = str(res).replace(" b'", " '")
-      with self.subTest(example=name):
-          if output == None:
-              self.assertNotEqual(res, 'err')
-          else:
-              self.assertEqual(t, output)
-  return
+  for testcase in grammar['@@example']:
+    name, pos4 = testcase
+    if not name in grammar:
+        continue
+    if not name in parsers:
+        parsers[name] = combinator(grammar, start=name)
+    res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
+    if res == 'err':
+        logger.perror(res.getpos4(), 'NG ' + name)
+    else:
+        logger.println('OK', name, '=>', str(res))
+  if test > 0:
+      logger.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
 
 
 unittest.TestCase.exTest = exTest

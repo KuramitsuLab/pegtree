@@ -1,9 +1,7 @@
 from pegpy.tpeg import Ref, Char
+from pegpy.gparser.ast import ParseTree, TreeLink
 
 import cython
-
-if not cython.compiled:
-  from string import memcmp
 
 @cython.cclass
 class GParserContext:
@@ -68,20 +66,21 @@ class GChar(ParseFunc):
 
 
 def gen_GChar(pe):
-    return GChar(bytes(pe.a, 'UTF-8'), len(bytes(pe.a, 'UTF-8')))
+    return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
 
 
-def emit_GRef(ref: Ref, memo: dict, emit):
+def emit_GRef(ref: Ref, memo: dict):
     key = ref.uname()
     if not key in memo:
         memo[key] = lambda px: memo[key].p(px)
-        memo[key] = emit(ref.deref())
+        p = ref.deref()
+        memo[key] = p.gen()
     return memo[key]
 
 
-def cgpeg(p, conv=None):
+def cgpeg(p, **option):
   gsetting('cgpeg')
-  return generate_gparser(ggenerate(p, 'cgpeg'), conv)
+  return generate_gparser(ggenerate(p), **option)
 
 
 def gsetting(f: str):
@@ -112,11 +111,19 @@ def gsetting(f: str):
     return True
   return False
 
+memo = {}
 
-def ggenerate(p, f='cgpeg'):
-  if not isinstance(p, ParsingExpression):  # Grammar
-    p = Ref(p.start().name, p)
-  return getattr(p, f)()
+def gen_GRef(pe):
+  return emit_GRef(pe, memo)
+
+Ref.gen = gen_GRef
+Char.gen = gen_GChar
+
+def ggenerate(peg, **option):
+  p = peg.newRef(peg.start())
+  option['peg'] = peg
+  option['generated'] = {}
+  return p.gen()
 
 
 def collect_amb(s, pos, result):
@@ -132,16 +139,8 @@ def collect_amb(s, pos, result):
   return prev
 
 
-def generate_gparser(f, conv=None):
+def generate_gparser(f, **option):
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
-    if u.issrc(inputs):
-      urn, inputs, spos, epos = u.decsrc(inputs)
-      pos = spos + pos
-    else:
-      #if isByte:
-      #    inputs = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-      if epos is None:
-        epos = len(inputs)
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
       return ParseTree("err", px.inputs, px.headpos, epos, None)
