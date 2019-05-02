@@ -59,9 +59,14 @@ class GChar(ParseFunc):
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
-      if memcmp(px.inputs + pos, self.bs, self.blen) == 0:
-        new_pos2ast[pos + self.blen] = ast
-        px.headpos = max(pos, px.headpos)
+      if cython.compiled:
+        if memcmp(px.inputs + pos, self.bs, self.blen) == 0:
+          new_pos2ast[pos + self.blen] = ast
+          px.headpos = max(pos, px.headpos)
+      else:
+        if px.inputs[pos:pos+self.blen] == self.bs:
+          new_pos2ast[pos + self.blen] = ast
+          px.headpos = max(pos, px.headpos)
     return check_empty(px.pos2ast, new_pos2ast)
 
 
@@ -126,11 +131,11 @@ def ggenerate(peg, **option):
   return p.gen()
 
 
-def collect_amb(s, pos, result):
+def collect_amb(s, urn, pos, result):
   is_first = True
   for result_pos, r in result.items():
     if r == None:
-      r = ParseTree("", s, pos, result_pos, None)
+      r = ParseTree("", s, urn,  pos, result_pos, None)
     if is_first:
       prev = TreeLink("", r, None)
       is_first = False
@@ -143,12 +148,12 @@ def generate_gparser(f, **option):
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
-      return ParseTree("err", px.inputs, px.headpos, epos, None)
+      return ParseTree("err", px.inputs, urn, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
       if result_ast == None:
-        return ParseTree("", px.inputs, pos, result_pos, None)
+        return ParseTree("", px.inputs, urn, pos, result_pos, None)
       else:
         return result_ast
-    return ParseTree("?", px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, pos, px.pos2ast))
+    return ParseTree("?", px.inputs, urn, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
   return parse

@@ -1,9 +1,14 @@
-class ParseTree(object):
-    __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child']
+from collections import namedtuple
 
-    def __init__(self, tag, inputs, spos, epos, child):
+Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
+
+class ParseTree(object):
+    __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child', 'urn']
+
+    def __init__(self, tag, inputs, urn, spos, epos, child):
         self.tag = tag
         self.inputs = inputs
+        self.urn = urn
         self.spos = spos
         self.epos = epos
         self.child = child
@@ -106,6 +111,9 @@ class ParseTree(object):
             return d
         else:
             return self.asArray()
+    
+    def getpos4(self):
+        return Pos4(self.urn, self.inputs, self.spos, self.epos)
 
 class TreeLink(object):
     __slots__ = ['tag', 'child', 'prev']
