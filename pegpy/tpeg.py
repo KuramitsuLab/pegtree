@@ -1430,6 +1430,7 @@ def grammar_factory():
         #end of load_grammar()
 
     def findpath(paths, file):
+        if file.find('=') > 0: return file
         for p in paths:
             path = Path(p) / file
             #print('@', path)
