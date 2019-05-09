@@ -1380,7 +1380,7 @@ def grammar_factory():
             basepath = str(file)
         else:
             basepath = inspect.currentframe().f_back.f_code.co_filename
-            t = pegparser(data, basepath)
+            t = pegparser(file, basepath)
             basepath = (str(Path(basepath).resolve().parent))
         if t == 'err':
             logger.perror(t.getpos4())
