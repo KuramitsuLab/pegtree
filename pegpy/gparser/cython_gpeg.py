@@ -29,11 +29,11 @@ class GParserContext:
 
 @cython.cfunc
 @cython.returns(cython.bint)
-def check_empty(prev_pos2ast: dict, new_pos2ast: dict) -> cython.bint:
+def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
   if len(new_pos2ast) == 0:
     return False
   else:
-    prev_pos2ast = new_pos2ast
+    px.pos2ast = new_pos2ast
     return True
 
 
@@ -69,7 +69,7 @@ class GChar(ParseFunc):
       if char_memcmp(px.inputs, pos, self.bs, self.blen):
         new_pos2ast[pos + self.blen] = ast
         px.headpos = max(pos, px.headpos)
-    return check_empty(px.pos2ast, new_pos2ast)
+    return check_empty(px, new_pos2ast)
 
 
 def gen_GChar(pe):

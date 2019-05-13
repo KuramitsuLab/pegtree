@@ -39,5 +39,6 @@ class Link:
   def strOut(self, sb):
     if self.prev:
       sb = self.prev.strOut(sb)
-    return sb.append(str(self.inner))
+    sb.append(str(self.inner))
+    return sb
 
