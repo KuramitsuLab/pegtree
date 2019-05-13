@@ -3,6 +3,13 @@ from pegpy.gparser.ast import ParseTree, TreeLink
 
 import cython
 
+if cython.compiled:
+  @cython.ccall
+  @cython.locals(inputs=cython.p_char, pos=cython.int, bs=cython.p_char, blen=cython.int)
+  def char_memcmp(inputs, pos, bs, blen): return memcmp(inputs + pos, bs, blen) == 0
+else:
+  char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
+
 @cython.cclass
 class GParserContext:
 
@@ -59,14 +66,9 @@ class GChar(ParseFunc):
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
-      if cython.compiled:
-        if memcmp(px.inputs + pos, self.bs, self.blen) == 0:
-          new_pos2ast[pos + self.blen] = ast
-          px.headpos = max(pos, px.headpos)
-      else:
-        if px.inputs[pos:pos+self.blen] == self.bs:
-          new_pos2ast[pos + self.blen] = ast
-          px.headpos = max(pos, px.headpos)
+      if char_memcmp(px.inputs, pos, self.bs, self.blen):
+        new_pos2ast[pos + self.blen] = ast
+        px.headpos = max(pos, px.headpos)
     return check_empty(px.pos2ast, new_pos2ast)
 
 
@@ -90,7 +92,6 @@ def cgpeg(p, **option):
 
 def gsetting(f: str):
   if not hasattr(Char, f):
-    def emit(pe): return getattr(pe, f)()
 
     #setattr(Empty, f, lambda self: gparser.p_GTrue)
     #setattr(Any, f, lambda self: gparser.mresult(gparser.p_GAny))
@@ -112,7 +113,7 @@ def gsetting(f: str):
 
     # Ref
     memo = {}
-    setattr(Ref, f, lambda pe: emit_GRef(pe, memo, emit))
+    setattr(Ref, f, lambda pe: emit_GRef(pe, memo))
     return True
   return False
 
