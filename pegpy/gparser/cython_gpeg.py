@@ -135,12 +135,12 @@ def collect_amb(s, urn, pos, result):
   is_first = True
   for result_pos, r in result.items():
     if r == None:
-      r = Tree("", s, urn,  pos, result_pos, None)
+      r = Tree("", s, pos, result_pos, None)
     if is_first:
-      prev = Link("", r, None)
+      prev = Link(r, None)
       is_first = False
     else:
-      prev = Link("", r, prev)
+      prev = Link(r, prev)
   return prev
 
 
@@ -148,12 +148,12 @@ def generate_gparser(f, **option):
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
-      return Tree("err", px.inputs, urn, px.headpos, epos, None)
+      return Tree("err", px.inputs, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
       if result_ast == None:
-        return Tree("", px.inputs, urn, pos, result_pos, None)
+        return Tree("", px.inputs, pos, result_pos, None)
       else:
         return result_ast
-    return Tree("?", px.inputs, urn, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
+    return Tree("?", px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
   return parse
