@@ -1,5 +1,5 @@
 from pegpy.tpeg import Ref, Char
-from pegpy.gparser.ast import ParseTree, TreeLink
+from pegpy.gparser.ast import Tree, Link
 
 import cython
 
@@ -85,6 +85,10 @@ def emit_GRef(ref: Ref, memo: dict):
     return memo[key]
 
 
+def gen_GRef(pe):
+  return emit_GRef(pe, {})
+
+
 def cgpeg(p, **option):
   gsetting('cgpeg')
   return generate_gparser(ggenerate(p), **option)
@@ -112,15 +116,10 @@ def gsetting(f: str):
     #setattr(Detree, f, lambda pe: gparser.emit_GDetree(pe, emit))
 
     # Ref
-    memo = {}
-    setattr(Ref, f, lambda pe: emit_GRef(pe, memo))
+    setattr(Ref, f, gen_GRef)
     return True
   return False
 
-memo = {}
-
-def gen_GRef(pe):
-  return emit_GRef(pe, memo)
 
 Ref.gen = gen_GRef
 Char.gen = gen_GChar
@@ -136,12 +135,12 @@ def collect_amb(s, urn, pos, result):
   is_first = True
   for result_pos, r in result.items():
     if r == None:
-      r = ParseTree("", s, urn,  pos, result_pos, None)
+      r = Tree("", s, urn,  pos, result_pos, None)
     if is_first:
-      prev = TreeLink("", r, None)
+      prev = Link("", r, None)
       is_first = False
     else:
-      prev = TreeLink("", r, prev)
+      prev = Link("", r, prev)
   return prev
 
 
@@ -149,12 +148,12 @@ def generate_gparser(f, **option):
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
-      return ParseTree("err", px.inputs, urn, px.headpos, epos, None)
+      return Tree("err", px.inputs, urn, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
       if result_ast == None:
-        return ParseTree("", px.inputs, urn, pos, result_pos, None)
+        return Tree("", px.inputs, urn, pos, result_pos, None)
       else:
         return result_ast
-    return ParseTree("?", px.inputs, urn, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
+    return Tree("?", px.inputs, urn, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
   return parse

@@ -1,11 +1,16 @@
 from collections import namedtuple
+import cython
 
-Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
+@cython.cclass
+class Tree:
+    tag = cython.declare(cython.p_char, visibility='public')
+    inputs = cython.declare(cython.p_char, visibility='public')
+    urn = cython.declare(cython.p_char, visibility='public')
+    spos = cython.declare(cython.int, visibility='public')
+    epos = cython.declare(cython.int, visibility='public')
+    child = cython.declare(object, visibility='public')
 
-class ParseTree(object):
-    __slots__ = ['tag', 'inputs', 'spos', 'epos', 'child', 'urn']
-
-    def __init__(self, tag, inputs, urn, spos, epos, child):
+    def __init__(self, tag: cython.p_char, inputs: cython.p_char, urn: cython.p_char, spos: cython.int, epos: cython.int, child: object):
         self.tag = tag
         self.inputs = inputs
         self.urn = urn
@@ -13,34 +18,16 @@ class ParseTree(object):
         self.epos = epos
         self.child = child
 
-    def __len__(self):
-        c = 0
+    def fields(self):
+        a = []
         cur = self.child
-        while(cur is not None):
-            c += 1
+        while cur is not None:
+            if cur.child is not None:
+                a.append((cur.tag, cur.child))
             cur = cur.prev
-        return c
-
-    def __eq__(self, other):
-        return self.tag == other
-
-    def __getitem__(self, label):
-        cur = self.child
-        if isinstance(label, int):
-            c = 0
-            while (cur is not None):
-                if c == label: return cur.child
-                c += 1
-                cur = cur.prev
-        else :
-            while(cur is not None):
-                if label is cur.tag :return cur.child
-                cur = cur.prev
-        return None
-
-    def __repr__(self):
-        return self.__str__()
-
+        a.reverse()
+        return a
+    
     def __str__(self):
         sb = []
         self.strOut(sb)
@@ -64,65 +51,15 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
-    def asString(self):
-        s = self.inputs[self.spos:self.epos]
-        return s.decode('utf-8') if isinstance(s, bytes) else s
 
-    def asArray(self):
-        a = []
-        cur = self.child
-        while cur is not None:
-            if cur.child is not None:
-                a.append(cur.child)
-            cur = cur.prev
-        a.reverse()
-        return a
+@cython.cclass
+class Link:
+    label = cython.declare(cython.p_char, visibility='public')
+    child = cython.declare(object, visibility='public')
+    prev = cython.declare(object, visibility='public')
 
-    def fields(self):
-        a = []
-        cur = self.child
-        while cur is not None:
-            if cur.child is not None:
-                a.append((cur.tag, cur.child))
-            cur = cur.prev
-        a.reverse()
-        return a
-
-    def asJSON(self, tag = '__class__', hook = None):
-        listCount = 0
-        cur = self.child
-        while cur is not None:
-            if cur.tag is not None and len(cur.tag) > 0:
-                listCount = -1
-                break
-            listCount += 1
-            cur = cur.prev
-        if listCount == 0:
-            return self.asString() if hook is None else hook(self)
-        if listCount == -1:
-            d = {}
-            if self.tag is not None and len(self.tag) > 0:
-                d[tag] = self.tag
-            cur = self.child
-            while cur is not None:
-                if not cur.tag in d:
-                    d[cur.tag] = cur.child.asJSON(tag, hook)
-                cur = cur.prev
-            return d
-        else:
-            return self.asArray()
-    
-    def getpos4(self):
-        return Pos4(self.urn, self.inputs, self.spos, self.epos)
-
-class TreeLink(object):
-    __slots__ = ['tag', 'child', 'prev']
-
-    def __init__(self, tag, child, prev):
-        self.tag = tag
+    def __init__(self, label: cython.p_char, child: object, prev: object):
+        self.label = label
         self.child = child
         self.prev = prev
-
-    def strOut(self, sb):
-        sb.append('@@@@ FIXME @@@@')
 
