@@ -73,16 +73,16 @@ class GChar(ParseFunc):
 
 
 def gen_GChar(pe):
-    return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
+  return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
 
 
 def emit_GRef(ref: Ref, memo: dict):
-    key = ref.uname()
-    if not key in memo:
-        memo[key] = lambda px: memo[key].p(px)
-        p = ref.deref()
-        memo[key] = p.gen()
-    return memo[key]
+  key = ref.uname()
+  if not key in memo:
+    memo[key] = lambda px: memo[key].p(px)
+    p = ref.deref()
+    memo[key] = p.gen()
+  return memo[key]
 
 
 def gen_GRef(pe):
