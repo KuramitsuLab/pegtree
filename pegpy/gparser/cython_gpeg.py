@@ -1,5 +1,6 @@
-from pegpy.tpeg import Ref, Char
+from pegpy.tpeg import Ref, Char, Seq, Grammar
 from pegpy.gparser.ast import Tree, Link
+import copy
 
 import cython
 
@@ -37,6 +38,15 @@ def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
     return True
 
 
+@cython.cfunc
+@cython.returns(dict)
+def merge(new_pos2ast: dict, pos2ast: dict) -> dict:
+  for i in set(new_pos2ast) & set(pos2ast):
+    new_pos2ast[i] = Link(pos2ast[i], Link(new_pos2ast[i], None))
+  for i in set(pos2ast) - set(new_pos2ast):
+    new_pos2ast[i] = pos2ast[i]
+  return new_pos2ast
+
 # ParseFunc
 
 # Empty
@@ -67,15 +77,44 @@ class GChar(ParseFunc):
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
       if char_memcmp(px.inputs, pos, self.bs, self.blen):
-        new_pos2ast[pos + self.blen] = ast
+        new_pos2ast[pos + self.blen] = Link(Tree('', px.inputs, pos, pos + self.blen, None), ast)
         px.headpos = max(pos, px.headpos)
     return check_empty(px, new_pos2ast)
 
 
-def gen_GChar(pe):
+def gen_GChar(pe: Char):
   return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
 
 
+# Seq
+@cython.cclass
+class GSeq(ParseFunc):
+  left: ParseFunc
+  right: ParseFunc
+
+  def __init__(self, left: ParseFunc, right: ParseFunc):
+    self.left = left
+    self.right = right
+  
+  @cython.ccall
+  @cython.locals(new_pos2ast=dict)
+  def p(self, px: GParserContext) -> cython.bint:
+    new_pos2ast = {}
+    for pos, ast in copy.deepcopy(px.pos2ast).items():
+      px.pos2ast = {pos:ast}
+      if self.left.p(px):
+        for pos, ast in copy.deepcopy(px.pos2ast).items():
+          px.pos2ast = {pos:ast}
+          if self.right.p(px):
+            new_pos2ast = merge(new_pos2ast, px.pos2ast)
+    return check_empty(px, new_pos2ast)
+
+
+def gen_GSeq(pe: Seq):
+  return GSeq(pe.left.gen(), pe.right.gen())
+
+
+# Ref
 def emit_GRef(ref: Ref, memo: dict):
   key = ref.uname()
   if not key in memo:
@@ -91,7 +130,7 @@ def gen_GRef(pe):
 
 def cgpeg(p, **option):
   gsetting('cgpeg')
-  return generate_gparser(ggenerate(p), **option)
+  return generate_gparser(ggenerate(p, **option), **option)
 
 
 def gsetting(f: str):
@@ -102,7 +141,7 @@ def gsetting(f: str):
     setattr(Char, f, gen_GChar)
     #setattr(Range, f, gparser.emit_GByteRange)
 
-    #setattr(Seq, f, lambda pe: gparser.emit_GSeq(pe, emit, ParseTree, TreeLink))
+    setattr(Seq, f, gen_GSeq)
     #setattr(Ore, f, lambda pe: gparser.emit_GOr(pe, emit))
     #setattr(Alt, f, lambda pe: gparser.emit_GAlt(pe, emit, ParseTree, TreeLink))
     #setattr(Not, f, lambda pe: gparser.emit_GNot(pe, emit))
@@ -123,9 +162,13 @@ def gsetting(f: str):
 
 Ref.gen = gen_GRef
 Char.gen = gen_GChar
+Seq.gen = gen_GSeq
 
 def ggenerate(peg, **option):
-  p = peg.newRef(peg.start())
+  if option['start']:
+    p = peg[option['start']]
+  else:
+    p = peg.newRef(peg.start())
   option['peg'] = peg
   option['generated'] = {}
   return p.gen()
