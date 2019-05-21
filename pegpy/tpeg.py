@@ -1380,7 +1380,7 @@ def grammar_factory():
             basepath = str(file)
         else:
             basepath = inspect.currentframe().f_back.f_code.co_filename
-            t = pegparser(data, basepath)
+            t = pegparser(file, basepath)
             basepath = (str(Path(basepath).resolve().parent))
         if t == 'err':
             logger.perror(t.getpos4())
@@ -1430,6 +1430,7 @@ def grammar_factory():
         #end of load_grammar()
 
     def findpath(paths, file):
+        if file.find('=') > 0: return file
         for p in paths:
             path = Path(p) / file
             #print('@', path)
@@ -1452,7 +1453,7 @@ def grammar_factory():
         path = findpath(paths, urn)
         key = str(path)
         if key in GrammarDB:
-            return GrammarDB
+            return GrammarDB[key]
         peg = Grammar()
         load_grammar(peg, path, logger)
         GrammarDB[key] = peg
