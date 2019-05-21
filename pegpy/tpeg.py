@@ -107,7 +107,7 @@ def setmethod():
     defmethod('__rand__', lambda x, y: seq2(Xe(x), Xe(y)))  # x & y
     defmethod('__or__', lambda x, y: ore2(x, Xe(y)))  # x | y
     defmethod('__truediv__', lambda x, y: ore2(x, Xe(y)))  # x / y
-    defmethod('__div__', lambda x, y: alt2(x, Xe(y)))  # x // y
+    defmethod('__floordiv__', lambda x, y: alt2(x, Xe(y)))  # x // y
     defmethod('__invert__', lambda x: Not(x))  # ~x
 
 
