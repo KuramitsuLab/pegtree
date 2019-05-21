@@ -3,13 +3,13 @@ import cython
 
 @cython.cclass
 class Tree:
-  tag = cython.declare(cython.p_char, visibility='public')
-  inputs = cython.declare(cython.p_char, visibility='public')
-  spos = cython.declare(cython.int, visibility='public')
-  epos = cython.declare(cython.int, visibility='public')
-  child = cython.declare(object, visibility='public')
+  tag: object
+  inputs: cython.p_char
+  spos: cython.int
+  epos: cython.int
+  child: object
 
-  def __init__(self, tag: cython.p_char, inputs: cython.p_char, spos: cython.int, epos: cython.int, child: object):
+  def __init__(self, tag: object, inputs: cython.p_char, spos: cython.int, epos: cython.int, child: object):
     self.tag = tag
     self.inputs = inputs
     self.spos = spos
@@ -25,8 +25,8 @@ class Tree:
 
 @cython.cclass
 class Link:
-  inner = cython.declare(object, visibility='public')
-  prev = cython.declare(object, visibility='public')
+  inner: object
+  prev: object
 
   def __init__(self, inner: object, prev: object):
     self.inner = inner
