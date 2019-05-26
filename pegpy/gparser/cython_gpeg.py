@@ -1,15 +1,66 @@
-from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Grammar
-from pegpy.gparser.ast import Tree, Link
-import copy
+from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
+# from pegpy.gparser.gchar import GChar
 
 import cython
+import pickle as cPickle
+
+deepcopy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
 
 if cython.compiled:
+  print('use cython')
   @cython.ccall
   @cython.locals(inputs=cython.p_char, pos=cython.int, bs=cython.p_char, blen=cython.int)
   def char_memcmp(inputs, pos, bs, blen): return memcmp(inputs + pos, bs, blen) == 0
 else:
   char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
+
+@cython.cclass
+class Tree:
+  tag: object
+  inputs: cython.p_char
+  spos: cython.int
+  epos: cython.int
+  child: object
+
+  def __init__(self, tag: object, inputs: cython.p_char, spos: cython.int, epos: cython.int, child: object):
+    self.tag = tag
+    self.inputs = inputs
+    self.spos = spos
+    self.epos = epos
+    self.child = child
+
+  def __str__(self):
+    if self.child:
+      return f'[#{self.tag} {str(self.child)}]'
+    else:
+      s = self.inputs[self.spos:self.epos]
+      if isinstance(s, str):
+        return s
+      elif isinstance(s, bytes):
+        return s.decode('utf-8')
+      else:
+        return str(s)
+
+
+@cython.cclass
+class Link:
+  inner: object
+  prev: object
+
+  def __init__(self, inner: object, prev: object):
+    self.inner = inner
+    self.prev = prev
+
+  def __str__(self):
+    sb = self.strOut([])
+    return ''.join(sb)
+
+  def strOut(self, sb):
+    if self.prev:
+      sb = self.prev.strOut(sb)
+    sb.append(str(self.inner))
+    return sb
+
 
 @cython.cclass
 class GParserContext:
@@ -18,6 +69,7 @@ class GParserContext:
   length: cython.int
   headpos: cython.int
   pos2ast: dict
+  memo: dict
 
   def __init__(self, inputs: cython.p_char, pos: cython.int, slen: cython.int):
     # s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
@@ -26,6 +78,7 @@ class GParserContext:
     self.inputs, self.length = s, len(s)
     self.headpos = 0
     self.pos2ast = {pos: None}
+    self.memo = {}
 
 
 @cython.cfunc
@@ -62,6 +115,7 @@ class ParseFunc:
 
 
 # Char
+
 @cython.cclass
 class GChar(ParseFunc):
   bs = cython.declare(cython.p_char, visibility="public")
@@ -85,7 +139,7 @@ class GChar(ParseFunc):
     return f'<bs: {self.bs} blen: {self.blen}>'
 
 
-def gen_GChar(pe: Char):
+def gen_GChar(pe: Char, **option):
   return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
 
 
@@ -103,18 +157,18 @@ class GSeq(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in copy.deepcopy(px.pos2ast).items():
+    for pos, ast in deepcopy(px.pos2ast).items():
       px.pos2ast = {pos:ast}
       if self.left.p(px):
-        for pos, ast in copy.deepcopy(px.pos2ast).items():
+        for pos, ast in deepcopy(px.pos2ast).items():
           px.pos2ast = {pos:ast}
           if self.right.p(px):
             new_pos2ast = merge(new_pos2ast, px.pos2ast)
     return check_empty(px, new_pos2ast)
 
 
-def gen_GSeq(pe: Seq):
-  return GSeq(pe.left.gen(), pe.right.gen())
+def gen_GSeq(pe: Seq, **option):
+  return GSeq(pe.left.gen(**option), pe.right.gen(**option))
 
 
 # Ore
@@ -131,7 +185,7 @@ class GOre(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in copy.deepcopy(px.pos2ast).items():
+    for pos, ast in deepcopy(px.pos2ast).items():
       px.pos2ast = {pos: ast}
       if self.left.p(px):
         new_pos2ast = merge(new_pos2ast, px.pos2ast)
@@ -142,8 +196,8 @@ class GOre(ParseFunc):
     return check_empty(px, new_pos2ast)
 
 
-def gen_GOre(pe: Ore):
-  return GOre(pe.left.gen(), pe.right.gen())
+def gen_GOre(pe: Ore, **option):
+  return GOre(pe.left.gen(**option), pe.right.gen(**option))
 
 # Alt
 @cython.cclass
@@ -159,38 +213,89 @@ class GAlt(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in copy.deepcopy(px.pos2ast).items():
+    for pos, ast in deepcopy(px.pos2ast).items():
       px.pos2ast = {pos: ast}
-      print(self.right)
       if self.left.p(px):
-        print(self.right)
-        new_pos2ast = merge(new_pos2ast, copy.deepcopy(px.pos2ast))
+        new_pos2ast = merge(new_pos2ast, px.pos2ast)
         px.pos2ast = {pos: ast}
         if self.right.p(px):
           new_pos2ast = merge(new_pos2ast, px.pos2ast)
       else:
-        print(self.right)
         px.pos2ast = {pos: ast}
         if self.right.p(px):
           new_pos2ast = merge(new_pos2ast, px.pos2ast)
     return check_empty(px, new_pos2ast)
 
 
-def gen_GAlt(pe: Alt):
-  return GAlt(pe.left.gen(), pe.right.gen())
+def gen_GAlt(pe: Alt, **option):
+  return GAlt(pe.left.gen(**option), pe.right.gen(**option))
+
+
+memo = {}
+
+# RecRef
+@cython.cclass
+class RecRef(ParseFunc):
+
+  key: object
+  generated: dict
+
+  def __init__(self, key: object, generated: dict):
+    self.key = key
+    self.generated = generated
+
+  @cython.cfunc
+  @cython.locals(ps=ParseFunc)
+  def p(self, px: GParserContext) -> cython.bint:
+    ps = self.generated[self.key]
+    return ps.p(px)
+
+
+# GMemo
+@cython.cclass
+class GMemo(ParseFunc):
+
+  name: cython.p_char
+  inner: ParseFunc
+
+  def __init__(self, name: cython.p_char, inner: ParseFunc):
+    self.name = name
+    self.inner = inner
+
+  @cython.cfunc
+  @cython.locals(pos=cython.int, epos=cython.int, ast=object, east=object, new_pos2ast=dict)
+  def p(self, px: GParserContext) -> cython.bint:
+    new_pos2ast = {}
+    for pos, ast in px.pos2ast.items():
+      entry = (pos, self.name)
+      if entry in px.memo:
+        memo = px.memo[entry]
+        if memo:
+          new_pos2ast = merge(new_pos2ast, memo)
+      else:
+        px.pos2ast = {pos:None}
+        if self.inner.p(px):
+          px.memo[entry] = deepcopy(px.pos2ast)
+          for epos, east in px.pos2ast.items():
+            px.pos2ast[epos] = Link(Tree(self.name, px.inputs, pos, epos, east), ast)
+          new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        else:
+          px.memo[entry] = None
+    return check_empty(px, new_pos2ast)
+
 
 # Ref
-def emit_GRef(ref: Ref, memo: dict):
+def emit_GRef(ref: Ref, **option):
   key = ref.uname()
-  if not key in memo:
-    memo[key] = lambda px: memo[key].p(px)
-    p = ref.deref()
-    memo[key] = p.gen()
-  return memo[key]
+  generated = option['generated']
+  if not key in generated:
+    generated[key] = RecRef(key, generated)
+    generated[key] = GMemo(bytes(ref.name, 'utf-8'), ref.deref().gen(**option))
+  return generated[key]
 
 
-def gen_GRef(pe):
-  return emit_GRef(pe, {})
+def gen_GRef(pe, **option):
+  return emit_GRef(pe, **option)
 
 
 #Node
@@ -207,49 +312,38 @@ class GNode(ParseFunc):
   @cython.locals(spos=cython.int, epos=cython.int, sast=object, east=object, new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for spos, sast in copy.deepcopy(px.pos2ast).items():
+    for spos, sast in deepcopy(px.pos2ast).items():
       px.pos2ast = {spos: sast}
       if self.inner.p(px):
-        for epos, east in copy.deepcopy(px.pos2ast).items():
+        for epos, east in deepcopy(px.pos2ast).items():
           px.pos2ast[epos] = Link(Tree(self.node, px.inputs, spos, epos, east), None)
-          new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        new_pos2ast = merge(new_pos2ast, px.pos2ast)
     return check_empty(px, new_pos2ast)
 
 
-def gen_GNode(pe: Node):
-  return GNode(pe.inner.gen(), pe.node)
+def gen_GNode(pe: Node, **option):
+  # GNode(pe.inner.gen(**option), pe.node)
+  return pe.inner.gen(**option)
 
 
-def cgpeg(p, **option):
-  gsetting('cgpeg')
-  return generate_gparser(ggenerate(p, **option), **option)
+# Edge
+@cython.cclass
+class GEdge(ParseFunc):
+  inner: ParseFunc
+  edge: object
+
+  def __init__(self, inner: ParseFunc, edge: object):
+    self.inner = inner
+    self.edge = edge
+
+  @cython.ccall
+  def p(self, px: GParserContext) -> cython.bint:
+    return self.inner.p(px)
 
 
-def gsetting(f: str):
-  if not hasattr(Char, f):
-
-    #setattr(Empty, f, lambda self: gparser.p_GTrue)
-    #setattr(Any, f, lambda self: gparser.mresult(gparser.p_GAny))
-    setattr(Char, f, gen_GChar)
-    #setattr(Range, f, gparser.emit_GByteRange)
-
-    setattr(Seq, f, gen_GSeq)
-    setattr(Ore, f, gen_GOre)
-    setattr(Alt, f, gen_GAlt)
-    #setattr(Not, f, lambda pe: gparser.emit_GNot(pe, emit))
-    #setattr(And, f, lambda pe: gparser.emit_GAnd(pe, emit))
-    #setattr(Many, f, lambda pe: gparser.emit_GMany(pe, emit, ParseTree, TreeLink))
-    #setattr(Many1, f, lambda pe: gparser.emit_GMany1(pe, emit, ParseTree, TreeLink))
-
-    setattr(Node, f, gen_GNode)
-    #setattr(LinkAs, f, lambda pe: gparser.emit_GLinkAs(pe, emit, TreeLink))
-    #setattr(FoldAs, f, lambda pe: gparser.emit_GFoldAs(pe, emit, ParseTree, TreeLink))
-    #setattr(Detree, f, lambda pe: gparser.emit_GDetree(pe, emit))
-
-    # Ref
-    setattr(Ref, f, gen_GRef)
-    return True
-  return False
+def gen_GEdge(pe, **option):
+  # return GEdge(pe.inner.gen(**option), pe.edge)
+  return pe.inner.gen(**option)
 
 
 Ref.gen = gen_GRef
@@ -258,15 +352,7 @@ Seq.gen = gen_GSeq
 Ore.gen = gen_GOre
 Alt.gen = gen_GAlt
 Node.gen = gen_GNode
-
-def ggenerate(peg, **option):
-  if option['start']:
-    p = peg[option['start']]
-  else:
-    p = peg.newRef(peg.start())
-  option['peg'] = peg
-  option['generated'] = {}
-  return p.gen()
+Edge.gen = gen_GEdge
 
 
 def collect_amb(s, urn, pos, result):
@@ -282,8 +368,15 @@ def collect_amb(s, urn, pos, result):
   return prev
 
 
-def generate_gparser(f, **option):
+def cgpeg(peg, **option):
+  name = option.get('start', peg.start())
+  option['peg'] = peg
+  option['generated'] = {}
+  f = peg[name].gen(**option)
+
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
+    if not epos:
+      epos = len(inputs)
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
       return Tree("err", px.inputs, px.headpos, epos, None)
@@ -293,6 +386,5 @@ def generate_gparser(f, **option):
         return Tree("", px.inputs, pos, result_pos, None)
       else:
         return result_ast
-    print(px.pos2ast)
     return Tree("?", px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
   return parse
