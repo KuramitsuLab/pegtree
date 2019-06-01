@@ -11,7 +11,7 @@
 
 /* Starting Point */
 
-Source = <on !InParentheses { ( NEWLINE / EOS / $(Statement) )* #CompilationUnit } > EOF
+Source = @off(InParentheses, { ( NEWLINE / EOS / $(Statement) )* #CompilationUnit }) EOF
 
 /* Code Layout */
 
@@ -21,10 +21,10 @@ NEWLINE =
 	/ '\r'
 S       = [ \t]
 _       = S*
-__      = ( S / '\\' NEWLINE / COMMENT / <if InParentheses> NEWLINE )*
+__      = ( S / '\\' NEWLINE / COMMENT / @if(InParentheses) NEWLINE )*
 COMMENT = _ '#' ( !'\n' . )*
 
-INDENT  = ((<exists Indent> <match Indent>) / '')
+INDENT  = ((@exists(Indent) @match(Indent>)) / '')
 
 EOS     = 
 	';'
@@ -46,7 +46,7 @@ def sum_and_stringify(nums: List[int]) -> str:
 FuncDef = {
 	"def" __ 
 	$name(Name) __ 
-	'(' <on InParentheses ( __ $(ParameterList)? __ )> ')' 
+	'(' @on(InParentheses, ( __ $(ParameterList)? __ )) ')' 
 	( _ '->' _ $type(Test) )?  __ 
 	':' __ $body(Suite) 
 	#FuncDecl 
@@ -91,7 +91,7 @@ Decorators =
 Decorator = {
 	'@' 
 	$(DottedName) 
-	( __ '(' <on InParentheses ( __ $(ArgList)? __ )> ')' )? 
+	( __ '(' @on(InParentheses, ( __ $(ArgList)? __ )) ')' )? 
 	_ NEWLINE 
 	#Decorator 
 }
@@ -173,7 +173,7 @@ ImportName = {
 
 ImportFrom = {
 	$({ "from" __ ('.'* $(Module) / '.'+) #From }) __ 
-	$({ "import" __ ('(' <on InParentheses ( __ $(DottedAsNames) ( _ ',' )? __ )> ')' / $(DottedAsNames) / '*') #Import }) 
+	$({ "import" __ ('(' @on(InParentheses, ( __ $(DottedAsNames) ( _ ',' )? __ )) ')' / $(DottedAsNames) / '*') #Import }) 
 	#FromImport 
 }
 
@@ -324,7 +324,7 @@ WithItem =
 Suite = 
 	{ $(SimpleStatement) #Block }
 	/ NEWLINE ( _ EOS )* 
-	{ <block ( <symbol Indent> $(Statement) ( INDENT $(Statement) / _ EOS )* )> #Block }
+	{ @block( ( @symbol(Indent) $(Statement) ( INDENT $(Statement) / _ EOS )* )) #Block }
 
 
 // ====================
@@ -450,9 +450,9 @@ AtomTrailer =
 	{$recv __ addTrailer }*
 
 Atom  = 
-	'(' <on InParentheses ( __ { ( $(YieldExpr) / $(TestListComp) )? #Atom } __ )> ')'
-	/ '[' <on InParentheses ( __ { $(TestListComp)? #Atom } __ )> ']'
-	/ '{' <on InParentheses ( __ { $(DictorsetMaker)? #Atom } __ )> '}'
+	'(' @on(InParentheses, ( __ { ( $(YieldExpr) / $(TestListComp) )? #Atom } __ )) ')'
+	/ '[' @on(InParentheses, ( __ { $(TestListComp)? #Atom } __ )) ']'
+	/ '{' @on(InParentheses, ( __ { $(DictorsetMaker)? #Atom } __ )) '}'
 	/ '...'
 	/ NoParenthesesArgumentList_FuncCall
 	/ Name
@@ -469,8 +469,8 @@ TestListComp = {
 }
 
 addTrailer 
-	= '(' <on InParentheses ( __ $param(ArgList)? __ )> ')' #ApplyExpr
-	/ '[' <on InParentheses ( __ $(SubScriptList) __ )> ']' #SliceExpr
+	= '(' @on(InParentheses, ( __ $param(ArgList)? __ )) ')' #ApplyExpr
+	/ '[' @on(InParentheses, ( __ $(SubScriptList) __ )) ']' #SliceExpr
 	/ '.' __ $name(Name) #Getter
 
 SubScriptList = 
@@ -498,7 +498,7 @@ DictorsetMaker = {
 ClassDef = { 
 	"class" __ 
 	$name(Name) __ 
-	( '(' <on InParentheses ( __ $super(ArgList) __ )> ')' __ )? 
+	( '(' @on(InParentheses ( __ $super(ArgList) __ )) ')' __ )? 
 	':' __ $body(Suite) 
 	#ClassDecl 
 }
