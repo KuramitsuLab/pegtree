@@ -879,7 +879,7 @@ def gen_Action(pe, **option):
     if fname == 'lazy':  # @lazy(A)
         name = pe.inner.name
         peg = option.get('peg')
-        return gen_Pexp(peg.newRef(name)) if name in peg else gen_Pexp(pe.inner)
+        return gen_Pexp(peg.newRef(name), **option) if name in peg else gen_Pexp(pe.inner, **option)
 
     if fname == 'skip':  # @recovery({..})
         def skip(px):
