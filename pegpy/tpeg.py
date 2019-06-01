@@ -954,7 +954,7 @@ def gen_Action(pe, **option):
         return cond
 
 
-    if fname == '@def':  # @def(NAME)
+    if fname == 'def':  # @def(NAME)
         name = str(params[0])
         pf = gen_Pexp(pe.inner, **option)
         def defdict(px):
@@ -981,7 +981,7 @@ def gen_Action(pe, **option):
             return False
         return defdict
 
-    if fname == '@in':   ## @in(NAME)
+    if fname == 'in':   ## @in(NAME)
         name = str(params[0])
         def refdict(px):
             if name in px.memo and px.pos < px.epos:
