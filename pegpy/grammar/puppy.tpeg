@@ -1,0 +1,296 @@
+/**
+ * Puppy (Kids Python) Grammar
+ *
+ * Authors:
+ *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
+ */
+
+Source = EOL? {
+    (Statement EOL)*
+    #Source
+} EOF
+
+Block = {
+    @scope(
+        @symbol(INDENT) Statement (";" Statement)* ";"?
+        (@match(INDENT) Statement (";" Statement)* ";"? )*
+    )
+    #Block
+}
+
+Statement = 
+    / IfStmt
+    / VarDecl
+    / Expression
+
+/* if文 */
+
+example IfStmt,Statement '''
+if A == 1 :
+    print(A)
+    print(A, B)
+    A = 1
+else :
+    A = 2
+'''
+
+IfStmt = {
+    ('もし' / 'if') _ right: Expression ('なら' 'ば'? / 'then')? ':' _
+    then: (Block / Statement)
+    (
+        @match(INDENT)
+        ('else' _ / 'そうでなければ' _ ) ':' _
+        else: (Block / Statement)
+    )?
+    #IfStmt
+}
+
+example VarDecl,Statement A = 1
+
+VarDecl = {
+    left: Name
+    [=＝] _ 
+    right: Expression
+    #VarDecl
+}
+
+/* Reserved */
+
+/***
+RAWREF    = (!'」' .)+
+RESERVE   = '「' @def(RAWREF) '」'
+UNDEFINED = W (W/DIGIT)*
+
+REF =
+    / ADJECTIVE REF
+    / RESERVE
+    / @in(RAWREF)
+    / RESERVED
+    / UNDEFINED
+**/
+
+/* Expression */
+
+example Expression A
+example EqExpr, Expression A == 1
+
+Expression = Operator
+
+Operator =
+	AndExpr (left:^ { OR _ right: AndExpr #Or })*
+
+OR = '||' / 'or' / 'または'
+
+AndExpr =
+	EqExpr (left:^ { AND _ right: EqExpr #And })*
+
+AND = '&&' / 'and' / 'かつ' / 'で'
+
+EqExpr =
+	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
+
+EQ =
+	/ '==' !'='
+	/ '!=' !'='
+	/ '<=' !'='
+	/ '>=' !'='
+	/ '<'  !'<'
+	/ '>'  !'>'
+
+SumExpr =
+	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
+
+SUM =
+	/ '+' / '＋'
+	/ '-' / 'ー'
+
+ProdExpr =
+	UnaryExpr (left:^ { name: { PROD #NameExpr } _ right: UnaryExpr #Infix })*
+
+PROD =
+	/ '/' / '÷' / '／'
+	/ '*' / '×' / '＊'
+	/ '%' / '％'
+	/ '^'
+
+UnaryExpr
+	= { name: {PRE #NameExpr} _ expr: UnaryExpr #Unary }
+    / SuffixExpr
+
+PRE =
+    / '-' / 'ー'
+    / '!' / '！'
+    / '+' / '＋'
+
+SuffixExpr =
+	Primary (
+	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
+	    / recv:^ { [の.．] _ name: Name #GetExpr }
+	    / name:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
+	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
+//	    / recv:^ { "<" type: Name ">" #CastExpr }
+	)*
+
+LeftHand =
+    Primary (
+	    recv:^ { [の.．] _ name: Name #GetExpr }
+    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+    )*
+
+Expressions = {
+	Expression? ( "," Expression )*
+}
+
+/* Primary */
+
+example Primary, Expression (1,2) //
+example Primary, Expression (1)
+example Primary, Expression [1,2,3]
+example Primary, Expression { name: 'naruto', age: 17 }
+
+Primary =
+  /	GroupExpr
+  / ListExpr
+  / DataExpr
+  / Constant
+  / Name
+
+GroupExpr = { "(" Expression ("," Expression)*  ")" #Tuple }
+
+ListExpr = { "[" (Expression ("," Expression)* )? ","*  "]" #List }
+
+DataExpr = { "{" KeyValue (","* KeyValue)* ","* "}" #Data }
+
+KeyValue = {
+	name: (Name/StringExpr/CharExpr)
+	":"
+	value: Expression
+	#DataEntry
+}
+
+/* Name, Identifier */
+
+Name = {
+    [A-Za-z] [A-Za-z0-9_]*
+    #Name
+} _
+
+/* Literal */
+
+Constant =
+	/ StringExpr
+	/ CharExpr
+	/ Number
+	/ TrueExpr
+	/ FalseExpr
+	/ NullExpr
+
+//example StringExpr, Expression "\n\u1234a\0"
+//example CharExpr, Expression '\''
+//example FloatExpr, Expression 1.1e-9
+//example TrueExpr, Expression 有効
+
+StringExpr = '"' { STRING_CONTENT* #String } '"' _
+CharExpr = '\'' { CHAR_CONTENT* #Char } '\'' _
+STRING_CONTENT = ESCAPE / ![\"\n\\] .
+CHAR_CONTENT   = ESCAPE / !['\n\\] .
+ESCAPE =
+	'\\' ['\"\\bfnrt]
+	/ '\\' [0-3] [0-7] [0-7]
+    / '\\' [0-7] [0-7]
+    / '\\' [0-7]
+	/ '\\' 'u'+ HEX HEX HEX HEX
+
+IntExpr = {
+	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
+	#Int
+} _
+
+DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
+HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
+BINARY = '0' [bB] [01] ( '_'* [01] )*
+OCTAL = '0' ( '_'* [0-7] )*
+DIGIT = [0-9]
+HEX = [a-fA-F0-9]
+LONG_SUFFIX = [lL]
+
+FloatExpr = {
+	FLOAT #Double
+} _
+
+FLOAT =
+	FRACTION EXPONENT?
+    / DIGIT+ EXPONENT
+
+FRACTION =
+	!'_' ( '_'* DIGIT )* '.' DIGIT ( '_'* DIGIT )*
+    / DIGIT ( '_'* DIGIT )* '.' !'.'
+
+EXPONENT =
+	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
+
+/* Number,Unit */
+
+Number = (FloatExpr / IntExpr) ( ^{ Unit #Unit} )?
+
+Unit = {
+    UNIT
+    #Symbol
+}
+
+UNIT = [%％度]
+    / 'px' / 'pt'
+
+example Number,Expression 33.3%
+
+/* Const */
+
+TrueExpr  = { '有効' / 'true' #True } _
+FalseExpr = { '無効' / 'false' #False } _
+NullExpr  = { 'まだ'? ('null' / 'ない'/'無い'/'なし'/'無し') #Null } _
+
+/* Indent-based Code Layout */
+
+EOF          = !.
+NL           = '\n' / EOF
+S            = [ \t\r　、，]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
+
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '#' ( !NL . )*
+
+EOL          = _ NL (_ NL)*
+INDENT       = '\n' [ \t]+
+
+/* Character */
+
+C  =
+    / HIRA
+    / KATA
+    / KANJI
+    / MARK
+    / [ａ-ｚＡ-Ｚ０-９]
+
+HIRA = [ぁ-ん]
+KATA = [ァ-ヶ]
+KANJI = [㐀-䶵一-龠々〇〻ー]
+MARK = [ー]
+
+W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
+//DIGIT = [０-９]
+
+"{" = [{｛] _
+"}" = [}｝] _
+"[" = [[［【] _
+"]" = [\]］】] _
+"(" = [(（] _
+")" = [)）] _
+"=" = [=＝] ![=＝] _
+"." = [.．。] _
+"," = [,、] _
+";" = ([;；] _)+
+":" = [:：] _
