@@ -6,23 +6,31 @@ import pickle as cPickle
 
 deepcopy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
 
-if cython.compiled:
-  print('use cython')
-  @cython.ccall
-  @cython.locals(inputs=cython.p_char, pos=cython.int, bs=cython.p_char, blen=cython.int)
-  def char_memcmp(inputs, pos, bs, blen): return memcmp(inputs + pos, bs, blen) == 0
-else:
-  char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
+# if cython.compiled:
+#   print('use cython')
+#   @cython.ccall
+#   @cython.locals(inputs=cython.p_char, pos=cython.int, bs=cython.p_char, blen=cython.int)
+#   def char_memcmp(inputs, pos, bs, blen): return memcmp(inputs + pos, bs, blen) == 0
+# else:
+#   char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
+
+
+char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
+
+
+emp = bytes('', 'utf-8')
+err = bytes('err', 'utf-8')
+amb = bytes('?', 'utf-8')
 
 @cython.cclass
 class Tree:
   tag: object
-  inputs: cython.p_char
+  inputs: object
   spos: cython.int
   epos: cython.int
   child: object
 
-  def __init__(self, tag: object, inputs: cython.p_char, spos: cython.int, epos: cython.int, child: object):
+  def __init__(self, tag: object, inputs: object, spos: cython.int, epos: cython.int, child: object):
     self.tag = tag
     self.inputs = inputs
     self.spos = spos
@@ -31,15 +39,9 @@ class Tree:
 
   def __str__(self):
     if self.child:
-      return f'[#{self.tag} {str(self.child)}]'
+      return f'[#{self.tag.decode("utf-8")} {str(self.child)}]'
     else:
-      s = self.inputs[self.spos:self.epos]
-      if isinstance(s, str):
-        return s
-      elif isinstance(s, bytes):
-        return s.decode('utf-8')
-      else:
-        return str(s)
+      return self.inputs.decode('utf-8')[self.spos:self.epos]
 
 
 @cython.cclass
@@ -65,13 +67,13 @@ class Link:
 @cython.cclass
 class GParserContext:
 
-  inputs: cython.p_char
+  inputs: object
   length: cython.int
   headpos: cython.int
   pos2ast: dict
   memo: dict
 
-  def __init__(self, inputs: cython.p_char, pos: cython.int, slen: cython.int):
+  def __init__(self, inputs: object, pos: cython.int, slen: cython.int):
     # s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
     s = inputs
     # self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
@@ -118,10 +120,10 @@ class ParseFunc:
 
 @cython.cclass
 class GChar(ParseFunc):
-  bs = cython.declare(cython.p_char, visibility="public")
+  bs: object
   blen: cython.int
 
-  def __init__(self, bs: cython.p_char, blen: int):
+  def __init__(self, bs: object, blen: int):
     self.blen = blen
     self.bs = bs
 
@@ -131,12 +133,9 @@ class GChar(ParseFunc):
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
       if char_memcmp(px.inputs, pos, self.bs, self.blen):
-        new_pos2ast[pos + self.blen] = Link(Tree('', px.inputs, pos, pos + self.blen, None), ast)
+        new_pos2ast[pos + self.blen] = Link(Tree(emp, px.inputs, pos, pos + self.blen, None), ast)
         px.headpos = max(pos, px.headpos)
     return check_empty(px, new_pos2ast)
-  
-  def __str__(self):
-    return f'<bs: {self.bs} blen: {self.blen}>'
 
 
 def gen_GChar(pe: Char, **option):
@@ -244,7 +243,7 @@ class RecRef(ParseFunc):
     self.key = key
     self.generated = generated
 
-  @cython.cfunc
+  @cython.ccall
   @cython.locals(ps=ParseFunc)
   def p(self, px: GParserContext) -> cython.bint:
     ps = self.generated[self.key]
@@ -255,14 +254,14 @@ class RecRef(ParseFunc):
 @cython.cclass
 class GMemo(ParseFunc):
 
-  name: cython.p_char
+  name: object
   inner: ParseFunc
 
-  def __init__(self, name: cython.p_char, inner: ParseFunc):
+  def __init__(self, name: object, inner: ParseFunc):
     self.name = name
     self.inner = inner
 
-  @cython.cfunc
+  @cython.ccall
   @cython.locals(pos=cython.int, epos=cython.int, ast=object, east=object, new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -271,7 +270,10 @@ class GMemo(ParseFunc):
       if entry in px.memo:
         memo = px.memo[entry]
         if memo:
-          new_pos2ast = merge(new_pos2ast, memo)
+          linked_memo = {}
+          for epos, east in memo.items():
+            linked_memo[epos] = Link(Tree(self.name, px.inputs, pos, epos, east), ast)
+          new_pos2ast = merge(new_pos2ast, linked_memo)
       else:
         px.pos2ast = {pos:None}
         if self.inner.p(px):
@@ -359,7 +361,7 @@ def collect_amb(s, urn, pos, result):
   is_first = True
   for result_pos, r in result.items():
     if r == None:
-      r = Tree("", s, pos, result_pos, None)
+      r = Tree(emp, s, pos, result_pos, None)
     if is_first:
       prev = Link(r, None)
       is_first = False
@@ -372,19 +374,18 @@ def cgpeg(peg, **option):
   name = option.get('start', peg.start())
   option['peg'] = peg
   option['generated'] = {}
-  f = peg[name].gen(**option)
-
+  f = gen_GRef(Ref(name, peg, {}), **option)
   def parse(inputs, urn='(unknown)', pos=0, epos=None):
     if not epos:
       epos = len(inputs)
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
     if not f.p(px):
-      return Tree("err", px.inputs, px.headpos, epos, None)
+      return Tree(err, px.inputs, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
       if result_ast == None:
-        return Tree("", px.inputs, pos, result_pos, None)
+        return Tree(emp, px.inputs, pos, result_pos, None)
       else:
         return result_ast
-    return Tree("?", px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
+    return Tree(amb, px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast)), option
   return parse

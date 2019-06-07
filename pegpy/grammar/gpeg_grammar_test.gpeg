@@ -1,6 +1,18 @@
 
 A = 'a'
-AAA = 'aaa'
+B = 'b'
+AB = 'ab'
+Aa = { 'aa' #AA }
+Aaa ={ A A A #AAA }
+Oreab = { A / B #AB}
+Altab = { A | B #AB}
+Ambab = { A | AB #AB}
 
 example A a
-example AAA aaa
+example Aa aa
+example Aaa aaa
+example Oreab a
+example Oreab b
+example Altab a
+example Altab b
+example Ambab ab
