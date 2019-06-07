@@ -1,10 +1,15 @@
+# cython: profile=True
+
 from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
 # from pegpy.gparser.gchar import GChar
 
 import cython
 import pickle as cPickle
 
-deepcopy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
+import copy
+
+# deepcopy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
+deepcopy = lambda obj: copy.copy(obj)
 
 # if cython.compiled:
 #   print('use cython')
@@ -387,5 +392,5 @@ def cgpeg(peg, **option):
         return Tree(emp, px.inputs, pos, result_pos, None)
       else:
         return result_ast
-    return Tree(amb, px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast)), option
+    return Tree(amb, px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
   return parse
