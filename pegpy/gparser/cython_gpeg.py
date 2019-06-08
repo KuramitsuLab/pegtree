@@ -1,36 +1,17 @@
 # cython: profile=True
 
 from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
-# from pegpy.gparser.gchar import GChar
 
 import cython
 import pickle as cPickle
 
 from copy import copy
 
-# copy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
-
-# if cython.compiled:
-#   print('use cython')
-#   @cython.ccall
-#   @cython.locals(inputs=cython.p_char, pos=cython.int, bs=cython.p_char, blen=cython.int)
-#   def char_memcmp(inputs, pos, bs, blen): return memcmp(inputs + pos, bs, blen) == 0
-# else:
-#   char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
-
-
-char_memcmp = lambda inputs, pos, bs, blen: inputs[pos:pos + blen] == bs
-
 
 emp = bytes('', 'utf-8')
 err = bytes('err', 'utf-8')
 amb = bytes('?', 'utf-8')
 
-# Tree = cython.struct(
-#   tag=object,
-#   inputs=cython.int,
-#   data=cython.double
-# )
 
 @cython.cclass
 class Tree:
@@ -104,6 +85,7 @@ def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
 
 
 @cython.cfunc
+@cython.locals(new_set=object, prev_set=object)
 @cython.returns(dict)
 def merge(new_pos2ast: dict, pos2ast: dict) -> dict:
   new_set = new_pos2ast.keys()
@@ -139,12 +121,12 @@ class GChar(ParseFunc):
     self.blen = blen
     self.bs = bs
 
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(new_pos2ast=dict, pos=cython.int, ast=object)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
     for pos, ast in px.pos2ast.items():
-      if char_memcmp(px.inputs, pos, self.bs, self.blen):
+      if px.inputs[pos:pos + self.blen] == self.bs:
         new_pos2ast[pos + self.blen] = Link(Tree(emp, px.inputs, pos, pos + self.blen, None), ast)
         px.headpos = max(pos, px.headpos)
     return check_empty(px, new_pos2ast)
@@ -164,7 +146,7 @@ class GSeq(ParseFunc):
     self.left = left
     self.right = right
   
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -192,7 +174,7 @@ class GOre(ParseFunc):
     self.left = left
     self.right = right
 
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -220,7 +202,7 @@ class GAlt(ParseFunc):
     self.left = left
     self.right = right
 
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -255,7 +237,7 @@ class RecRef(ParseFunc):
     self.key = key
     self.generated = generated
 
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(ps=ParseFunc)
   def p(self, px: GParserContext) -> cython.bint:
     ps = self.generated[self.key]
@@ -273,7 +255,7 @@ class GMemo(ParseFunc):
     self.name = name
     self.inner = inner
 
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(pos=cython.int, epos=cython.int, ast=object, east=object, new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -324,7 +306,7 @@ class GNode(ParseFunc):
     self.inner = inner
     self.node = node
   
-  @cython.ccall
+  @cython.cfunc
   @cython.locals(spos=cython.int, epos=cython.int, sast=object, east=object, new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
@@ -352,7 +334,7 @@ class GEdge(ParseFunc):
     self.inner = inner
     self.edge = edge
 
-  @cython.ccall
+  @cython.cfunc
   def p(self, px: GParserContext) -> cython.bint:
     return self.inner.p(px)
 
@@ -384,6 +366,11 @@ def collect_amb(s, urn, pos, result):
   return prev
 
 
+@cython.ccall
+def call_p(f:ParseFunc, px: GParserContext):
+  return f.p(px)
+
+
 def cgpeg(peg, **option):
   name = option.get('start', peg.start())
   option['peg'] = peg
@@ -393,7 +380,7 @@ def cgpeg(peg, **option):
     if not epos:
       epos = len(inputs)
     px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
-    if not f.p(px):
+    if not call_p(f, px):
       return Tree(err, px.inputs, px.headpos, epos, None)
     elif len(px.pos2ast) == 1:
       (result_pos, result_ast) = list(px.pos2ast.items())[0]
