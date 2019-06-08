@@ -26,6 +26,12 @@ emp = bytes('', 'utf-8')
 err = bytes('err', 'utf-8')
 amb = bytes('?', 'utf-8')
 
+# Tree = cython.struct(
+#   tag=object,
+#   inputs=cython.int,
+#   data=cython.double
+# )
+
 @cython.cclass
 class Tree:
   tag: object
@@ -100,8 +106,8 @@ def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
 @cython.cfunc
 @cython.returns(dict)
 def merge(new_pos2ast: dict, pos2ast: dict) -> dict:
-  new_set = set(new_pos2ast)
-  prev_set = set(pos2ast)
+  new_set = new_pos2ast.keys()
+  prev_set = pos2ast.keys()
   for i in new_set & prev_set:
     new_pos2ast[i] = Link(pos2ast[i], Link(new_pos2ast[i], None))
   for i in prev_set - new_set:
@@ -278,14 +284,16 @@ class GMemo(ParseFunc):
         if memo:
           linked_memo = {}
           for epos, east in memo.items():
-            linked_memo[epos] = Link(Tree(self.name, px.inputs, pos, epos, east), ast)
+            linked_memo[epos] = Link(east, ast)
           new_pos2ast = merge(new_pos2ast, linked_memo)
       else:
         px.pos2ast = {pos:None}
         if self.inner.p(px):
-          px.memo[entry] = copy(px.pos2ast)
+          memo = {}
           for epos, east in px.pos2ast.items():
-            px.pos2ast[epos] = Link(Tree(self.name, px.inputs, pos, epos, east), ast)
+            memo[epos] = Tree(self.name, px.inputs, pos, epos, east)
+            px.pos2ast[epos] = Link(memo[epos], ast)
+          px.memo[entry] = memo
           new_pos2ast = merge(new_pos2ast, px.pos2ast)
         else:
           px.memo[entry] = None
