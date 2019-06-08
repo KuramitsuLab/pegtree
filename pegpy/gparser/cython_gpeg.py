@@ -6,10 +6,9 @@ from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
 import cython
 import pickle as cPickle
 
-import copy
+from copy import copy
 
-# deepcopy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
-deepcopy = lambda obj: copy.copy(obj)
+# copy = lambda obj: cPickle.loads(cPickle.dumps(obj, -1))
 
 # if cython.compiled:
 #   print('use cython')
@@ -101,9 +100,11 @@ def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
 @cython.cfunc
 @cython.returns(dict)
 def merge(new_pos2ast: dict, pos2ast: dict) -> dict:
-  for i in set(new_pos2ast) & set(pos2ast):
+  new_set = set(new_pos2ast)
+  prev_set = set(pos2ast)
+  for i in new_set & prev_set:
     new_pos2ast[i] = Link(pos2ast[i], Link(new_pos2ast[i], None))
-  for i in set(pos2ast) - set(new_pos2ast):
+  for i in prev_set - new_set:
     new_pos2ast[i] = pos2ast[i]
   return new_pos2ast
 
@@ -161,10 +162,10 @@ class GSeq(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in deepcopy(px.pos2ast).items():
+    for pos, ast in copy(px.pos2ast).items():
       px.pos2ast = {pos:ast}
       if self.left.p(px):
-        for pos, ast in deepcopy(px.pos2ast).items():
+        for pos, ast in copy(px.pos2ast).items():
           px.pos2ast = {pos:ast}
           if self.right.p(px):
             new_pos2ast = merge(new_pos2ast, px.pos2ast)
@@ -189,7 +190,7 @@ class GOre(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in deepcopy(px.pos2ast).items():
+    for pos, ast in copy(px.pos2ast).items():
       px.pos2ast = {pos: ast}
       if self.left.p(px):
         new_pos2ast = merge(new_pos2ast, px.pos2ast)
@@ -217,7 +218,7 @@ class GAlt(ParseFunc):
   @cython.locals(new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for pos, ast in deepcopy(px.pos2ast).items():
+    for pos, ast in copy(px.pos2ast).items():
       px.pos2ast = {pos: ast}
       if self.left.p(px):
         new_pos2ast = merge(new_pos2ast, px.pos2ast)
@@ -282,7 +283,7 @@ class GMemo(ParseFunc):
       else:
         px.pos2ast = {pos:None}
         if self.inner.p(px):
-          px.memo[entry] = deepcopy(px.pos2ast)
+          px.memo[entry] = copy(px.pos2ast)
           for epos, east in px.pos2ast.items():
             px.pos2ast[epos] = Link(Tree(self.name, px.inputs, pos, epos, east), ast)
           new_pos2ast = merge(new_pos2ast, px.pos2ast)
@@ -319,10 +320,10 @@ class GNode(ParseFunc):
   @cython.locals(spos=cython.int, epos=cython.int, sast=object, east=object, new_pos2ast=dict)
   def p(self, px: GParserContext) -> cython.bint:
     new_pos2ast = {}
-    for spos, sast in deepcopy(px.pos2ast).items():
+    for spos, sast in copy(px.pos2ast).items():
       px.pos2ast = {spos: sast}
       if self.inner.p(px):
-        for epos, east in deepcopy(px.pos2ast).items():
+        for epos, east in copy(px.pos2ast).items():
           px.pos2ast[epos] = Link(Tree(self.node, px.inputs, spos, epos, east), None)
         new_pos2ast = merge(new_pos2ast, px.pos2ast)
     return check_empty(px, new_pos2ast)
