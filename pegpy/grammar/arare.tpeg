@@ -55,7 +55,7 @@ KANJI = [㐀-䶵一-龠々〇〻ー]
 MARK = [ー]
 
 W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
-DIGIT = [０-９]
+//DIGIT = [０-９]
 
 "{" = [{｛] _
 "}" = [}｝] _
@@ -72,13 +72,13 @@ DIGIT = [０-９]
 /* Reserved */
 
 RAWREF    = (!'」' .)+
-RESERVE   = '「' @defdict(RAWREF) '」'
+RESERVE   = '「' @def(RAWREF) '」'
 UNDEFINED = W (W/DIGIT)*
 
 REF =
     / ADJECTIVE REF
     / RESERVE
-    / @dict(RESERVE)
+    / @in(RAWREF)
     / RESERVED
     / UNDEFINED
 
@@ -105,7 +105,7 @@ Param    = {
 Name     = Var / Noun
 
 SUBJECT = (![はがをと =\n] .)+
-DEFINE = @defdict(SUBJECT)
+DEFINE = @def(SUBJECT)
 NewName = { DEFINE #Name }
 
 AssignRef

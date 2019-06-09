@@ -36,8 +36,8 @@ example CC ホーム
 
 /* 定義 */
 
-//example Sentence スモモもモモもモモです。
-//example Sentence 「すもも」も「もも」も「もも」です。
+example Sentence スモモもモモもモモです。
+example Sentence 「すもも」も「もも」も「もも」です。
 
 Sentence = {
     (Argument / Connective / Connector)*
@@ -108,10 +108,10 @@ Connector = {
 
 // 名詞
 
-NOUN = NP / @dict(NEW) / DNOUN / NS
-N    = NP / @dict(NEW) / DNOUN / C+
-NP = '「' @defdict(NEW) '」'
-NEW = (NP / !'」' .)+
+NOUN = NP / @in(NEWNOUN) / DNOUN / NS
+N    = NP / @in(NEWNOUN) / DNOUN / C+
+NP = '「' @def(NEWNOUN) '」'
+NEWNOUN = (NP / !'」' .)+
 
 // ひらがなを含まない名詞はここに定義する
 DNOUN =

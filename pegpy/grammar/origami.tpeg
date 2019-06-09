@@ -91,10 +91,10 @@ RawCode = {
 
 /* SyntaxError */
 
-SyntaxError = @skip() {
+SyntaxError = @skip({
     ( !NL  . )*
     #err
-}
+})
 
 /* Macro */
 
@@ -145,7 +145,7 @@ Type =
 	)*
 
 PrimaryType =
-	{ 'typeof' "(" expr: @ref(Expression) ")" #ExprType }
+	{ 'typeof' "(" expr: @lazy(Expression) ")" #ExprType }
 	/ FuncType
 	/ "(" Type ")"
 	/ DataType
