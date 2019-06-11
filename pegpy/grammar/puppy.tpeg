@@ -35,12 +35,19 @@ else:
     A = 2
 '''
 
+example IfStmt,Statement '''
+if A == 1 :
+    print(A)
+else:
+    print(A, B)
+'''
+
 IfStmt = {
     ('もし' / 'if') _ 
     cond: Expression ('なら' 'ば'? / 'then')? ':' _
     then: (Block / Statement)
     (
-        @match(INDENT)
+        (@match(INDENT) / NL)
         ('else' _ / 'そうでなければ' _ ) ':' _
         else: (Block / Statement)
     )?
