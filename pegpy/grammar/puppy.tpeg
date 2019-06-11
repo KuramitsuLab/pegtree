@@ -29,13 +29,15 @@ example IfStmt,Statement '''
 if A == 1 :
     print(A)
     print(A, B)
-    A = 1
-else :
+    A = Ball(跳ね返る)
+else:
+    print(A, B)
     A = 2
 '''
 
 IfStmt = {
-    ('もし' / 'if') _ right: Expression ('なら' 'ば'? / 'then')? ':' _
+    ('もし' / 'if') _ 
+    cond: Expression ('なら' 'ば'? / 'then')? ':' _
     then: (Block / Statement)
     (
         @match(INDENT)
@@ -48,26 +50,19 @@ IfStmt = {
 example VarDecl,Statement A = 1
 
 VarDecl = {
-    left: Name
+    left: LeftHand
     [=＝] _ 
     right: Expression
     #VarDecl
 }
 
+LeftHand =
+    Name (
+	    recv:^ { [の.．] _ name: Name #GetExpr }
+    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+    )*
+
 /* Reserved */
-
-/***
-RAWREF    = (!'」' .)+
-RESERVE   = '「' @def(RAWREF) '」'
-UNDEFINED = W (W/DIGIT)*
-
-REF =
-    / ADJECTIVE REF
-    / RESERVE
-    / @in(RAWREF)
-    / RESERVED
-    / UNDEFINED
-**/
 
 /* Expression */
 
@@ -126,19 +121,19 @@ SuffixExpr =
 	Primary (
 	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
 	    / recv:^ { [の.．] _ name: Name #GetExpr }
-	    / name:^ { "(" Expression? ( "," Expression )* ")" #ApplyExpr }
+	    / name:^ { "(" Argument? ( "," Argument )* ")" #ApplyExpr }
 	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
 //	    / recv:^ { "<" type: Name ">" #CastExpr }
 	)*
 
-LeftHand =
-    Primary (
-	    recv:^ { [の.．] _ name: Name #GetExpr }
-    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
-    )*
+Argument = {
+    name: Name
+    [=＝] _ 
+    value: Expression
+} / Expression
 
 Expressions = {
-	Expression? ( "," Expression )*
+	Expression? ( [,:] Expression )*
 }
 
 /* Primary */
@@ -170,10 +165,30 @@ KeyValue = {
 
 /* Name, Identifier */
 
-Name = {
+Name = Identifier / NLPSymbol
+
+Identifier = {
     [A-Za-z] [A-Za-z0-9_]*
     #Name
 } _
+
+NLPSymbol = {
+    (HIRA / KATA / KANJI)+
+    #NLPSymbol
+} _
+
+/***
+RAWREF    = (!'」' .)+
+RESERVE   = '「' @def(RAWREF) '」'
+UNDEFINED = W (W/DIGIT)*
+
+REF =
+    / ADJECTIVE REF
+    / RESERVE
+    / @in(RAWREF)
+    / RESERVED
+    / UNDEFINED
+**/
 
 /* Literal */
 
@@ -245,9 +260,9 @@ example Number,Expression 33.3%
 
 /* Const */
 
-TrueExpr  = { '有効' / 'true' #True } _
-FalseExpr = { '無効' / 'false' #False } _
-NullExpr  = { 'まだ'? ('null' / 'ない'/'無い'/'なし'/'無し') #Null } _
+TrueExpr  = { [Tt] 'rue' #True } _
+FalseExpr = { [Ff] 'alse' #False } _
+NullExpr  = { 'None' / 'まだ'? ('ない'/'無い'/'なし'/'無し') #Null } _
 
 /* Indent-based Code Layout */
 
