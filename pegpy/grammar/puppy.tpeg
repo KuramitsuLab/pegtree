@@ -137,7 +137,7 @@ Argument = {
     name: Name
     [=＝] _ 
     value: Expression
-    #Entry
+    #KeywordArgument
 } / Expression
 
 Expressions = {
@@ -168,7 +168,7 @@ KeyValue = {
 	name: (Name/StringExpr/CharExpr)
 	":"
 	value: Expression
-	#Entry
+	#KeyValue
 }
 
 /* Name, Identifier */
