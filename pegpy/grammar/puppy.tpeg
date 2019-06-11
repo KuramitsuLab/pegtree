@@ -82,7 +82,7 @@ AndExpr =
 AND = '&&' / 'and' / 'かつ' / 'で'
 
 EqExpr =
-	SumExpr (left:^ { name: { EQ #NameExpr } _ right: SumExpr #Infix })*
+	SumExpr (left:^ { name: { EQ #Name } _ right: SumExpr #Infix })*
 
 EQ =
 	/ '==' !'='
@@ -93,14 +93,14 @@ EQ =
 	/ '>'  !'>'
 
 SumExpr =
-	ProdExpr (left:^ { name: { SUM #NameExpr } _ right: ProdExpr #Infix })*
+	ProdExpr (left:^ { name: { SUM #Name } _ right: ProdExpr #Infix })*
 
 SUM =
 	/ '+' / '＋'
 	/ '-' / 'ー'
 
 ProdExpr =
-	UnaryExpr (left:^ { name: { PROD #NameExpr } _ right: UnaryExpr #Infix })*
+	UnaryExpr (left:^ { name: { PROD #Name } _ right: UnaryExpr #Infix })*
 
 PROD =
 	/ '/' / '÷' / '／'
@@ -109,7 +109,7 @@ PROD =
 	/ '^'
 
 UnaryExpr
-	= { name: {PRE #NameExpr} _ expr: UnaryExpr #Unary }
+	= { name: {PRE #Name } _ expr: UnaryExpr #Unary }
     / SuffixExpr
 
 PRE =
@@ -130,6 +130,7 @@ Argument = {
     name: Name
     [=＝] _ 
     value: Expression
+    #Entry
 } / Expression
 
 Expressions = {
@@ -160,7 +161,7 @@ KeyValue = {
 	name: (Name/StringExpr/CharExpr)
 	":"
 	value: Expression
-	#DataEntry
+	#Entry
 }
 
 /* Name, Identifier */
