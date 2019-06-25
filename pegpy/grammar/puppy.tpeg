@@ -19,9 +19,62 @@ Block = {
 }
 
 Statement = 
+    / ClassDecl
+    / FuncDecl
     / IfStmt
+    / ForStmt
+    / Return
     / VarDecl
     / Expression
+
+/* class 定義 */
+
+example ClassDecl,Statement '''
+class Ball(Circle):
+    width = 80
+    heigh = 80
+'''
+
+ClassDecl = {
+    'class' S _ 
+    name: Name 
+    ('(' _ extends: Name ')' _)? ':' _
+    (Block / Statement)
+    #ClassDecl
+}
+
+/* 関数定義 */
+
+example FuncDecl,Statement '''
+def succ(x):
+    return x+1
+'''
+
+FuncDecl = {
+    'def' S _ 
+    name: Name 
+    params: FuncParam ':' _
+    (Block / Statement)
+    #FuncDecl
+}
+
+FuncParam = {
+    "(" Argument? ( "," Argument )* ")"
+}
+
+Return = {
+    'return' 
+    (S _ expr: Expression)?
+    #Return
+} / {
+    'yeild' 
+    (S _ expr: Expression)?
+    #Yeild
+} / {
+    'pass' _
+    #Pass
+}
+
 
 /* if文 */
 
@@ -53,6 +106,27 @@ IfStmt = {
     )?
     #IfStmt
 }
+
+
+
+/* for文 (* *) */
+
+example ForStmt,Statement '''
+for x in [1,2,3]:
+    print(x)
+    print(x+1)
+'''
+
+ForStmt = {
+    ('for' S) _ 
+    each: Name 
+    ('in' S) _ 
+    list: Expression ':' _
+    body: (Block / Statement)
+    #ForStmt
+}
+
+/* var */
 
 example VarDecl,Statement A = 1
 
@@ -268,8 +342,8 @@ example Number,Expression 33.3%
 
 /* Const */
 
-TrueExpr  = { [Tt] 'rue' #True } _
-FalseExpr = { [Ff] 'alse' #False } _
+TrueExpr  = { [Tt] 'rue' #TrueExpr } _
+FalseExpr = { [Ff] 'alse' #FalseExpr } _
 NullExpr  = { 'None' / 'まだ'? ('ない'/'無い'/'なし'/'無し') #Null } _
 
 /* Indent-based Code Layout */
