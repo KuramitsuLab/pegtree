@@ -10,6 +10,7 @@ Source = EOL? {
     #Source
 } EOF
 
+
 Block = {
     @scope(
         @symbol(INDENT) Statement (";" Statement)* ";"?
@@ -17,6 +18,11 @@ Block = {
     )
     #Block
 }
+
+example Source '''
+def cat_clicked(cat): print('Meaw')
+cat = Circle(500, 500, clicked=cat_clicked)
+'''
 
 Statement = 
     / ClassDecl
@@ -60,6 +66,7 @@ FuncDecl = {
 
 FuncParam = {
     "(" Argument? ( "," Argument )* ")"
+    #FuncParam
 }
 
 Return = {
@@ -106,8 +113,6 @@ IfStmt = {
     )?
     #IfStmt
 }
-
-
 
 /* for文 (* *) */
 
@@ -216,6 +221,7 @@ Argument = {
 
 Expressions = {
 	Expression? ( [,:] Expression )*
+    #Arguments
 }
 
 /* Primary */
