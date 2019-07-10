@@ -350,6 +350,13 @@ Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
 def bytestr(b):
     return b.decode('utf-8') if isinstance(b, bytes) else b
 
+
+def decpos(urn, inputs, spos, epos):
+    inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
+    raws = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
+    return urn, spos, len(raws), len(raws[-1])-1
+
+
 def decpos4(pos4):
     urn, inputs, spos, epos = pos4
     #urn, inputs, pos, length = decsrc(s)
@@ -508,6 +515,16 @@ class ParseTree(object):
         self.strOut(sb)
         return "".join(sb)
 
+    def subs(self):
+        stack = []
+        cur = self.child
+        while cur is not None:
+            prev, edge, child = cur
+            if child is not None:
+                stack.append((edge, child))
+            cur = prev
+        return stack[::-1]
+
     def strOut(self, sb):
         sb.append("[#")
         sb.append(self.tag)
@@ -529,6 +546,9 @@ class ParseTree(object):
                 sb.append(" ")
                 sb.append(str(s))
         sb.append("]")
+
+    def pos(self):
+        return decpos(self.urn, self.inputs, self.spos, self.epos)
 
     def getpos4(self):
         return Pos4(self.urn, self.inputs, self.spos, self.epos)
