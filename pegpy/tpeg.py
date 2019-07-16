@@ -477,7 +477,7 @@ class ParseTree(object):
         cur = self.child
         while(cur is not None):
             c += 1
-            cur = cur.prev
+            cur, _, _ = cur
         return c
 
     def __contains__(self, label):
