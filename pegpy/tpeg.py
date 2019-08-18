@@ -1184,7 +1184,7 @@ def formTree(pe, a):
             if state == T.Unit:  # L: e  => e 
                 return formTree(pe.inner, a)
             if state == T.Fold: # L: e => L:^ {e}
-                return Fold(pe.edge, formTree(pe.inner, [T.Mut]))
+                return Fold(pe.edge, formTree(pe.inner, [T.Mut]), '')
             a0 = [T.Tree]
             pe0 = formTree(pe.inner, a0)
             if a0[0] != T.Fold:  pe0 = Node(pe0, '')
@@ -1412,6 +1412,8 @@ def grammar_factory():
     pegparser = generate(TPEGGrammar)
 
     def load_grammar(g, file, logger):
+        if '@@example' not in g:
+            g['@@example'] = []
         if isinstance(file, Path):
             f = file.open()
             data = f.read()
@@ -1426,7 +1428,6 @@ def grammar_factory():
             logger.perror(t.getpos4())
             return
         # load
-        g['@@example'] = []
         for _, stmt in t:
             if stmt == 'Rule':
                 name = stmt['name'].asString()
