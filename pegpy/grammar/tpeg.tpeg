@@ -1,0 +1,134 @@
+// Tree PEG 
+
+Start = __ Source EOF
+
+__ = ([ \t\r\n] / COMMENT)*
+_ = ([ \t] / COMMENT)*
+COMMENT = '/*' (!'*/' .)* '*/' / '//' (!EOL .)*
+EOL = '\n' / '\r\n' / EOF
+EOF = !.
+S = [ \t]
+
+Source = { Statement* #Source }
+EOS = _ (';' _)* / EOL ((S / COMMENT) _ / EOL)
+
+Statement = Import / Example / Rule
+
+//
+Import = {
+  'from' S _ name: (Identifier / String) 
+  (_ 'import' S _ names: Names )?
+  #Import
+} EOS
+
+Example = {
+  'example' S _
+  names: Names
+  doc: Doc
+  #Example
+} EOS
+
+Names = {
+  Identifier _
+  ([,] _ Identifier)* 
+}
+
+Doc = Doc1 / Doc0
+
+Doc0 = { (!EOL .)* #Doc }
+Doc1 = DELIM1 S* EOL { (!(DELIM1 EOL) .)* #Doc } DELIM1
+DELIM1 = ['] ['] [']
+
+Rule = { 
+  name: Identifier 
+  __ '=' __ ([/|] __)? 
+  inner: Expression
+  #Rule 
+} EOS
+
+Identifier = {
+  NAME
+  #Name
+}
+
+NAME = [A-Za-z_] [A-Za-z0-9_.]*
+
+example Expression a b / c
+example Expression a b || c
+
+Expression = Choice ( ^{ ( __ '|' !'|' _ Expression)+ #Alt })?
+Choice = Sequence ( ^{ ( __ ('/' / '||') _ Choice)+ #Ore })?
+Sequence = Predicate ( ^{ ( SS Predicate)+ #Seq })?
+SS = S _ !EOL / (_ EOL)+ S _
+
+Predicate = Not / And / Suffix
+Not = '!' { inner: Predicate #Not }
+And = '&' { inner: Predicate #And }
+Suffix = Term (
+  inner: ^{ '*' #Many } 
+  / inner: ^{ '+' #Many1 }
+  / inner: ^{ '?' #Option } )?
+
+Term = Group / String / Class / Any / Node / Fold / EdgeFold / Edge / Func / Ref
+Empty = { #Empty }
+
+Group = '(' __ (Expression / Empty) __ ')'
+
+Any = { '.' #Any }
+String = ['] { ('\\' . / ['] .)* #Char } [']
+Class = '[' { ('\\' . / ']' .)* #Class } ']'
+
+StringChoice = String (^{ (__ '/' _ String)+ #Dict })
+
+
+Node = {
+  '{' __
+  (node: Tag __ )?
+  inner: (Expression / Empty)
+  (node: Tag __ )?
+  __ '}'
+  #Node
+}
+
+Tag = '#' { (![ \t\r\n}] .)+ #Tag }
+
+Fold = {
+  '^' _ '{' __
+  (node: Tag __ )?
+  inner: (Expression / Empty)
+  (node: Tag __ )?
+  __ '}'
+  #Fold
+}
+
+Edge = {
+  edge: Identifier ':' _ !'^'
+  inner: Term
+  #Edge
+}
+
+EdgeFold = {
+  edge: Identifier ':' _ '^' _ '{' __
+  (node: Tag __ )?
+  inner: (Expression / Empty)
+  (node: Tag __ )?
+  __ '}'
+  #Fold
+}
+
+Func = {
+  '@' Identifier
+  '(' __
+    (Expression / Empty) (_ ',' __ Expression)*
+  __ ')'
+  #Func
+}
+
+example Func,Expression   @test()
+example Func,Expression   @test(A)
+example Func,Expression   @test(A,B)
+
+Ref = Identifier / {
+  (![ \t\r\n(){}[\]/|?*+@:] .)
+  #Ref
+}
