@@ -841,6 +841,20 @@ def setup_generate():
 
         return match_ore
 
+    def gen_Ore2(pe, **option):
+        dic = [e.text for e in pe if isinstance(e, Char)]
+        if len(dic) == len(pe):
+            def match_dic(px):
+                pos = px.pos
+                inputs = px.inputs
+                for s in dic:
+                    if inputs.startswith(s, pos): 
+                        px.pos += len(s)
+                        return True
+                return False
+            return match_dic
+        return gen_Ore(pe, **option)
+
     # Ref
 
     def gen_Ref(ref, **option):
@@ -930,7 +944,7 @@ def setup_generate():
                 return state
             state = state.prev
         return None
-
+    
     # def adddict(px, s):
     #     if len(s) == 0:
     #         return
@@ -1091,7 +1105,8 @@ def setup_generate():
     Option.gen = gen_Option
 
     Seq2.gen = gen_Seq
-    Ore2.gen = gen_Ore
+    #Ore2.gen = gen_Ore
+    Ore2.gen = gen_Ore2
     Alt2.gen = gen_Ore
     Ref.gen = gen_Ref
 
@@ -1489,11 +1504,12 @@ def grammar_factory():
             return pe
         return pe
     
-    pegparser = generate(TPEGGrammar)
+    #pegparser = generate(TPEGGrammar)
 
-    def load_grammar(g, file, logger):
-        if '@@example' not in g:
-            g['@@example'] = []
+    def load_grammar(g, file, **options):
+        g['@@example'] = []
+        logger = options.get('logger', STDLOG)
+        pegparser = generate(options.get('peg', TPEGGrammar))
         if isinstance(file, Path):
             f = file.open()
             data = f.read()
@@ -1504,6 +1520,7 @@ def grammar_factory():
             basepath = inspect.currentframe().f_back.f_code.co_filename
             t = pegparser(file, basepath)
             basepath = (str(Path(basepath).resolve().parent))
+        options['basepath'] = basepath
         if t == 'err':
             logger.perror(t.getpos4())
             return
@@ -1523,7 +1540,7 @@ def grammar_factory():
                     example(g, str(n), doc.getpos4())
             elif stmt == 'Import':
                 urn = str(stmt['name'])
-                lg = grammar(urn, basepath, logger)
+                lg = grammar(urn, **options)
                 for n in stmt['names']:
                     lname = str(n)  # ns.Expression
                     name = lname
@@ -1567,8 +1584,10 @@ def grammar_factory():
 
     GrammarDB = {}
 
-    def grammar(urn, basepath='', logger=STDLOG):
+    #def grammar(urn, basepath='', logger=STDLOG):
+    def grammar(urn, **options):
         paths = []
+        basepath = options.get('basepath', '')
         if basepath == '':
             paths.append('')
         else:
@@ -1582,7 +1601,7 @@ def grammar_factory():
         if key in GrammarDB:
             return GrammarDB[key]
         peg = Grammar()
-        load_grammar(peg, path, logger)
+        load_grammar(peg, path, **options)
         GrammarDB[key] = peg
         return peg
 
