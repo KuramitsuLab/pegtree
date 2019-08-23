@@ -7,7 +7,7 @@ import time
 import sys
 import importlib
 # m = importlib.import_module('foo.some')  # -> 'module'
-import pegpy.tpeg2 as tpeg
+import pegpy.tpeg as tpeg
 
 
 def bold(s):
@@ -174,11 +174,6 @@ def peg(options):
 '''
 def json(opt, out):
     parse(opt, out, lambda t: t.asJSON())
-
-
-
-
-
 
 def nezcc(opt, out):
     pass

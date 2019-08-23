@@ -1,148 +1,178 @@
-import sys, os, errno, inspect
+import sys
+import os
+import errno
+import inspect
 from collections import namedtuple
 from enum import Enum
 from pathlib import Path
 
-# Parsing Expression
-Empty = namedtuple('Empty', '')
-Char = namedtuple('Char', 'text')
-Range = namedtuple('Range', 'chars ranges')
-Any = namedtuple('Any', '')
-Seq = namedtuple('Seq', 'left right')
-Ore = namedtuple('Ore', 'left right')
-Alt = namedtuple('Alt', 'left right')
-And = namedtuple('And', 'inner')
-Not = namedtuple('Not', 'inner')
-Many = namedtuple('Many', 'inner')
-Many1 = namedtuple('Many1', 'inner')
-Ref = namedtuple('Ref', 'name peg prop')
-# Tree
-Node = namedtuple('Node', 'inner node')
-Edge = namedtuple('Edge', 'edge inner')
-Fold = namedtuple('Fold', 'edge inner node')
-Abs = namedtuple('Abs', 'inner')
+# ParsingExpression
+
+class ParsingExpression(object):
+    def __iter__(self):  pass
+    def __len__(self): return 0
+
+    # operator overloading 
+    def __and__(self, y): return Seq2(self, y)
+    def __rand__(self, y): return Seq2(self, y)
+    def __or__(self, y): return Ore2(self, y)
+    def __truediv__(self, y): return Ore2(self, y)
+    def __invert__(self): return Not(self)
+
+class Char(ParsingExpression):
+    __slots__ = ['text']
+
+    def __init__(self, text):
+        self.text = text
+
+
+class Range(ParsingExpression):
+    __slots__ = ['chars', 'ranges']
+
+    def __init__(self, chars, ranges):
+        self.chars = chars
+        self.ranges = ranges
+
+
+class Any(ParsingExpression):
+    pass
+
+
+class Ref(ParsingExpression):
+    def __init__(self, name, peg):
+        self.name = name
+        self.peg = peg
+
+    def uname(self):
+        return self.name if self.name[0].isdigit() else self.peg.gid + self.name
+    
+    def deref(self):
+        return self.peg[self.name]
+    
+    def get(self, key, value):
+        return getattr(self, key) if hasattr(self, key) else value
+
+    def set(self, key, value):
+        setattr(self, key, value)
+
+
+class Tuple(ParsingExpression):
+    __slots__ = ['es']
+    def __init__(self, *es):
+        self.es = list(es)
+
+    def __iter__(self):
+        return iter(self.es)
+
+    def __len__(self): 
+        return len(self.es)
+
+
+class Alt2(Tuple):
+    pass
+
+
+class Ore2(Tuple):
+    pass
+
+
+class Seq2(Tuple):
+    pass
+
+
+class Unary(ParsingExpression):
+    __slot__ = ['e']
+
+    def __init__(self, e):
+        self.e = e
+
+    def __iter__(self):
+        yield self.e
+
+    def __len__(self):
+        return 1
+
+
+class And(Unary):
+    pass
+
+
+class Not(Unary):
+    pass
+
+
+class Many(Unary):
+    pass
+
+
+class Many1(Unary):
+    pass
+
+class Option(Unary):
+    pass
+
+
+class Node(Unary):
+    __slot__ = ['e', 'tag']
+
+    def __init__(self, e, tag=''):
+        self.e = e
+        self.tag = tag
+
+
+class Edge2(Unary):
+    __slot__ = ['e', 'edge']
+
+    def __init__(self, e, edge=''):
+        self.e = e
+        self.edge = edge
+
+
+class Fold2(Unary):
+    __slot__ = ['e', 'edge', 'tag']
+
+    def __init__(self, e, edge='', tag=''):
+        self.e = e
+        self.edge = edge
+        self.tag = tag
+
+
+class Abs(Unary):
+    __slot__ = ['e']
+
+    def __init__(self, e):
+        self.e = e
+
 # Action
-Action = namedtuple('Action', 'inner func params pos4')
+
+
+class Action(Unary):
+    __slots__ = ['e', 'func', 'params']
+    def __init__(self, e, func, params, pos4=None):
+        self.e = e
+        self.func = func
+        self.params = params
+
+# Action = namedtuple('Action', 'inner func params pos4')
+
 
 # CONSTANT
-EMPTY = Empty()
+EMPTY = Char('')
 ANY = Any()
 FAIL = Not(EMPTY)
 
-# define methods
-
-PEs = [
-    Empty, Char, Range, Any, Seq, Ore, Alt, And, Not, Many, Many1, Ref,
-    Node, Edge, Fold, Abs, Action,
-]
-
-def defmethod(name, f, cs=PEs):
-    for c in cs:
-        setattr(c, name, f)
-
-
-def setdup(method, f):
-    setattr(Empty, method, lambda p, a: p)
-    setattr(Char, method, lambda p, a: p)
-    setattr(Range, method, lambda p, a: p)
-    setattr(Any, method, lambda p, a: p)
-    setattr(Ref, method, lambda p, a: p)
-    setattr(And, method, lambda p, a: And(f(p[0], a)))
-    setattr(Not, method, lambda p, a: Not(f(p[0], a)))
-    setattr(Many, method, lambda p, a: Many(f(p[0], a)))
-    setattr(Many1, method, lambda p, a: Many1(f(p[0], a)))
-    setattr(Seq, method, lambda p, a: Seq(f(p[0], a), f(p[1], a)))
-    setattr(Ore, method, lambda p, a: Ore(f(p[0], a), f(p[1], a)))
-    setattr(Alt, method, lambda p, a: Alt(f(p[0], a), f(p[1], a)))
-    setattr(Node, method, lambda p, a: Node(f(p[0], a), p[1]))
-    setattr(Edge, method, lambda p, a: Edge(p[0], f(p[1], a)))
-    setattr(Fold, method, lambda p, a: Fold(p[0], f(p[1], a), p[2]))
-    setattr(Abs, method, lambda p, a:  Abs(f(p[0], a)))
-    setattr(Action, method, lambda p, a: Action(f(p[0], a), p[1], p[2], p[3]))
-
-
-def setmethod():
-    def char1(x):
-        return Char(x) if x != '' else EMPTY
-
-    def seq2(x, y):
-        if isinstance(x, Empty):
-            return y
-        if isinstance(y, Empty):
-            return x
-        if isinstance(x, Char) and isinstance(y, Char):
-            return Char(x.text + y.text)
-        return Seq(x, y)
-
-    def alt2(x, y, c=Alt):
-        if isinstance(x, Char) and len(x.text) == 1:
-            if isinstance(y, Char) and len(y.text) == 1:
-                return Range(x.text + y.text, ())
-            if isinstance(y, Range):
-                return Range(x.text + y.chars, y.ranges)
-        if isinstance(x, Range):
-            if isinstance(y, Char) and len(y.text) == 1:
-                return Range(x.chars + y.text, y.ranges)
-            if isinstance(y, Range):
-                return Range(x.chars + y.chars, x.ranges + y.ranges)
-        return c(x, y)
-
-    def ore2(x, y):
-        if x is None or y is None:
-            return None
-        if x == EMPTY:
-            return EMPTY
-        return alt2(x, y, Ore)
-
-    def Xe(p):
-        if isinstance(p, str):
-            return char1(p)
-        if isinstance(p, dict):
-            for key in p:
-                return Edge(key, Xe(p[key]))
-            return EMPTY
-        return p
-
-    defmethod('__and__', lambda x, y: seq2(x, Xe(y)))  # x & y
-    defmethod('__rand__', lambda x, y: seq2(Xe(x), Xe(y)))  # x & y
-    defmethod('__or__', lambda x, y: ore2(x, Xe(y)))  # x | y
-    defmethod('__truediv__', lambda x, y: ore2(x, Xe(y)))  # x / y
-    defmethod('__floordiv__', lambda x, y: alt2(x, Xe(y)))  # x // y
-    defmethod('__invert__', lambda x: Not(x))  # ~x
-
-
-    def piter(p):
-        if hasattr(p, 'inner'):
-            yield p.inner
-        if hasattr(p, 'right'):
-            yield p.left
-            yield p.right
-
-
-    defmethod('__iter__', lambda p: piter(p))  #
-
-
-    def flatten(p, ps, c=Seq):
-        if isinstance(p, c):
-            flatten(p.left, ps, c)
-            flatten(p.right, ps, c)
-        else:
-            ps.append(p)
-
-    defmethod('flatten', flatten)  #
-
+def setup():
     def grouping(e, f):
         return '(' + repr(e) + ')' if f(e) else repr(e)
 
-    def inSeq(e):
-        return (isinstance(e, Ore) and e.right != EMPTY) or isinstance(e, Alt)
-
     def inUnary(e):
-        return (isinstance(e, Ore) and e.right != EMPTY) \
-            or isinstance(e, Seq) or isinstance(e, Alt) \
-            or (isinstance(e, Edge))or isinstance(e, Fold)
+        return isinstance(e, Ore2) \
+            or isinstance(e, Seq2) or isinstance(e, Alt2) \
+            or (isinstance(e, Edge2))or isinstance(e, Fold2)
+
     CharTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', "'": "\\'"})
+
     RangeTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', ']': '\\]', '-': '\\-'})
 
@@ -150,37 +180,41 @@ def setmethod():
         ss = tuple(map(lambda x: x[0].translate(
             RangeTBL) + '-' + x[1].translate(RangeTBL), ranges))
         return ''.join(ss)
-    Empty.__repr__ = lambda p: "''"
     Char.__repr__ = lambda p: "'" + p.text.translate(CharTBL) + "'"
     Range.__repr__ = lambda p: "[" + \
         rs(p.ranges) + p.chars.translate(RangeTBL) + "]"
     Any.__repr__ = lambda p: '.'
-    Seq.__repr__ = lambda p: grouping(
-        p.left, inSeq) + ' ' + grouping(p.right, inSeq)
-    Ore.__repr__ = lambda p: grouping(
-        p.left, inUnary) + '?' if p.right == EMPTY else repr(p.left) + ' / ' + repr(p.right)
-    Alt.__repr__ = lambda p: repr(p.left) + ' | ' + repr(p.right)
-    And.__repr__ = lambda p: '&'+grouping(p.inner, inUnary)
-    Not.__repr__ = lambda p: '!'+grouping(p.inner, inUnary)
-    Many.__repr__ = lambda p: grouping(p.inner, inUnary)+'*'
-    Many1.__repr__ = lambda p: grouping(p.inner, inUnary)+'+'
+
+    def ss(e): return grouping(e, lambda e: isinstance(
+        e, Ore2)  or isinstance(e, Alt2))
+
+    Seq2.__repr__ = lambda p: ' '.join(map(ss, p))
+    Ore2.__repr__ = lambda p: ' / '.join(map(repr, p))
+    # grouping(
+    #     p.left, inUnary) + '?' if p.right == EMPTY else repr(p.left) + ' / ' + repr(p.right)
+    Alt2.__repr__ = lambda p: ' | '.join(map(repr, p))
+    #repr(p.left) + ' | ' + repr(p.right)
+
+    And.__repr__ = lambda p: '&'+grouping(p.e, inUnary)
+    Not.__repr__ = lambda p: '!'+grouping(p.e, inUnary)
+    Many.__repr__ = lambda p: grouping(p.e, inUnary)+'*'
+    Many1.__repr__ = lambda p: grouping(p.e, inUnary)+'+'
+    Option.__repr__ = lambda p: grouping(p.e, inUnary)+'?'
     Ref.__repr__ = lambda p: p.name
-    Node.__repr__ = lambda p: '{' + str(p.inner) + ' #' + p.node + '}'
-    Edge.__repr__ = lambda p: ('$' if p.edge == '' else p.edge + ': ') + grouping(p.inner, inUnary)
-    Fold.__repr__ = lambda p: ('' if p.edge == '' else p.edge + ':') + '^ {' + str(p.inner) + ' #' + p.node + '}'
-    Abs.__repr__ = lambda p: f'@abs({p.inner})'
+    Node.__repr__ = lambda p: '{' + str(p.e) + ' #' + p.tag + '}'
+    Edge2.__repr__ = lambda p: (
+        '$' if p.edge == '' else p.edge + ': ') + grouping(p.e, inUnary)
+    Fold2.__repr__ = lambda p: (
+        '' if p.edge == '' else p.edge + ':') + '^ {' + str(p.e) + ' #' + p.tag + '}'
+    Abs.__repr__ = lambda p: f'@abs({p.e})'
     Action.__repr__ = lambda p: f'@{p.func}{p.params}'
 
-    # Ref
+setup()
 
-    Ref.uname = lambda p : p.name[0] if p.name[0].isdigit() else (p.peg.gid + p.name)
-    Ref.deref = lambda p: p.peg[p.name]
-
-setmethod()
-
-# Grammar 
+# # Grammar
 
 GrammarId = 0
+
 
 class Grammar(dict):
     def __init__(self):
@@ -197,23 +231,26 @@ class Grammar(dict):
             ss.append(repr(self[rule]))
             ss.append('\n')
         return ''.join(ss)
-    
+
     def add(self, key, item):
-        if not key in self: self.N.append(key)
+        if not key in self:
+            self.N.append(key)
         self[key] = item
 
     def newRef(self, name):
         key = '@' + name
         if not key in self:
-            super().__setitem__(key, Ref(name, self, {}))
+            super().__setitem__(key, Ref(name, self))
         return self[key]
 
     def start(self):
-        if len(self.N) == 0: 
+        if len(self.N) == 0:
             self['EMPTY'] = EMPTY
         return self.N[0]
 
-# TPEG Grammar Definition
+##
+
+# # TPEG Grammar Definition
 
 def TPEG(g):
     def Xe(p):
@@ -221,23 +258,27 @@ def TPEG(g):
             return Char(p)
         if isinstance(p, dict):
             for key in p:
-                return Edge(key, Xe(p[key]))
+                return Edge2(Xe(p[key]), key)
             return EMPTY
         return p
 
     def seq(*ps):
-        if len(ps) == 0:
-            return EMPTY
-        if len(ps) == 1:
-            return Xe(ps[0])
-        return Seq(Xe(ps[0]), seq(*ps[1:]))
+        if len(ps) == 0: return EMPTY
+        if len(ps) == 1: return Xe(ps[0])
+        return Seq2(*list(map(Xe, ps)))
+    e = seq
+
+    def choice(*ps):
+        return Ore2(*list(map(Xe, ps)))
+
     def many(*ps): return Many(seq(*ps))
     def many1(*ps): return Many1(seq(*ps))
-    def option(*ps): return Ore(seq(*ps), EMPTY)
+    def option(*ps): return Option(seq(*ps))
     def TreeAs(node, *ps): return Node(seq(*ps), node)
     def ListAs(*ps): return Node(seq(*ps), '')
-    def FoldAs(edge, node, *ps): return Fold(edge, seq(*ps), node)
-    def crange(*ps):
+    def FoldAs(edge, node, *ps): return Fold2(seq(*ps), edge, node)
+
+    def c(*ps):
         chars = []
         ranges = []
         for x in ps:
@@ -247,9 +288,8 @@ def TPEG(g):
                 ranges.append(tuple(x))
         return Range(''.join(chars), ranges)
     #
-    c = crange
-    e = seq
     def ref(p): return g.newRef(p)
+    def rule(g, name, *ps): g.add(name,seq(*ps))
 
     __ = ref('__')
     _ = ref('_')
@@ -261,91 +301,110 @@ def TPEG(g):
     Identifier = ref('Identifier')
     Empty = ref('Empty')
 
-    g['Start'] = e(__, ref('Source'), ref('EOF'))
+    rule(g, 'Start', __, ref('Source'), ref('EOF'))
 
-    g['__'] = many(c(' \t\r\n') | COMMENT)
-    g['_'] = many(c(' \t') | COMMENT)
-    g['EOF'] = ~ANY
-    g['COMMENT'] = e('/*', many(~e('*/'), ANY),
-                     '*/') | e('//', many(~EOL, ANY))
-    g['EOL'] = e('\n') | e('\r\n') | ref('EOF')
-    g['S'] = c(' \t')
+    rule(g, '__', many(choice(c(' \t\r\n'),COMMENT)))
+    rule(g, '_', many(choice(c(' \t'),COMMENT)))
 
-    g['Source'] = TreeAs('Source', many({'': ref('Statement')}))
-    g['EOS'] = _ & many(e(';', _) | EOL & (S | COMMENT) & _ | EOL)
+    rule(g, 'EOF', Not(ANY))
+    rule(g, 'COMMENT', choice(
+        e('/*', many(Not(e('*/')), ANY),'*/'), 
+        e('//', many(Not(EOL), ANY))))
+    rule(g, 'EOL', choice('\n', '\r\n', ref('EOF')))
+    rule(g, 'S', c(' \t'))
 
-    g['Statement'] = ref('Import') | ref('Example') | ref('Rule')
+    rule(g, 'Source', TreeAs('Source', many({'': ref('Statement')})))
+    rule(g, 'EOS', _, many(choice(e(';', _), e(EOL,choice(S,COMMENT),_), EOL)))
 
-    g['Rule'] = TreeAs('Rule', {'name': Identifier}, __, '=', __, option(
-        c('/|'), __), {'inner': Expression}, EOS)
+    rule(g, 'Statement', choice(ref('Import'),ref('Example'),ref('Rule')))
+
+    rule(g, 'Rule', TreeAs('Rule', {'name': Identifier}, __, '=', __, option(
+        c('/|'), __), {'inner': Expression}, EOS))
 
     NAME = c(('A', 'Z'), ('a', 'z'), '@_') & many(
         c(('A', 'Z'), ('a', 'z'), ('0', '9'), '_.'))
-    g['Identifier'] = TreeAs('Name', NAME | e(
-        '"', many(e(r'\"') | ~c('\\"\n') & ANY), '"'))
+    
+    rule(g, 'Identifier', TreeAs('Name', NAME | e(
+        '"', many(e(r'\"') | Not(c('\\"\n')) & ANY), '"')))
 
     # import
     FROM = option(_, 'import', S, _, {'names': ref('Names')})
-    g['Import'] = TreeAs('Import', 'from', S, _, {'name': Identifier / ref('Char')}, FROM) & EOS
+    rule(g, 'Import', TreeAs('Import', 'from', S, _, {
+                         'name': Identifier / ref('Char')}, FROM) & EOS)
 
-    g['Example'] = TreeAs('Example', 'example', S, _, {
-                          'names': ref('Names')}, {'doc': ref('Doc')}) & EOS
-    g['Names'] = ListAs({'': Identifier}, _, many(c(',&'), _, {'': Identifier}, _))
+    rule(g,'Example', TreeAs('Example', 'example', S, _, {
+                          'names': ref('Names')}, {'doc': ref('Doc')}) & EOS)
+    rule(g, 'Names', ListAs({'': Identifier}, _, many(
+        c(',&'), _, {'': Identifier}, _)))
+    
     DELIM = Xe("'''")
-    DOC1 = TreeAs("Doc", many(~e(DELIM, EOL), ANY))
-    DOC2 = TreeAs("Doc", many(~c('\r\n'), ANY))
-    g['Doc'] = e(DELIM, many(S), EOL, DOC1, DELIM) | DOC2
+    DOC1 = TreeAs("Doc", many(Not(e(DELIM, EOL)), ANY))
+    DOC2 = TreeAs("Doc", many(Not(c('\r\n')), ANY))
+    rule(g,'Doc', e(DELIM, many(S), EOL, DOC1, DELIM) | DOC2)
 
-    g['Expression'] = ref('Choice') & option(
-        FoldAs('left', 'Alt', __, '|', _, {'right': Expression}))
-    g['Choice'] = ref('Sequence') & option(
-        FoldAs('left', 'Ore', __, '/', _, {'right': ref('Choice')}))
-    SS =  e(S, _, ~EOL) | e(many1(_, EOL), S, _)
-    g['Sequence'] = ref('Predicate') & option(
-        FoldAs('left', 'Seq', SS, {'right': ref('Sequence')}))
+    rule(g, 'Expression', ref('Choice'), option(
+        FoldAs('left', 'Alt', many1(__, '|', _, {'right': ref('Choice')}))))
 
-    g['Predicate'] = ref('Not') | ref('And') | ref('Append') | ref('Suffix')
-    g['Not'] = TreeAs('Not', '!', {'inner': ref('Predicate')})
-    g['And'] = TreeAs('And', '&', {'inner': ref('Predicate')})
-    g['Append'] = TreeAs('Append', '$', {'inner': ref('Term')})
+    rule(g, 'Choice', ref('Sequence'), option(
+        FoldAs('left', 'Ore', many1(__, '/', _, {'right': ref('Sequence')}))))
 
-    g['Suffix'] = ref('Term') & option(FoldAs('inner', 'Many', '*') |
-                                       FoldAs('inner', 'Many1', '+') | FoldAs('inner', 'Option', '?'))
+    SS = choice(e(S, _, ~EOL), e(many1(_, EOL), S, _))
+    rule(g, 'Sequence', ref('Predicate'), option(
+        FoldAs('left', 'Seq', many1(SS, {'right': ref('Predicate')}))   ))
 
-    g['Term'] = ref('Group') / ref('Char') / ref('Class') / ref('Any') / ref('Node') / \
-        ref('Fold') / ref('EdgeFold') / ref('Edge') / ref('Func') / ref('Ref')
-    g['Group'] = e('(', __, (Expression/Empty), __, ')')
+    rule(g, 'Predicate', choice(ref('Not'),ref('And'),ref('Suffix')))
 
-    g['Empty'] = TreeAs('Empty', EMPTY)
-    g['Any'] = TreeAs('Any', '.')
-    g['Char'] = e("'", TreeAs('Char', many(
-        e('\\', ANY) | ~c("'\n") & ANY)), "'")
-    g['Class'] = e(
-        '[', TreeAs('Class', many(e('\\', ANY) | ~e("]") & ANY)), ']')
+    rule(g, 'Not', TreeAs('Not', '!', {'inner': ref('Predicate')}))
+    rule(g,'And', TreeAs('And', '&', {'inner': ref('Predicate')}))
+    #g['Append'] = TreeAs('Append', '$', {'inner': ref('Term')})
+
+    rule(g, 'Suffix', ref('Term'), choice(
+        FoldAs('inner', 'Many', '*'),
+        FoldAs('inner', 'Many1', '+'),
+        FoldAs('inner', 'Option', '?'), EMPTY))
+
+    rule(g, 'Term', choice(ref('Group'),ref('Char'),ref('Class'),ref('Any'),ref('Node'),
+        ref('Fold'),ref('EdgeFold'),ref('Edge'),ref('Func'),ref('Identifier')))
+    rule(g, 'Group', '(', __, choice(Expression,Empty), __, ')')
+
+    rule(g, 'Empty', TreeAs('Empty', EMPTY))
+    rule(g, 'Any', TreeAs('Any', '.'))
+    rule(g, 'Char', "'", TreeAs('Char', many(
+        e('\\', ANY) | Not(c("'\n")) & ANY)), "'")
+    rule(g, 'Class', 
+        '[', TreeAs('Class', many(e('\\', ANY) | e(Not(e("]")),ANY))), ']')
 
     Tag = e('{', __, option('#', {'node': ref('Identifier')}), __)
     ETag = e(option('#', {'node': ref('Identifier')}), __, '}')
 
-    g['Node'] = TreeAs('Node', Tag, {'inner': Expression | Empty}, __, ETag)
-    g['Fold'] = e('^', _, TreeAs('Fold', Tag, {'inner': Expression | Empty}, __, ETag))
-    g['Edge'] = TreeAs('Edge', {'edge': ref('EdgeName')}, ':', _, {
-                       'inner': ref('Term')})
-    g['EdgeFold'] = TreeAs('Fold', {'edge': ref('EdgeName')}, ':^', _, Tag, {
-                           'inner': Expression / Empty}, __, ETag)
-    g['EdgeName'] = TreeAs('', c(('a', 'z'), '$'), many(c(('A', 'Z'), ('a', 'z'), ('0', '9'), '_')))
-    g['Func'] = TreeAs('Func', '@', {'name': Identifier}, '(', __, {'params': ref('Params')}, ')')
-    g['Params'] = ListAs({'': Expression}, many(_, ',', __, {'': Expression}), __)
-    g['Ref'] = TreeAs('Ref', ref('REF'))
-    g['REF'] = e('"', many(Xe('\\"') | e(~c('\\"\n'), ANY)), '"') | many1(~c(' \t\r\n(,){};<>[|/*+?=^\'`#') & ANY)
-    g.N = ['Start', 'Sequence']
+    rule(g, 'Node', TreeAs('Node', Tag, {'inner': choice(Expression,Empty)}, __, ETag))
+    rule(g, 'Fold', '^', _, TreeAs(
+        'Fold', Tag, {'inner': choice(Expression,Empty)}, __, ETag))
+    rule(g, 'Edge', TreeAs('Edge', {'edge': ref('EdgeName')}, ':', _, {
+                       'inner': ref('Term')}))
+    rule(g, 'EdgeFold', TreeAs('Fold', {'edge': ref('EdgeName')}, ':', _, '^', _, Tag, {
+                           'inner': choice(Expression,Empty)}, __, ETag))
+    rule(g, 'EdgeName', TreeAs('', c(('a', 'z'), '$'), many(
+        c(('A', 'Z'), ('a', 'z'), ('0', '9'), '_'))))
+    rule(g, 'Func', TreeAs('Func', '@', {'name': Identifier}, '(', __, {
+                       'params': ref('Params')}, ')'))
+    rule(g, 'Params', ListAs({'': Expression}, many(
+        _, ',', __, {'': Expression}), __))
+    # rule(g, 'Ref', TreeAs('Ref', ref('REF')))
+    # rule(g, 'REF', e('"', many(Xe('\\"') | e(Not(c('\\"\n')), ANY)), '"') | many1(
+    #     Not(c(' \t\r\n(,){};<>[|/*+?=^\'`#')) & ANY))
+    #g.N = ['Start', 'Sequence']
     return g
 
+
 TPEGGrammar = TPEG(Grammar())
+#print(TPEGGrammar)
 
 ######################################################################
 # ast.env
 
 Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
+
 
 def bytestr(b):
     return b.decode('utf-8') if isinstance(b, bytes) else b
@@ -376,11 +435,13 @@ def decpos4(pos4):
         length = 1
     mark = []
     for i in range(cols):
-        c =line[i]
-        if c != '\t' and c != '　' : c = ' '
+        c = line[i]
+        if c != '\t' and c != '　':
+            c = ' '
         mark.append(c)
     mark = ''.join(mark) + ('^' * length)
     return (urn, spos, linenum, cols, bytestr(line), mark)
+
 
 def serror4(pos4, msg='SyntaxError'):
     if pos4 is not None:
@@ -451,12 +512,15 @@ class Logger(object):
     def notice(self, pos4, msg):
         self.println(serror4(pos4, self.c('Cyan', '[notice] ' + str(msg))))
 
+
 STDLOG = Logger()
 
 #####################################
 
-def Merge(prev, edge, child): 
-  return (prev, edge, child)
+
+def Merge(prev, edge, child):
+    return (prev, edge, child)
+
 
 class ParseTree(object):
     __slots__ = ['tag', 'urn', 'inputs', 'spos', 'epos', 'child']
@@ -472,65 +536,67 @@ class ParseTree(object):
     def __eq__(self, tag):
         return self.tag == tag
 
+    def subs(self):
+        if not isinstance(self.child, list):
+            stack = []
+            cur = self.child
+            while cur is not None:
+                prev, edge, child = cur
+                if child is not None:
+                    stack.append((edge, child))
+                cur = prev
+            self.child = list(stack[::-1])
+        return self.child
+
     def __len__(self):
-        c = 0
-        cur = self.child
-        while(cur is not None):
-            c += 1
-            cur, _, _ = cur
-        return c
+        return len(self.subs())
 
     def __contains__(self, label):
-        cur = self.child
-        while(cur is not None):
-            cur, edge, _ = cur
+        for edge, _ in self.subs():
             if label == edge: return True
         return False
 
     def __getitem__(self, label):
-        cur = self.child
-        while(cur is not None):
-            cur, edge, child = cur
-            if label == edge: return child
+        if isinstance(label, int):
+            return self.subs()[label][1]
+        for edge, child in self.subs():
+            if label == edge:
+                return child
         return None
-    
+
     def get(self, label: str, default=None, conv=lambda x: x):
-        cur = self.child
-        while(cur is not None):
-            cur, edge, child = cur
-            if label == edge: return conv(child)
+        for edge, child in self.subs():
+            if label == edge:
+                return conv(child)
         return default
 
     def getString(self, label: str, default=None):
-        return self.get(label, default, lambda t: t.asString())
+        return self.get(label, default, str)
+
+    def keys(self):
+        ks = []
+        for edge, _ in self.subs():
+            if edge != '': ks.append(edge)
+        return ks
 
     def __iter__(self):
-        return TreeLinkIter(self.child)
-
-    def __repr__(self):
-        return self.__str__()
+        return map(lambda x: x[1], self.subs())
 
     def __str__(self):
+        s = self.inputs[self.spos:self.epos]
+        return s.decode('utf-8') if isinstance(s, bytes) else s
+
+    def __repr__(self):
         sb = []
         self.strOut(sb)
         return "".join(sb)
-
-    def subs(self):
-        stack = []
-        cur = self.child
-        while cur is not None:
-            prev, edge, child = cur
-            if child is not None:
-                stack.append((edge, child))
-            cur = prev
-        return stack[::-1]
 
     def strOut(self, sb):
         sb.append("[#")
         sb.append(self.tag)
         c = len(sb)
-        for tag, child in self:
-            sb.append(' ' if tag is '' else ' ' + tag + '=')
+        for tag, child in self.subs():
+            sb.append(' ' if tag == '' else ' ' + tag + '=')
             child.strOut(sb)
         if c == len(sb):
             s = self.inputs[self.spos:self.epos]
@@ -547,15 +613,11 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
-    def pos(self):
-        return decpos(self.urn, self.inputs, self.spos, self.epos)
-
     def getpos4(self):
         return Pos4(self.urn, self.inputs, self.spos, self.epos)
 
-    def asString(self):
-        s = self.inputs[self.spos:self.epos]
-        return s.decode('utf-8') if isinstance(s, bytes) else s
+    # def pos(self):
+    #     return decpos(self.urn, self.inputs, self.spos, self.epos)
 
     def dump(self, w, indent=''):
         if self.child is None:
@@ -569,24 +631,7 @@ class ParseTree(object):
             child.dump(w, indent2)
         w.println(indent + w.bold("]"))
 
-
-class TreeLinkIter(object):
-    __slots__ = ['stack']
-
-    def __init__(self, cur):
-        self.stack = []
-        while cur is not None:
-            prev, edge, child = cur
-            if child is not None:
-                self.stack.append((edge, child))
-            cur = prev
-
-    def __next__(self):
-        if len(self.stack) == 0:
-            raise StopIteration()
-        return self.stack.pop()
-
-## TreeConv
+# TreeConv
 
 class ParseTreeConv(object):
     def settree(self, s, t):
@@ -603,8 +648,10 @@ class ParseTreeConv(object):
 
 ######################################################################
 
+
 class ParserContext:
-    __slots__ = ['urn', 'inputs', 'pos', 'epos', 'headpos', 'ast', 'state', 'memo']
+    __slots__ = ['urn', 'inputs', 'pos', 'epos',
+                 'headpos', 'ast', 'state', 'memo']
 
     def __init__(self, urn, inputs, spos, epos):
         self.urn = urn
@@ -616,128 +663,111 @@ class ParserContext:
         self.state = None
         self.memo = {}
 
-# setup parser
-
-def gen_Pexp(pe, **option):
-    try:
-        return pe.gen(**option)
-    except AttributeError:
-        print('@@', pe)
-        return pe.gen(**option)
-
-def gen_Empty(pe, **option):
-    def empty(px): return True
-    return empty
+    # setup parser
 
 
-def gen_Char(pe, **option):
-    chars = pe.text
-    clen = len(pe.text)
+def setup_generate():
+    def gen_Pexp(pe, **option):
+        try:
+            return pe.gen(**option)
+        except AttributeError:
+            print('@AttributeError', pe)
+            return pe.gen(**option)
 
-    def match_char(px):
-        if px.inputs.startswith(chars, px.pos):
-            px.pos += clen
-            return True
-        return False
+    # def gen_Empty(pe, **option):
+    #     def empty(px): return True
+    #     return empty
 
-    return match_char
+    def gen_Char(pe, **option):
+        chars = pe.text
+        clen = len(pe.text)
+        if clen == 0:
+            return lambda px: True
 
-# Range
+        def match_char(px):
+            if px.inputs.startswith(chars, px.pos):
+                px.pos += clen
+                return True
+            return False
 
-def first_range(pe):
-    cs = 0
-    for c in pe.chars:
-        cs |= 1 << ord(c)
-    for r in pe.ranges:
-        for c in range(ord(r[0]), ord(r[1])+1):
-            cs |= 1 << c
-    return cs
+        return match_char
 
-def gen_Range(pe, **option):
-    #offset = pe.min()
-    bitset = first_range(pe) ## >> offset
+    # Range
 
-    def bitmatch(px):
-        if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos]) ## - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
+    def first_range(pe):
+        cs = 0
+        for c in pe.chars:
+            cs |= 1 << ord(c)
+        for r in pe.ranges:
+            for c in range(ord(r[0]), ord(r[1])+1):
+                cs |= 1 << c
+        return cs
+
+    def gen_Range(pe, **option):
+        #offset = pe.min()
+        bitset = first_range(pe)  # >> offset
+
+        def bitmatch(px):
+            if px.pos < px.epos:
+                shift = ord(px.inputs[px.pos])  # - offset
+                if shift >= 0 and (bitset & (1 << shift)) != 0:
+                    px.pos += 1
+                    return True
+            return False
+
+        return bitmatch
+
+    # Any
+
+    def gen_Any(pe, **option):
+        def match_any(px):
+            if px.pos < px.epos:
                 px.pos += 1
                 return True
-        return False
+            return False
 
-    return bitmatch
+        return match_any
 
-# Any
+    # And
 
-def gen_Any(pe, **option):
-    def match_any(px):
-        if px.pos < px.epos:
-            px.pos += 1
-            return True
-        return False
+    def gen_And(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-    return match_any
+        def match_and(px):
+            pos = px.pos
+            if pf(px):
+                # backtracking
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                return True
+            return False
 
-# And
+        return match_and
 
+    # Not
 
-def gen_And(pe, **option):
-    pf = gen_Pexp(pe.inner, **option)
+    def gen_Not(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-    def match_and(px):
-        pos = px.pos
-        if pf(px):
-            # backtracking
-            px.headpos = max(px.pos, px.headpos)
-            px.pos = pos
-            return True
-        return False
-
-    return match_and
-
-# Not
-
-def gen_Not(pe, **option):
-    pf = gen_Pexp(pe.inner, **option)
-
-    def match_not(px):
-        pos = px.pos
-        ast = px.ast
-        if not pf(px):
-            # backtracking
-            px.headpos = max(px.pos, px.headpos)
-            px.pos = pos
-            px.ast = ast
-            return True
-        return False
-
-    return match_not
-
-# Many
-
-
-def gen_Many(pe, **option):
-    pf = gen_Pexp(pe.inner, **option)
-
-    def match_many(px):
-        pos = px.pos
-        ast = px.ast
-        while pf(px) and pos < px.pos:
+        def match_not(px):
             pos = px.pos
             ast = px.ast
-        px.headpos = max(px.pos, px.headpos)
-        px.pos = pos
-        px.ast = ast
-        return True
+            if not pf(px):
+                # backtracking
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
+                return True
+            return False
 
-    return match_many
+        return match_not
 
+    # Many
 
-def gen_Many1(pe, **option):
-    pf = gen_Pexp(pe.inner, **option)
+    def gen_Many(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-    def match_many1(px):
-        if pf(px):
+        def match_many(px):
             pos = px.pos
             ast = px.ast
             while pf(px) and pos < px.pos:
@@ -747,349 +777,360 @@ def gen_Many1(pe, **option):
             px.pos = pos
             px.ast = ast
             return True
-        return False
 
-    return match_many1
+        return match_many
 
-# Seq
+    def gen_Many1(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-
-def gen_Seq(pe, **option):
-    pf1 = gen_Pexp(pe.left, **option)
-    pf2 = gen_Pexp(pe.right, **option)
-    return lambda px: pf1(px) and pf2(px)
-
-# Ore
-
-
-def gen_Ore(pe, **option):
-    pf1 = gen_Pexp(pe.left, **option)
-    pf2 = gen_Pexp(pe.right, **option)
-
-    def match_ore(px):
-        pos = px.pos
-        ast = px.ast
-        if not pf1(px):
-            px.headpos = max(px.pos, px.headpos)
-            px.pos = pos
-            px.ast = ast
-            return pf2(px)
-        return True
-
-    return match_ore
-
-# Ref
-
-def gen_Ref(ref, **option):
-    key = ref.uname()
-    generated = option['generated']
-    if not key in generated:
-        generated[key] = lambda px: generated[key](px)
-        generated[key] = gen_Pexp(ref.deref(), **option)
-        #memo[key] = emit_trace(ref, emit(ref.deref()))
-    return generated[key]
-
-# Tree Construction
-
-
-def gen_Node(pe, **option):
-    node = pe.node
-    pf = gen_Pexp(pe.inner, **option)
-    mtree = option.get('tree', ParseTree)
-
-    def tree(px):
-        pos = px.pos
-        px.ast = None
-        if pf(px):
-            px.ast = mtree(node, px.urn, px.inputs, pos, px.pos, px.ast)
-            return True
-        return False
-
-    return tree
-
-
-def gen_Edge(pe, **option):
-    edge = pe.edge
-    pf = gen_Pexp(pe.inner, **option)
-    merge = option.get('merge', Merge)
-    def fedge(px):
-        prev = px.ast
-        if pf(px):
-            px.ast = merge(prev, edge, px.ast)
-            return True
-        return False
-    return fedge
-
-
-def gen_Fold(pe, **option):
-    edge = pe.edge
-    node = pe.node
-    pf = gen_Pexp(pe.inner, **option)
-    mtree = option.get('tree', ParseTree)
-    merge = option.get('merge', Merge)
-
-    def fold(px):
-        pos = px.pos
-        px.ast = merge(None, edge, px.ast)
-        if pf(px):
-            px.ast = mtree(node, px.urn, px.inputs, pos, px.pos, px.ast)
-            return True
-        return False
-
-    return fold
-
-
-def gen_Abs(pe, **option):
-    pf = gen_Pexp(pe.inner, **option)
-
-    def unit(px):
-        ast = px.ast
-        if pf(px):
-            px.ast = ast
-            return True
-        return False
-
-    return unit
-
-# StateTable
-
-State = namedtuple('State', 'sid val prev')
-
-'''
-def iter(state):
-    cur = state
-    while cur is not None:
-        yield cur.val
-        cur = cur.prev
-'''
-
-SIDs = {}
-
-def getsid(name):
-    if not name in SIDs:
-        SIDs[name] = len(SIDs)
-    return SIDs[name]
-
-def getstate(state, sid):
-    while state is not None:
-        if state.sid == sid:
-            return state
-        state = state.prev
-    return None
-
-def adddict(px, s):
-    if len(s) == 0:
-        return
-    key = s[0]
-    if key in px.memo:
-        l = px.memo[key]
-        slen = len(s)
-        for i in range(len(l)):
-            if slen > len(l[i]):
-                l.insert(i, s)
-                return
-        l.append(s)
-    else:
-        px.memo[key] = [s]
-
-def gen_Action(pe, **option):
-    fname = pe.func
-    params = pe.params
-
-    if fname == 'lazy':  # @lazy(A)
-        name = pe.inner.name
-        peg = option.get('peg')
-        return gen_Pexp(peg.newRef(name), **option) if name in peg else gen_Pexp(pe.inner, **option)
-
-    if fname == 'skip':  # @recovery({..})
-        def skip(px):
-            px.pos = px.headpos
-            return px.pos < px.epos
-        return skip
-
-    # SPEG
-    if fname == 'symbol':   # @symbol(A)
-        sid = getsid(str(params[0]))
-        pf = gen_Pexp(pe.inner, **option)
-        def symbol(px):
-            pos = px.pos
+        def match_many1(px):
             if pf(px):
-                px.state = State(sid, px.inputs[pos:px.pos], px.state)
+                pos = px.pos
+                ast = px.ast
+                while pf(px) and pos < px.pos:
+                    pos = px.pos
+                    ast = px.ast
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
                 return True
             return False
-        return symbol
 
-    if fname == 'exists':   # @exists(A)
-        sid = getsid(str(params[0]))
-        return lambda px: getstate(px.state, sid) != None
+        return match_many1
 
-    if fname == 'match':   # @match(A)
-        sid = getsid(str(params[0]))
-        def match(px):
-            state = getstate(px.state, sid)
-            if state is not None and px.inputs.startswith(state.val, px.pos):
-                px.pos += len(state.val)
-                return True
-            return False
-        return match
+    def gen_Option(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-    if fname == 'scope':  # @scope(e)
-        pf = gen_Pexp(pe.inner, **option)
-        def scope(px):
-            state = px.state
-            res = pf(px)
-            px.state = state
-            return res
-        return scope
-
-    if fname == 'on':  # @on(!A, e)
-        name = str(params[0])
-        pf = gen_Pexp(pe.inner, **option)
-        if name.startswith('!'):
-            sid = getsid(name[1:])
-            def off(px):
-                state = px.state
-                px.state = State(sid, False, px.state)
-                res = pf(px)
-                px.state = state
-                return res
-            return off
-
-        else:
-            sid = getsid(name[1:])
-
-            def on(px):
-                state = px.state
-                px.state = State(sid, False, px.state)
-                res = pf(px)
-                px.state = state
-                return res
-            return on
-
-    if fname == 'if':  # @if(A)
-        sid = getsid(str(params[0]))
-        def cond(px):
-            state = getstate(px.state, sid)
-            return state != None and state.val
-        return cond
-
-
-    if fname == 'def':  # @def(NAME)
-        name = str(params[0])
-        pf = gen_Pexp(pe.inner, **option)
-        def defdict(px):
+        def match_option(px):
             pos = px.pos
-            if pf(px):
-                s = px.inputs[pos:px.pos]
-                if len(s) == 0: return True
-                if name in px.memo:
-                    d = px.memo[name]
-                else:
-                    d = {}
-                    px.memo[name] = d
-                key = s[0]
-                if not key in d:
-                    d[key] = [s]
+            ast = px.ast
+            if not pf(px):
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
+            return True
+        return match_option
+
+    # Seq
+
+    def gen_Seq(pe, **option):
+        pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
+
+        def match_seq(px):
+            for pf in pfs:
+                if not pf(px):
+                    return False
+            return True
+        return match_seq
+
+    # Ore
+
+    def gen_Ore(pe, **option):
+        pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
+
+        def match_ore(px):
+            pos = px.pos
+            ast = px.ast
+            for pf in pfs:
+                if pf(px):
                     return True
-                l = d[key]
-                slen = len(s)
-                for i in range(len(l)):
-                    if slen > len(l[i]):
-                        l.insert(i, s)
-                        break
+                px.headpos = max(px.pos, px.headpos)
+                px.pos = pos
+                px.ast = ast
+            return False
+
+        return match_ore
+
+    # Ref
+
+    def gen_Ref(ref, **option):
+        f = ref.get('tpegfunc', None)
+        if f is None:
+            try:
+                ref.tpegfunc = lambda px: ref.tpegfunc(px)
+                ref.tpegfunc = gen_Pexp(ref.deref(), **option)
+                return ref.tpegfunc
+            except RecursionError:
+                return lambda px: ref.tpegfunc(px)
+        return f
+
+    # Tree Construction
+
+    def gen_Node(pe, **option):
+        node = pe.tag
+        pf = gen_Pexp(pe.e, **option)
+        mtree = option.get('tree', ParseTree)
+
+        def tree(px):
+            pos = px.pos
+            px.ast = None
+            if pf(px):
+                px.ast = mtree(node, px.urn, px.inputs, pos, px.pos, px.ast)
                 return True
             return False
-        return defdict
 
-    if fname == 'in':   ## @in(NAME)
-        name = str(params[0])
-        def refdict(px):
-            if name in px.memo and px.pos < px.epos:
-                d = px.memo[name]
-                key = px.inputs[px.pos]
-                if key in d:
-                    for s in d[key]:
-                        if px.inputs.startswith(s, px.pos):
-                            px.pos += len(s)
-                            return True
+        return tree
+
+    def gen_Edge(pe, **option):
+        edge = pe.edge
+        pf = gen_Pexp(pe.e, **option)
+        merge = option.get('merge', Merge)
+
+        def fedge(px):
+            prev = px.ast
+            if pf(px):
+                px.ast = merge(prev, edge, px.ast)
+                return True
             return False
-        return refdict
+        return fedge
 
-    print('@TODO: gen_Action', pe.func)
-    return gen_Pexp(pe.inner, **option)
+    def gen_Fold(pe, **option):
+        edge = pe.edge
+        node = pe.tag
+        pf = gen_Pexp(pe.e, **option)
+        mtree = option.get('tree', ParseTree)
+        merge = option.get('merge', Merge)
 
-Empty.gen = gen_Empty
-Char.gen = gen_Char
-Range.gen = gen_Range
-Any.gen = gen_Any
+        def fold(px):
+            pos = px.pos
+            px.ast = merge(None, edge, px.ast)
+            if pf(px):
+                px.ast = mtree(node, px.urn, px.inputs, pos, px.pos, px.ast)
+                return True
+            return False
 
-And.gen = gen_And
-Not.gen = gen_Not
-Many.gen = gen_Many
-Many1.gen = gen_Many1
+        return fold
 
-Seq.gen = gen_Seq
-Ore.gen = gen_Ore
-Alt.gen = gen_Ore
-Ref.gen = gen_Ref
+    def gen_Abs(pe, **option):
+        pf = gen_Pexp(pe.e, **option)
 
-Node.gen = gen_Node
-Edge.gen = gen_Edge
-Fold.gen = gen_Fold
-Abs.gen = gen_Abs
+        def unit(px):
+            ast = px.ast
+            if pf(px):
+                px.ast = ast
+                return True
+            return False
 
-Action.gen = gen_Action
+        return unit
 
-def generate(peg, **option):
-    name = option.get('start', peg.start())
-    p = peg.newRef(name)
-    option['peg'] = peg
-    option['generated'] = {}
+    # StateTable
 
-    pf = gen_Pexp(p, **option)
-    mtree = option.get('tree', ParseTree)
-    conv = option.get('conv', lambda x: x)
+    State = namedtuple('State', 'sid val prev')
 
-    def parse(inputs, urn='(unknown)', pos=0, epos=None):
-        if epos is None: epos = len(inputs)
-        px = ParserContext(urn, inputs, pos, epos)
-        pos = px.pos
-        result = None
-        if not pf(px):
-            result = mtree("err", urn, inputs, px.headpos, epos, None)
-        else:
-            result = px.ast if px.ast is not None else mtree("", urn, inputs, pos, px.pos, None)
-        return conv(result)
-    
-    return parse
+    SIDs = {}
 
-######################################################################
+    def getsid(name):
+        if not name in SIDs:
+            SIDs[name] = len(SIDs)
+        return SIDs[name]
 
-# isAlwaysConsumed
+    def getstate(state, sid):
+        while state is not None:
+            if state.sid == sid:
+                return state
+            state = state.prev
+        return None
 
-defmethod('isAlwaysConsumed', lambda p: True, [Char, Any, Range])
-defmethod('isAlwaysConsumed', lambda p: False, [Many, Not, And, Empty])
-defmethod('isAlwaysConsumed',
-          lambda p: p.inner.isAlwaysConsumed(),
-          [Many1, Edge, Node, Fold, Abs, Action])
-defmethod('isAlwaysConsumed',
-          lambda p: p.left.isAlwaysConsumed() or p.right.isAlwaysConsumed(), [Seq])
-defmethod('isAlwaysConsumed',
-          lambda p: p.left.isAlwaysConsumed() and p.right.isAlwaysConsumed(), [Ore, Alt])
+    # def adddict(px, s):
+    #     if len(s) == 0:
+    #         return
+    #     key = s[0]
+    #     if key in px.memo:
+    #         l = px.memo[key]
+    #         slen = len(s)
+    #         for i in range(len(l)):
+    #             if slen > len(l[i]):
+    #                 l.insert(i, s)
+    #                 return
+    #         l.append(s)
+    #     else:
+    #         px.memo[key] = [s]
+
+    def gen_Action(pe, **option):
+        fname = pe.func
+        params = pe.params
+
+        if fname == 'lazy':  # @lazy(A)
+            name = pe.e.name
+            peg = option.get('peg')
+            return gen_Pexp(peg.newRef(name), **option) if name in peg else gen_Pexp(pe.e, **option)
+
+        if fname == 'skip':  # @recovery({..})
+            def skip(px):
+                px.pos = px.headpos
+                return px.pos < px.epos
+            return skip
+
+        # SPEG
+        if fname == 'symbol':   # @symbol(A)
+            sid = getsid(str(params[0]))
+            pf = gen_Pexp(pe.e, **option)
+
+            def symbol(px):
+                pos = px.pos
+                if pf(px):
+                    px.state = State(sid, px.inputs[pos:px.pos], px.state)
+                    return True
+                return False
+            return symbol
+
+        if fname == 'exists':   # @exists(A)
+            sid = getsid(str(params[0]))
+            return lambda px: getstate(px.state, sid) != None
+
+        if fname == 'match':   # @match(A)
+            sid = getsid(str(params[0]))
+
+            def match(px):
+                state = getstate(px.state, sid)
+                if state is not None and px.inputs.startswith(state.val, px.pos):
+                    px.pos += len(state.val)
+                    return True
+                return False
+            return match
+
+        if fname == 'scope':  # @scope(e)
+            pf = gen_Pexp(pe.e, **option)
+
+            def scope(px):
+                state = px.state
+                res = pf(px)
+                px.state = state
+                return res
+            return scope
+
+        if fname == 'on':  # @on(!A, e)
+            name = str(params[0])
+            pf = gen_Pexp(pe.e, **option)
+            if name.startswith('!'):
+                sid = getsid(name[1:])
+
+                def off(px):
+                    state = px.state
+                    px.state = State(sid, False, px.state)
+                    res = pf(px)
+                    px.state = state
+                    return res
+                return off
+
+            else:
+                sid = getsid(name[1:])
+
+                def on(px):
+                    state = px.state
+                    px.state = State(sid, False, px.state)
+                    res = pf(px)
+                    px.state = state
+                    return res
+                return on
+
+        if fname == 'if':  # @if(A)
+            sid = getsid(str(params[0]))
+
+            def cond(px):
+                state = getstate(px.state, sid)
+                return state != None and state.val
+            return cond
+
+        if fname == 'def':  # @def(NAME)
+            name = str(params[0])
+            pf = gen_Pexp(pe.e, **option)
+
+            def defdict(px):
+                pos = px.pos
+                if pf(px):
+                    s = px.inputs[pos:px.pos]
+                    if len(s) == 0:
+                        return True
+                    if name in px.memo:
+                        d = px.memo[name]
+                    else:
+                        d = {}
+                        px.memo[name] = d
+                    key = s[0]
+                    if not key in d:
+                        d[key] = [s]
+                        return True
+                    l = d[key]
+                    slen = len(s)
+                    for i in range(len(l)):
+                        if slen > len(l[i]):
+                            l.insert(i, s)
+                            break
+                    return True
+                return False
+            return defdict
+
+        if fname == 'in':  # @in(NAME)
+            name = str(params[0])
+
+            def refdict(px):
+                if name in px.memo and px.pos < px.epos:
+                    d = px.memo[name]
+                    key = px.inputs[px.pos]
+                    if key in d:
+                        for s in d[key]:
+                            if px.inputs.startswith(s, px.pos):
+                                px.pos += len(s)
+                                return True
+                return False
+            return refdict
+
+        print('@TODO: gen_Action', pe.func)
+        return gen_Pexp(pe.e, **option)
+
+    #Empty.gen = gen_Empty
+    Char.gen = gen_Char
+    Range.gen = gen_Range
+    Any.gen = gen_Any
+
+    And.gen = gen_And
+    Not.gen = gen_Not
+    Many.gen = gen_Many
+    Many1.gen = gen_Many1
+    Option.gen = gen_Option
+
+    Seq2.gen = gen_Seq
+    Ore2.gen = gen_Ore
+    Alt2.gen = gen_Ore
+    Ref.gen = gen_Ref
+
+    Node.gen = gen_Node
+    Edge2.gen = gen_Edge
+    Fold2.gen = gen_Fold
+    Abs.gen = gen_Abs
+
+    Action.gen = gen_Action
+
+    def generate(peg, **option):
+        name = option.get('start', peg.start())
+        p = peg.newRef(name)
+        option['peg'] = peg
+
+        pf = gen_Pexp(p, **option)
+        mtree = option.get('tree', ParseTree)
+        conv = option.get('conv', lambda x: x)
+
+        def parse(inputs, urn='(unknown)', pos=0, epos=None):
+            if epos is None:
+                epos = len(inputs)
+            px = ParserContext(urn, inputs, pos, epos)
+            pos = px.pos
+            result = None
+            if not pf(px):
+                result = mtree("err", urn, inputs, px.headpos, epos, None)
+            else:
+                result = px.ast if px.ast is not None else mtree(
+                    "", urn, inputs, pos, px.pos, None)
+            return conv(result)
+
+        return parse
+    return generate
 
 
-def isAlwaysConsumed(p):
-    if isinstance(p, Ref):
-        memoed = p.prop.get('isAlwaysConsumed', None)
-        if memoed == None:
-            p.prop['isAlwaysConsumed'] = True
-            memoed = isAlwaysConsumed(p.deref())
-            p.prop['isAlwaysConsumed'] = memoed
-        return memoed
-    else:
-        return p.isAlwaysConsumed()
+generate = setup_generate()
 
-defmethod('isAlwaysConsumed', isAlwaysConsumed, [Ref])
+# ######################################################################
 
 ## TreeState
 
@@ -1099,16 +1140,7 @@ class T(Enum):
     Mut = 2
     Fold = 3
 
-defmethod('treeState', lambda p: T.Unit, [Empty, Char, Any, Range, Not, Abs])
-defmethod('treeState', lambda p: T.Tree, [Node] )
-defmethod('treeState', lambda p: T.Mut,  [Edge] )
-defmethod('treeState', lambda p: T.Fold, [Fold] )
-
-def mutTree(ts): return T.Mut if ts == T.Tree else ts
-defmethod('treeState', lambda p: mutTree(treeState(p.inner)), [Many, Many1, And])
-defmethod('treeState', lambda p: treeState(p.inner), [Action])
-
-def refState(n):
+def nameTreeState(n):
     loc = n.rfind('.')
     n = n[loc+1:] if loc > 0 else n
     c = n[0]
@@ -1120,124 +1152,175 @@ def refState(n):
                 return T.Tree
     return T.Unit
 
-defmethod('treeState', lambda p: refState(p.name), [Ref])
+# isAlwaysConsumed
+def setup2():
 
-def treeState(pe):
-    if isinstance(pe, Seq):
-        ts0 = treeState(pe.left)
-        return ts0 if ts0 != T.Unit else treeState(pe.right)
-    if isinstance(pe, Ore) or isinstance(pe, Alt):
-        ts0 = treeState(pe.left)
-        if ts0 != T.Unit: return ts0
-        return mutTree(treeState(pe.right))
-    return pe.treeState()
+    def defmethod(name, f, cs=[
+        Char, Range, Any, Seq2, Ore2, Alt2, And, Not, Many, Many1, Ref,
+        Node, Edge2, Fold2, Abs, Action]):
+        for c in cs: setattr(c, name, f)
 
-defmethod('treeState', treeState, [Seq, Ore, Alt])
+    defmethod('isAlwaysConsumed', lambda p: len(p.text) > 0, [Char])
+    defmethod('isAlwaysConsumed', lambda p: True, [Any, Range])
+    defmethod('isAlwaysConsumed', lambda p: False, [Many, Not, And, Option])
+    defmethod('isAlwaysConsumed',
+            lambda p: p.e.isAlwaysConsumed(),
+            [Many1, Edge2, Node, Fold2, Abs, Action])
 
-def formTree(pe, a):
-    if not hasattr(pe, 'formTree'):
-        setdup('formTree', lambda p, a: p.formTree(a))
-        def formOre(pe, a):
-            a0 = [a[0]]
-            if a[0] == T.Tree:
-                p0 = formTree(pe.left, a0)
-                p1 = formTree(pe.right, a)
-                if a0[0] == T.Fold and a[0] == T.Tree:  # E / e => E / { e }
-                    p1 = Node(p1, '')
-                    a[0] = T.Fold
-                if a0[0] == T.Tree and a[0] == T.Fold:  # e / E => { e } / E
-                    p0 = Node(p0, '')
-                return Ore(p0, p1)
-            return Ore(formTree(pe.left, a0), formTree(pe.right, a))
-        Ore.formTree = formOre
+    def checkSeq(p):
+        for e in p:
+            if e.isAlwaysConsumed(): return True
+        return False
+    Seq2.isAlwaysConsumed = checkSeq
 
-        def formAlt(pe, a):
-            a0 = [a[0]]
-            if a[0] == T.Tree:
-                p0 = formTree(pe.left, a0)
-                p1 = formTree(pe.right, a)
-                if a0[0] == T.Fold and a[0] == T.Tree:  # E | e => E | { e }
-                    p1 = Node(p1, '')
-                    a[0] = T.Fold
-                if a0[0] == T.Tree and a[0] == T.Fold:  # # e | E => { e } | E
-                    p0 = Node(p0, '')
-                return Alt(p0, p1)
-            return Alt(formTree(pe.left, a0), formTree(pe.right, a))
-        Alt.formTree = formAlt
+    def checkOre(p):
+        for e in p:
+            if not e.isAlwaysConsumed():
+                return False
+        return True
+    Ore2.isAlwaysConsumed = checkOre
+    Alt2.isAlwaysConsumed = checkOre
 
-        def formNode(pe, a):
-            state = a[0]
-            if state == T.Unit:  # {e #T} => e
-                return formTree(pe.inner, a)
-            if state == T.Fold:  # {e #T} => ^{e #T}
-                return Fold('', formTree(pe.inner, [T.Mut]), pe.node)
-            pe = Node(formTree(pe.inner, [T.Mut]), pe[1])
-            if state == T.Mut:  # {e #T} => : {e #T}
-                return Edge('', pe)
-            assert state == T.Tree # original
-            a[0] = T.Fold  
-            return pe
-        Node.formTree = formNode
+    def checkRef(p):
+        memoed = p.get('isAlwaysConsumed', None)
+        if memoed == None:
+            p.isAlwaysConsumed= True
+            memoed = (p.deref()).isAlwaysConsumed()
+            p.isAlwaysConsumed = memoed
+        return memoed
+    Ref.isAlwaysConsumed = checkRef
 
-        def formEdge(pe, a):
-            state = a[0]
-            if state == T.Unit:  # L: e  => e 
-                return formTree(pe.inner, a)
-            if state == T.Fold: # L: e => L:^ {e}
-                return Fold(pe.edge, formTree(pe.inner, [T.Mut]), '')
-            a0 = [T.Tree]
-            pe0 = formTree(pe.inner, a0)
-            if a0[0] != T.Fold:  pe0 = Node(pe0, '')
-            if state == T.Mut:  # L: e 
-                return Edge(pe[0], pe0)
-            assert state == T.Tree
-            return Node(pe0, '') # L: e => { L: e }
-        Edge.formTree = formEdge
+    # treeState
+    def treeState(e):
+        return e.treeState()
 
-        def formFold(pe, a):
-            state = a[0]
-            if state == T.Unit:  # ^{e #T} => e
-                return formTree(pe.inner, a)
-            if state == T.Mut: # L:^ {e #T} => L:{ e #T}
-                return Edge(pe.edge, Node(formTree(pe.inner, [T.Mut]), pe.node))
-            if state == T.Tree: # L:^ {e #T} => {e #T}
-                a[0] = T.Fold
-                return Node(formTree(pe.inner, [T.Mut]), pe.node)
-            assert state == T.Fold # original
-            return Fold(pe.edge, formTree(pe.inner, [T.Mut]), pe.node)
-        Fold.formTree = formFold
+    defmethod('treeState', lambda p: T.Unit, [Char, Any, Range, Not, Abs])
+    defmethod('treeState', lambda p: T.Tree, [Node] )
+    defmethod('treeState', lambda p: T.Mut,  [Edge2] )
+    defmethod('treeState', lambda p: T.Fold, [Fold2] )
 
-        def formRef(pe, a):
-            state = a[0]
-            refstate = refState(pe.name)
-            if state == T.Unit:
-                if refstate == T.Unit: # original
-                    return pe
-                else:
-                    return Abs(pe) 
-            if state == T.Tree:
-                if refstate == T.Tree: # original
-                    a[0] = T.Fold
-                    return pe
-                if refstate == T.Mut:  # mut => { mut }
-                    a[0] = T.Fold
-                    return Node(pe, '')
-                return pe  # no change
-            if state == T.Mut:
-                if refstate == T.Unit or refstate == T.Mut:
-                    return pe
-                assert refstate == T.Tree  # Expr => L: Expr
-                return Edge('', pe)
-            if state == T.Fold:
-                if refstate == T.Unit:
-                    return pe
-                if refstate == T.Tree:  # Expr => ^{ Expr }
-                    return Fold('', Edge('', pe), '')
-                if refstate == T.Mut:  # expr => ^{ expr }
-                    return Fold('', pe, '')
-            assert(pe == None)  # Never happen
-        Ref.formTree = formRef
-    return pe.formTree(a)
+    def mutTree(ts): return T.Mut if ts == T.Tree else ts
+    defmethod('treeState', lambda p: mutTree(treeState(p.e)), [Many, Many1, Option, And])
+    defmethod('treeState', lambda p: treeState(p.e), [Action])
+
+    # def treeRef(pe):
+    #     ts = pe.get('ts', None)
+    #     if ts is None:
+    #         pe.ts = T.Unit
+    #         pe.ts = pe.deref().treeState()
+    #         return pe.ts
+    #     return ts
+    Ref.treeState = lambda p : nameTreeState(p.name)
+
+    def treeSeq(pe):
+        ts = T.Unit
+        for se in pe:
+            ts = se.treeState()
+            if ts != T.Unit: return ts
+        return ts
+    Seq2.treeState = treeSeq
+
+    def treeAlt(pe):
+        ts = list(map(treeState, pe))
+        if T.Tree in ts:
+            return T.Tree if ts.count(T.Tree) == len(ts) else T.Mut
+        if T.Fold in ts:
+            return T.Fold
+        return T.Mut if T.Mut in ts else T.Unit
+    Alt2.treeState = treeAlt
+    Ore2.treeState = treeAlt
+
+    def formTree(e, state):
+        e, _ = e.formTree(state)
+        return e
+
+    def formTree2(e, state):
+        return e.formTree(state)
+    
+    def formNode(pe: Node, state):
+        if state == T.Unit:  # {e #T} => e
+            return formTree(pe.e, state), T.Unit
+        if state == T.Fold:  # {e #T} => ^{e #T}
+            return Fold2(formTree(pe.e, T.Mut), '', pe.tag), T.Fold
+        pe = Node(formTree(pe.e, T.Mut), pe.tag)
+        if state == T.Mut:  # {e #T} => : {e #T}
+            return Edge2(pe, ''), state
+        return pe, T.Fold   # state == T.Tree
+    Node.formTree = formNode
+
+    def formEdge(pe: Edge2, state):
+        if state == T.Unit:  # L: e  => e
+            return formTree(pe.e, state), T.Unit
+        if state == T.Fold: # L: e => L:^ {e}
+            return Fold2(formTree(pe.e, T.Mut), pe.edge, ''), T.Fold
+        sub, ts2 = formTree2(pe.e, T.Tree)
+        if ts2 != T.Fold:  
+            sub = Node(sub, '')  # L:e => L: {e}
+        pe = Edge2(sub, pe.edge)
+        return (Node(pe, ''), T.Fold)  if state == T.Tree else (pe, T.Mut)
+    Edge2.formTree = formEdge
+
+    def formFold(pe: Fold2, state):
+        if state == T.Unit:  # ^{e #T} => e
+            return formTree(pe.e, state), T.Unit
+        if state == T.Mut: # L:^ {e #T} => L:{ e #T}
+            return Edge2(Node(formTree(pe.e, T.Mut), pe.tag), pe.edge), T.Mut
+        if state == T.Tree: # L:^ {e #T} => {e #T}
+            return Node(formTree(pe.e, T.Mut), pe.tag), T.Fold
+        return Fold2(formTree(pe.e, T.Mut), pe.edge, pe.tag), T.Fold
+    Fold2.formTree = formFold
+
+    def formRef(pe, state):
+        refstate = pe.treeState()
+        if state == T.Unit:
+            if refstate == T.Unit: # original
+                return pe, T.Unit
+            else:
+                return Abs(pe), T.Unit
+        if state == T.Tree:
+            if refstate == T.Tree: # original
+                return pe, T.Fold
+            if refstate == T.Mut:  # mut => { mut }
+                return Node(pe, ''), T.Fold
+            return pe, state  # no change
+        if state == T.Mut:
+            if refstate == T.Unit or refstate == T.Mut:
+                return pe, T.Mut
+            assert refstate == T.Tree  # Expr => L: Expr
+            return Edge2(pe, ''), T.Mut
+        if state == T.Fold:
+            if refstate == T.Unit:
+                return pe, T.Fold
+            if refstate == T.Tree:  # Expr => ^{ Expr }
+                return Fold2(Edge2(pe, ''), '', ''), T.Fold
+            if refstate == T.Mut:  # expr => ^{ expr }
+                return Fold2(pe, '', ''), T.Fold
+        assert(pe == None)  # Never happen
+    Ref.formTree = formRef
+
+    def formSeq(pe, state):
+        for i, e in enumerate(pe):
+            pe.es[i], state = formTree2(e, state)
+        return pe, state
+    Seq2.formTree = formSeq
+
+    def formAlt(pe, state):
+        for i, e in enumerate(pe):
+            pe.es[i],nextstate = formTree2(e, state)
+        return pe, nextstate
+    Alt2.formTree = formAlt
+    Ore2.formTree = formAlt
+
+    def formUnary(pe, state):
+        pe.e, state = formTree2(pe.e, state)
+        return pe, state
+    Unary.formTree = formUnary
+
+    def formTerm(pe, state):
+        return pe, state
+    ParsingExpression.formTree = formTerm
+
+setup2()
 
 def grammar_factory():
     def char1(x):
@@ -1245,12 +1328,18 @@ def grammar_factory():
 
     def unquote(s):
         if s.startswith('\\'):
-            if s.startswith('\\n'): return '\n', s[2:]
-            if s.startswith('\\t'): return '\t', s[2:]
-            if s.startswith('\\r'): return '\r', s[2:]
-            if s.startswith('\\v'): return '\v', s[2:]
-            if s.startswith('\\f'): return '\f', s[2:]
-            if s.startswith('\\b'): return '\b', s[2:]
+            if s.startswith('\\n'):
+                return '\n', s[2:]
+            if s.startswith('\\t'):
+                return '\t', s[2:]
+            if s.startswith('\\r'):
+                return '\r', s[2:]
+            if s.startswith('\\v'):
+                return '\v', s[2:]
+            if s.startswith('\\f'):
+                return '\f', s[2:]
+            if s.startswith('\\b'):
+                return '\b', s[2:]
             if (s.startswith('\\x') or s.startswith('\\X')) and len(s) > 4:
                 c = int(s[2:4], 16)
                 return chr(c), s[4:]
@@ -1273,7 +1362,7 @@ def grammar_factory():
             return ANY
 
         def Char(self, t, logger):
-            s = t.asString()
+            s = str(t)
             sb = []
             while len(s) > 0:
                 c, s = unquote(s)
@@ -1281,7 +1370,7 @@ def grammar_factory():
             return char1(''.join(sb))
 
         def Class(self, t, logger):
-            s = t.asString()
+            s = str(t)
             chars = []
             ranges = []
             while len(s) > 0:
@@ -1294,13 +1383,13 @@ def grammar_factory():
             return Range(''.join(chars), ranges)
 
         def Ref(self, t, logger):
-            name = t.asString()
+            name = str(t)
             if name in self.peg:
-                return Action(self.peg.newRef(name),'NT',(name,),t.getpos4())
+                return Action(self.peg.newRef(name), 'NT', (name,), t.getpos4())
             if name[0].isupper() or name[0].islower() or name.startswith('_'):
                 logger.warning(t.getpos4(), f'undefined nonterminal {name}')
                 #self.peg.add(name, FAIL)
-                #return self.peg.newRef(name)
+                # return self.peg.newRef(name)
             return char1(name[1:-1]) if name.startswith('"') else char1(name)
 
         def Many(self, t, logger):
@@ -1310,7 +1399,7 @@ def grammar_factory():
             return Many1(self.conv(t['inner'], logger))
 
         def Option(self, t, logger):
-            return Ore(self.conv(t['inner'], logger), EMPTY)
+            return Option(self.conv(t['inner'], logger))
 
         def And(self, t, logger):
             return And(self.conv(t['inner'], logger))
@@ -1319,13 +1408,16 @@ def grammar_factory():
             return Not(self.conv(t['inner'], logger))
 
         def Seq(self, t, logger):
-            return self.conv(t['left'], logger) & self.conv(t['right'], logger)
+            return Seq2(*tuple(map(lambda p: self.conv(p, logger), t)))
+            # return self.conv(t['left'], logger) & self.conv(t['right'], logger)
 
         def Ore(self, t, logger):
-            return self.conv(t['left'], logger) / self.conv(t['right'], logger)
+            return Ore2(*tuple(map(lambda p: self.conv(p, logger), t)))
+            # return self.conv(t['left'], logger) / self.conv(t['right'], logger)
 
         def Alt(self, t, logger):
-            return self.conv(t['left'], logger) // self.conv(t['right'], logger)
+            return Alt2(*tuple(map(lambda p: self.conv(p, logger), t)))
+            # return self.conv(t['left'], logger) // self.conv(t['right'], logger)
 
         def Node(self, t, logger):
             node = t.getString('node', '')
@@ -1335,24 +1427,24 @@ def grammar_factory():
         def Edge(self, t, logger):
             edge = t.getString('edge', '')
             inner = self.conv(t['inner'], logger)
-            return Edge(edge, inner)
+            return Edge2(inner, edge)
 
         def Fold(self, t, logger):
             edge = t.getString('edge', '')
             node = t.getString('node', '')
             inner = self.conv(t['inner'], logger)
-            return Fold(edge, inner, node)
-        
+            return Fold2(inner, edge, node)
+
         def Append(self, t, logger):
             name = ''
             tsub = t['inner']
             if tsub == 'Func':
                 a = tsub.asArray()
-                name = a[0].asString()
+                name = str(a[0])
                 inner = self.conv(a[1], logger)
             else:
                 inner = self.conv(tsub, logger)
-            return Edge(name, inner)
+            return Edge2(inner, name)
 
         FIRST = {'lazy', 'scope', 'symbol', 'match', 'equals', 'contains'}
 
@@ -1366,49 +1458,37 @@ def grammar_factory():
             return Action(EMPTY, funcname, tuple(ps), t['name'].getpos4())
 
     def example(peg, name, doc):
-        peg['@@example'].append((name,doc))
+        peg['@@example'].append((name, doc))
 
-    Arg = namedtuple('Arg', 'consumed peg name visited logger')
+    def checkRec(pe, consumed, peg, name, visited, logger):
+        if isinstance(pe, ParseTree):
+            nt = str(pe)
+            if nt == name and not consumed:
+                logger.warning(pe.getpos4(), f'left recursion {nt}')
+                return FAIL
+            if nt not in peg:
+                logger.warning(pe.getpos4(), f'undefined nonterminal {nt}')
+                return char1(nt[1:-1]) if nt.startswith('"') else char1(nt)
+            pe = peg.newRef(nt)
+        if isinstance(pe, Ref):
+            if peg == pe.peg and pe.name not in visited:
+                visited[pe.name] = True
+                checkRec(peg[pe.name], consumed, peg, name, visited, logger)
+            return pe
+        if isinstance(pe, Unary):
+            pe.e = checkRec(pe.e, consumed, peg, name, visited, logger)
+            return pe
+        if isinstance(pe, Seq2):
+            for i, e in enumerate(pe):
+                pe.es[i] = checkRec(e, consumed, peg, name, visited, logger)
+                consumed = (pe.es[i]).isAlwaysConsumed()
+            return pe
+        if isinstance(pe, Tuple):
+            for i, e in enumerate(pe):
+                pe.es[i] = checkRec(e, consumed, peg, name, visited, logger)
+            return pe
+        return pe
     
-    def checkRec(pe, peg, name, logger):
-        if not hasattr(Char, 'checkRec'):
-            setdup('checkRec', lambda p, a: p.checkRec(a))
-
-            def checkSeq(pe, a):
-                left = pe.left.checkRec(a)
-                if not a.consumed and isAlwaysConsumed(pe.left):
-                    right = pe.right.checkRec(
-                        Arg(True, a.peg, a.name, a.visited, a.logger))
-                else:
-                    right = pe.right.checkRec(a)
-                return Seq(left, right)
-            Seq.checkRec = checkSeq
-
-            #consumed, peg, name, visited, logger = a
-            def checkAction(pe, a):
-                if pe.func == 'NT':
-                    nt = pe.inner
-                    consumed, peg, name, _, logger = a
-                    if not consumed and nt.name == name:
-                        logger.perror(pe.pos4, msg='left recursion: ' + str(name))
-                        name = name + '__'   # renaming
-                        if name in peg:
-                            peg[name] = FAIL
-                        return peg.newRef(name)
-                    return nt.checkRec(a)
-                return Action(pe[0].checkRec(a), pe[1], pe[2], pe[3])
-            Action.checkRec = checkAction
-
-            def checkRef(pe, a):
-                _, peg, _, visited, _ = a
-                if id(pe.peg) == id(peg) and not pe.name in visited:
-                    visited[pe.name] = True
-                    peg[pe.name].checkRec(a)
-                return pe
-            Ref.checkRec = checkRef
-        
-        return pe.checkRec(Arg(False, peg, name, {}, logger))
-
     pegparser = generate(TPEGGrammar)
 
     def load_grammar(g, file, logger):
@@ -1428,24 +1508,24 @@ def grammar_factory():
             logger.perror(t.getpos4())
             return
         # load
-        for _, stmt in t:
+        for stmt in t:
             if stmt == 'Rule':
-                name = stmt['name'].asString()
+                name = str(stmt['name'])
                 pos4 = stmt['name'].getpos4()
                 if name in g:
                     logger.perror(pos4, f'redefined name {name}')
                     continue
                 g.add(name, stmt['inner'])
-                g.newRef(name).prop['pos4'] = pos4
+                g.newRef(name).pos = pos4
             elif stmt == 'Example':
                 doc = stmt['doc']
-                for _, n in stmt['names']:
-                    example(g, n.asString(), doc.getpos4())
+                for n in stmt['names']:
+                    example(g, str(n), doc.getpos4())
             elif stmt == 'Import':
-                urn = stmt['name'].asString()
+                urn = str(stmt['name'])
                 lg = grammar(urn, basepath, logger)
-                for _, n in stmt['names']:
-                    lname = n.asString()  # ns.Expression
+                for n in stmt['names']:
+                    lname = str(n)  # ns.Expression
                     name = lname
                     if lname.find('.') != -1:
                         name = lname.split('.')[-1]
@@ -1453,25 +1533,31 @@ def grammar_factory():
                     if not name in lg:
                         logger.perror(pos4, f'undefined name {name}')
                         continue
-                    g.add(lname, Action(lg.newRef(name), 'import', (name, urn), pos4))
+                    g.add(lname, Action(lg.newRef(name),
+                                        'import', (name, urn), pos4))
         pconv = PEGConv(g)
         for name in g.N[:]:
             t = g[name]
             if isinstance(t, ParseTree):
                 g[name] = pconv.conv(t, logger)
-        for name in g.N:
-            g[name] = checkRec(g[name], g, name, logger)
-        for name in g.N:
+        for name in g.N: # FIXME
+            g[name] = checkRec(g[name], False, g, name, {}, logger)
+        for name in g.N: 
             pe = g[name]
-            ts = treeState(pe)
-            rs = refState(name)
-            if ts == T.Fold:
-                logger.perror(g.newRef(name).prop.get('pos4'), f'illegal rule for fold capture')
-            g[name] = formTree(pe, [rs])
+            ts = pe.treeState()
+            ts2 = nameTreeState(name)
+            if ts != ts2:
+                print('(@NAME)', name, ts, ts2)
+            pe2,_ = pe.formTree(ts)
+            if str(pe) != str(pe2):
+                print('(@OLD)', ts, name, '=', pe)
+                print('(@NEW)', ts, name, '=', pe2)
+            g[name] = pe2
         #end of load_grammar()
 
     def findpath(paths, file):
-        if file.find('=') > 0: return file
+        if file.find('=') > 0:
+            return file
         for p in paths:
             path = Path(p) / file
             #print('@', path)
@@ -1499,14 +1585,13 @@ def grammar_factory():
         load_grammar(peg, path, logger)
         GrammarDB[key] = peg
         return peg
-    
+
     return grammar
+
 
 grammar = grammar_factory()
 
-## grammar loader
 
-#peg = grammar('math.tpeg')
-#peg = grammar('testcase.tpeg')
-#print(peg)
-
+if __name__ == '__main__':
+    peg = grammar('math.tpeg')
+    print(peg)
