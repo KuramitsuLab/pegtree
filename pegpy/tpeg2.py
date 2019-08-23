@@ -161,50 +161,6 @@ EMPTY = Char('')
 ANY = Any()
 FAIL = Not(EMPTY)
 
-
-# def setmethod():
-#     def char1(x):
-#         return Char(x) if x != '' else EMPTY
-
-#     def seq2(x, y):
-#         if isinstance(x, Empty):
-#             return y
-#         if isinstance(y, Empty):
-#             return x
-#         if isinstance(x, Char) and isinstance(y, Char):
-#             return Char(x.text + y.text)
-#         return Seq(x, y)
-
-#     def alt2(x, y, c=Alt):
-#         if isinstance(x, Char) and len(x.text) == 1:
-#             if isinstance(y, Char) and len(y.text) == 1:
-#                 return Range(x.text + y.text, ())
-#             if isinstance(y, Range):
-#                 return Range(x.text + y.chars, y.ranges)
-#         if isinstance(x, Range):
-#             if isinstance(y, Char) and len(y.text) == 1:
-#                 return Range(x.chars + y.text, y.ranges)
-#             if isinstance(y, Range):
-#                 return Range(x.chars + y.chars, x.ranges + y.ranges)
-#         return c(x, y)
-
-#     def ore2(x, y):
-#         if x is None or y is None:
-#             return None
-#         if x == EMPTY:
-#             return EMPTY
-#         return alt2(x, y, Ore)
-
-#     def Xe(p):
-#         if isinstance(p, str):
-#             return char1(p)
-#         if isinstance(p, dict):
-#             for key in p:
-#                 return Edge(key, Xe(p[key]))
-#             return EMPTY
-#         return p
-
-
 def setup():
     def grouping(e, f):
         return '(' + repr(e) + ')' if f(e) else repr(e)
@@ -387,14 +343,14 @@ def TPEG(g):
     rule(g,'Doc', e(DELIM, many(S), EOL, DOC1, DELIM) | DOC2)
 
     rule(g, 'Expression', ref('Choice'), option(
-        FoldAs('left', 'Alt', many1(__, '|', _, {'right': Expression}))))
+        FoldAs('left', 'Alt', many1(__, '|', _, {'right': ref('Choice')}))))
 
     rule(g, 'Choice', ref('Sequence'), option(
-        FoldAs('left', 'Ore', many1(__, '/', _, {'right': ref('Choice')}))))
+        FoldAs('left', 'Ore', many1(__, '/', _, {'right': ref('Sequence')}))))
 
-    SS = e(S, _, ~EOL) | e(many1(_, EOL), S, _)
+    SS = choice(e(S, _, ~EOL), e(many1(_, EOL), S, _))
     rule(g, 'Sequence', ref('Predicate'), option(
-        FoldAs('left', 'Seq', SS, {'right': ref('Sequence')})   ))
+        FoldAs('left', 'Seq', many1(SS, {'right': ref('Predicate')}))   ))
 
     rule(g, 'Predicate', choice(ref('Not'),ref('And'),ref('Suffix')))
 
@@ -442,7 +398,7 @@ def TPEG(g):
 
 
 TPEGGrammar = TPEG(Grammar())
-print(TPEGGrammar)
+#print(TPEGGrammar)
 
 ######################################################################
 # ast.env
@@ -657,11 +613,11 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
-    def pos(self):
-        return decpos(self.urn, self.inputs, self.spos, self.epos)
-
     def getpos4(self):
         return Pos4(self.urn, self.inputs, self.spos, self.epos)
+
+    # def pos(self):
+    #     return decpos(self.urn, self.inputs, self.spos, self.epos)
 
     def dump(self, w, indent=''):
         if self.child is None:
@@ -725,6 +681,8 @@ def setup_generate():
     def gen_Char(pe, **option):
         chars = pe.text
         clen = len(pe.text)
+        if clen == 0:
+            return lambda px: True
 
         def match_char(px):
             if px.inputs.startswith(chars, px.pos):
@@ -886,13 +844,15 @@ def setup_generate():
     # Ref
 
     def gen_Ref(ref, **option):
-        key = ref.uname()
-        generated = option['generated']
-        if not key in generated:
-            generated[key] = lambda px: generated[key](px)
-            generated[key] = gen_Pexp(ref.deref(), **option)
-            #memo[key] = emit_trace(ref, emit(ref.deref()))
-        return generated[key]
+        f = ref.get('tpegfunc', None)
+        if f is None:
+            try:
+                ref.tpegfunc = lambda px: ref.tpegfunc(px)
+                ref.tpegfunc = gen_Pexp(ref.deref(), **option)
+                return ref.tpegfunc
+            except RecursionError:
+                return lambda px: ref.tpegfunc(px)
+        return f
 
     # Tree Construction
 
@@ -1146,7 +1106,6 @@ def setup_generate():
         name = option.get('start', peg.start())
         p = peg.newRef(name)
         option['peg'] = peg
-        option['generated'] = {}
 
         pf = gen_Pexp(p, **option)
         mtree = option.get('tree', ParseTree)
@@ -1588,7 +1547,7 @@ def grammar_factory():
             ts = pe.treeState()
             ts2 = nameTreeState(name)
             if ts != ts2:
-                print('(@NAME)', ts, ts2)
+                print('(@NAME)', name, ts, ts2)
             pe2,_ = pe.formTree(ts)
             if str(pe) != str(pe2):
                 print('(@OLD)', ts, name, '=', pe)

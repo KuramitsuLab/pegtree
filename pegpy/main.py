@@ -7,7 +7,7 @@ import time
 import sys
 import importlib
 # m = importlib.import_module('foo.some')  # -> 'module'
-import pegpy.tpeg as tpeg
+import pegpy.tpeg2 as tpeg
 
 
 def bold(s):
@@ -96,7 +96,6 @@ def usage():
     print("Example:")
     print("  pegpy parse -g math.tpeg <inputs>")
     print("  pegpy example -g math.tpeg <inputs>")
-    print("  pegpy origami -g konoha6.tpeg python3.origami <inputs>")
     print()
 
     print("The most commonly used nez commands are:")
@@ -146,6 +145,8 @@ def parse(options, conv=None):
 
 def example(options):
     peg = load_grammar(options)
+    if '@@example' not in peg:
+        return
     parsers = {}
     test = 0
     ok = 0
@@ -160,9 +161,14 @@ def example(options):
         if res == 'err':
             logger.perror(res.getpos4(), 'NG ' + name)
         else:
-            logger.println('OK', name, '=>', str(res))
+            logger.println('OK', name, '=>', repr(res))
     if test > 0:
         logger.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
+
+
+def peg(options):
+    peg = load_grammar(options)
+    print(peg)
 
 
 '''
@@ -172,9 +178,6 @@ def json(opt, out):
 
 
 
-def peg(opt, out):
-    g = load_grammar(opt)
-    g.dump(out)
 
 
 def nezcc(opt, out):
