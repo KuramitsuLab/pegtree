@@ -573,8 +573,7 @@ class ParseTree(object):
     def __getattr__(self, label: str):
         for edge, child in self.subs():
             if label == edge: return child
-        return self.super().__getattr__(label)
-
+        raise AttributeError()
 
     def getString(self, label: str, default=None):
         return self.get(label, default, str)
@@ -619,11 +618,11 @@ class ParseTree(object):
                 sb.append(str(s))
         sb.append("]")
 
+    def pos(self):
+        return decpos(self.urn, self.inputs, self.spos, self.epos)
+
     def getpos4(self):
         return Pos4(self.urn, self.inputs, self.spos, self.epos)
-
-    # def pos(self):
-    #     return decpos(self.urn, self.inputs, self.spos, self.epos)
 
     def dump(self, w, indent=''):
         if self.child is None:
