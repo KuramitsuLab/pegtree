@@ -569,6 +569,12 @@ class ParseTree(object):
             if label == edge:
                 return conv(child)
         return default
+    
+    def __getattr__(self, label: str):
+        for edge, child in self.subs():
+            if label == edge: return child
+        return self.super().__getattr__(label)
+
 
     def getString(self, label: str, default=None):
         return self.get(label, default, str)
@@ -1466,7 +1472,7 @@ def grammar_factory():
         def Func(self, t, logger):
             funcname = t.getString('name', '')
             ps = []
-            for _, p in t['params']:
+            for p in t['params']:
                 ps.append(self.conv(p, logger))
             if funcname in PEGConv.FIRST:
                 return Action(ps[0], funcname, tuple(ps), t['name'].getpos4())

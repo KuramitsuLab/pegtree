@@ -44,13 +44,6 @@ def readlines(prompt):
         return '\n'.join(l)
 
 
-'''
-def init_output(opt):
-    out = u.Writer(opt['output'] if 'output' in opt else None)
-    return out
-'''
-
-
 def parse_options(argv):
     options = {
         'grammar': ['-g', '--grammar'],
