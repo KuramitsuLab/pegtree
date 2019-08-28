@@ -1370,6 +1370,20 @@ def grammar_factory():
                 return s[1], s[2:]
         else:
             return s[0], s[1:]
+    
+    def choice(t: ParseTree, file):
+        urn, _, _, _ = t.pos()
+        file = str(file)[1:-1]
+        file = Path(urn).parent / file
+        with file.open() as f:
+            ss = [x.strip('\r\n') for x in f.readlines()]
+            ss = sorted(ss, key= lambda x: len(x))[::-1]
+            choice = [Char(x) for x in ss]
+            e = Ore2(*choice)
+            print(file, e)
+            return e
+        return EMPTY
+
 
     class PEGConv(ParseTreeConv):
         def __init__(self, peg):
@@ -1473,6 +1487,8 @@ def grammar_factory():
             ps = []
             for p in t['params']:
                 ps.append(self.conv(p, logger))
+            if funcname == 'choice' and len(ps)>0:
+                return choice(t, ps[0])
             if funcname in PEGConv.FIRST:
                 return Action(ps[0], funcname, tuple(ps), t['name'].getpos4())
             return Action(EMPTY, funcname, tuple(ps), t['name'].getpos4())
