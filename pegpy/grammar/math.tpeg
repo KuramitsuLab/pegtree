@@ -1,7 +1,7 @@
 // Basic mathematical operator
 //  author: Kimio Kuramitsu
 
-Expression = Product (left:^ { op: [+\-] right: Product #Infix })*
+Expression = Product (^ { [+\-] Product #Infix })*
 Product = Value (left:^ { op: [*%/] right: Value #Infix })*
 Value = Int / '(' Expression ')'
 

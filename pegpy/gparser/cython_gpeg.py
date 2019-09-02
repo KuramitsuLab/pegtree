@@ -1,6 +1,6 @@
 # cython: profile=True
 
-from pegpy.tpeg import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
+from pegpy.tpeg0 import Ref, Char, Seq, Ore, Alt, Node, Edge, Grammar
 
 import cython
 import pickle as cPickle
@@ -15,213 +15,215 @@ amb = bytes('?', 'utf-8')
 
 @cython.cclass
 class Tree:
-  tag: object
-  inputs: object
-  spos: cython.int
-  epos: cython.int
-  child: object
+    tag: object
+    inputs: object
+    spos: cython.int
+    epos: cython.int
+    child: object
 
-  def __init__(self, tag: object, inputs: object, spos: cython.int, epos: cython.int, child: object):
-    self.tag = tag
-    self.inputs = inputs
-    self.spos = spos
-    self.epos = epos
-    self.child = child
+    def __init__(self, tag: object, inputs: object, spos: cython.int, epos: cython.int, child: object):
+        self.tag = tag
+        self.inputs = inputs
+        self.spos = spos
+        self.epos = epos
+        self.child = child
 
-  def __str__(self):
-    if self.child:
-      return f'[#{self.tag.decode("utf-8")} {str(self.child)}]'
-    else:
-      return self.inputs.decode('utf-8')[self.spos:self.epos]
+    def __str__(self):
+        if self.child:
+            return f'[#{self.tag.decode("utf-8")} {str(self.child)}]'
+        else:
+            return self.inputs.decode('utf-8')[self.spos:self.epos]
 
 
 @cython.cclass
 class Link:
-  inner: object
-  prev: object
+    inner: object
+    prev: object
 
-  def __init__(self, inner: object, prev: object):
-    self.inner = inner
-    self.prev = prev
+    def __init__(self, inner: object, prev: object):
+        self.inner = inner
+        self.prev = prev
 
-  def __str__(self):
-    sb = self.strOut([])
-    return ''.join(sb)
+    def __str__(self):
+        sb = self.strOut([])
+        return ''.join(sb)
 
-  def strOut(self, sb):
-    if self.prev:
-      sb = self.prev.strOut(sb)
-    sb.append(str(self.inner))
-    return sb
+    def strOut(self, sb):
+        if self.prev:
+            sb = self.prev.strOut(sb)
+        sb.append(str(self.inner))
+        return sb
 
 
 @cython.cclass
 class GParserContext:
 
-  inputs: object
-  length: cython.int
-  headpos: cython.int
-  pos2ast: dict
-  memo: dict
+    inputs: object
+    length: cython.int
+    headpos: cython.int
+    pos2ast: dict
+    memo: dict
 
-  def __init__(self, inputs: object, pos: cython.int, slen: cython.int):
-    # s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
-    s = inputs
-    # self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
-    self.inputs, self.length = s, len(s)
-    self.headpos = 0
-    self.pos2ast = {pos: None}
-    self.memo = {}
+    def __init__(self, inputs: object, pos: cython.int, slen: cython.int):
+        # s = bytes(inputs, 'utf-8') if isinstance(inputs, str) else bytes(inputs)
+        s = inputs
+        # self.inputs, self.pos, self.length = u.encsrc(urn, inputs, pos, slen)
+        self.inputs, self.length = s, len(s)
+        self.headpos = 0
+        self.pos2ast = {pos: None}
+        self.memo = {}
 
 
 @cython.cfunc
 @cython.returns(cython.bint)
 def check_empty(px: GParserContext, new_pos2ast: dict) -> cython.bint:
-  if len(new_pos2ast) == 0:
-    return False
-  else:
-    px.pos2ast = new_pos2ast
-    return True
+    if len(new_pos2ast) == 0:
+        return False
+    else:
+        px.pos2ast = new_pos2ast
+        return True
 
 
 @cython.cfunc
 @cython.locals(new_set=object, prev_set=object)
 @cython.returns(dict)
 def merge(new_pos2ast: dict, pos2ast: dict) -> dict:
-  new_set = new_pos2ast.keys()
-  prev_set = pos2ast.keys()
-  for i in new_set & prev_set:
-    new_pos2ast[i] = Link(pos2ast[i], Link(new_pos2ast[i], None))
-  for i in prev_set - new_set:
-    new_pos2ast[i] = pos2ast[i]
-  return new_pos2ast
+    new_set = new_pos2ast.keys()
+    prev_set = pos2ast.keys()
+    for i in new_set & prev_set:
+        new_pos2ast[i] = Link(pos2ast[i], Link(new_pos2ast[i], None))
+    for i in prev_set - new_set:
+        new_pos2ast[i] = pos2ast[i]
+    return new_pos2ast
 
 # ParseFunc
 
 # Empty
 
+
 @cython.cclass
 class ParseFunc:
-  def __init__(self):
-    pass
+    def __init__(self):
+        pass
 
-  @cython.cfunc
-  def p(self, px: GParserContext) -> cython.bint:
-    return True
+    @cython.cfunc
+    def p(self, px: GParserContext) -> cython.bint:
+        return True
 
 
 # Char
 
 @cython.cclass
 class GChar(ParseFunc):
-  bs: object
-  blen: cython.int
+    bs: object
+    blen: cython.int
 
-  def __init__(self, bs: object, blen: int):
-    self.blen = blen
-    self.bs = bs
+    def __init__(self, bs: object, blen: int):
+        self.blen = blen
+        self.bs = bs
 
-  @cython.cfunc
-  @cython.locals(new_pos2ast=dict, pos=cython.int, ast=object)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for pos, ast in px.pos2ast.items():
-      if px.inputs[pos:pos + self.blen] == self.bs:
-        new_pos2ast[pos + self.blen] = Link(Tree(emp, px.inputs, pos, pos + self.blen, None), ast)
-        px.headpos = max(pos, px.headpos)
-    return check_empty(px, new_pos2ast)
+    @cython.cfunc
+    @cython.locals(new_pos2ast=dict, pos=cython.int, ast=object)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
+        for pos, ast in px.pos2ast.items():
+            if px.inputs[pos:pos + self.blen] == self.bs:
+                new_pos2ast[pos + self.blen] = Link(
+                    Tree(emp, px.inputs, pos, pos + self.blen, None), ast)
+                px.headpos = max(pos, px.headpos)
+        return check_empty(px, new_pos2ast)
 
 
 def gen_GChar(pe: Char, **option):
-  return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
+    return GChar(bytes(pe.text, 'UTF-8'), len(bytes(pe.text, 'UTF-8')))
 
 
 # Seq
 @cython.cclass
 class GSeq(ParseFunc):
-  left: ParseFunc
-  right: ParseFunc
+    left: ParseFunc
+    right: ParseFunc
 
-  def __init__(self, left: ParseFunc, right: ParseFunc):
-    self.left = left
-    self.right = right
-  
-  @cython.cfunc
-  @cython.locals(new_pos2ast=dict)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for pos, ast in copy(px.pos2ast).items():
-      px.pos2ast = {pos:ast}
-      if self.left.p(px):
+    def __init__(self, left: ParseFunc, right: ParseFunc):
+        self.left = left
+        self.right = right
+
+    @cython.cfunc
+    @cython.locals(new_pos2ast=dict)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
         for pos, ast in copy(px.pos2ast).items():
-          px.pos2ast = {pos:ast}
-          if self.right.p(px):
-            new_pos2ast = merge(new_pos2ast, px.pos2ast)
-    return check_empty(px, new_pos2ast)
+            px.pos2ast = {pos: ast}
+            if self.left.p(px):
+                for pos, ast in copy(px.pos2ast).items():
+                    px.pos2ast = {pos: ast}
+                    if self.right.p(px):
+                        new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        return check_empty(px, new_pos2ast)
 
 
 def gen_GSeq(pe: Seq, **option):
-  return GSeq(pe.left.gen(**option), pe.right.gen(**option))
+    return GSeq(pe.left.gen(**option), pe.right.gen(**option))
 
 
 # Ore
 @cython.cclass
 class GOre(ParseFunc):
-  left: ParseFunc
-  right: ParseFunc
+    left: ParseFunc
+    right: ParseFunc
 
-  def __init__(self, left: ParseFunc, right: ParseFunc):
-    self.left = left
-    self.right = right
+    def __init__(self, left: ParseFunc, right: ParseFunc):
+        self.left = left
+        self.right = right
 
-  @cython.cfunc
-  @cython.locals(new_pos2ast=dict)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for pos, ast in copy(px.pos2ast).items():
-      px.pos2ast = {pos: ast}
-      if self.left.p(px):
-        new_pos2ast = merge(new_pos2ast, px.pos2ast)
-      else:
-        px.pos2ast = {pos:ast}
-        if self.right.p(px):
-          new_pos2ast = merge(new_pos2ast, px.pos2ast)
-    return check_empty(px, new_pos2ast)
+    @cython.cfunc
+    @cython.locals(new_pos2ast=dict)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
+        for pos, ast in copy(px.pos2ast).items():
+            px.pos2ast = {pos: ast}
+            if self.left.p(px):
+                new_pos2ast = merge(new_pos2ast, px.pos2ast)
+            else:
+                px.pos2ast = {pos: ast}
+                if self.right.p(px):
+                    new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        return check_empty(px, new_pos2ast)
 
 
 def gen_GOre(pe: Ore, **option):
-  return GOre(pe.left.gen(**option), pe.right.gen(**option))
+    return GOre(pe.left.gen(**option), pe.right.gen(**option))
 
 # Alt
 @cython.cclass
 class GAlt(ParseFunc):
-  left: ParseFunc
-  right: ParseFunc
+    left: ParseFunc
+    right: ParseFunc
 
-  def __init__(self, left: ParseFunc, right: ParseFunc):
-    self.left = left
-    self.right = right
+    def __init__(self, left: ParseFunc, right: ParseFunc):
+        self.left = left
+        self.right = right
 
-  @cython.cfunc
-  @cython.locals(new_pos2ast=dict)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for pos, ast in copy(px.pos2ast).items():
-      px.pos2ast = {pos: ast}
-      if self.left.p(px):
-        new_pos2ast = merge(new_pos2ast, px.pos2ast)
-        px.pos2ast = {pos: ast}
-        if self.right.p(px):
-          new_pos2ast = merge(new_pos2ast, px.pos2ast)
-      else:
-        px.pos2ast = {pos: ast}
-        if self.right.p(px):
-          new_pos2ast = merge(new_pos2ast, px.pos2ast)
-    return check_empty(px, new_pos2ast)
+    @cython.cfunc
+    @cython.locals(new_pos2ast=dict)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
+        for pos, ast in copy(px.pos2ast).items():
+            px.pos2ast = {pos: ast}
+            if self.left.p(px):
+                new_pos2ast = merge(new_pos2ast, px.pos2ast)
+                px.pos2ast = {pos: ast}
+                if self.right.p(px):
+                    new_pos2ast = merge(new_pos2ast, px.pos2ast)
+            else:
+                px.pos2ast = {pos: ast}
+                if self.right.p(px):
+                    new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        return check_empty(px, new_pos2ast)
 
 
 def gen_GAlt(pe: Alt, **option):
-  return GAlt(pe.left.gen(**option), pe.right.gen(**option))
+    return GAlt(pe.left.gen(**option), pe.right.gen(**option))
 
 
 memo = {}
@@ -230,118 +232,121 @@ memo = {}
 @cython.cclass
 class RecRef(ParseFunc):
 
-  key: object
-  generated: dict
+    key: object
+    generated: dict
 
-  def __init__(self, key: object, generated: dict):
-    self.key = key
-    self.generated = generated
+    def __init__(self, key: object, generated: dict):
+        self.key = key
+        self.generated = generated
 
-  @cython.cfunc
-  @cython.locals(ps=ParseFunc)
-  def p(self, px: GParserContext) -> cython.bint:
-    ps = self.generated[self.key]
-    return ps.p(px)
+    @cython.cfunc
+    @cython.locals(ps=ParseFunc)
+    def p(self, px: GParserContext) -> cython.bint:
+        ps = self.generated[self.key]
+        return ps.p(px)
 
 
 # GMemo
 @cython.cclass
 class GMemo(ParseFunc):
 
-  name: object
-  inner: ParseFunc
+    name: object
+    inner: ParseFunc
 
-  def __init__(self, name: object, inner: ParseFunc):
-    self.name = name
-    self.inner = inner
+    def __init__(self, name: object, inner: ParseFunc):
+        self.name = name
+        self.inner = inner
 
-  @cython.cfunc
-  @cython.locals(pos=cython.int, epos=cython.int, ast=object, east=object, new_pos2ast=dict)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for pos, ast in px.pos2ast.items():
-      entry = (pos, self.name)
-      if entry in px.memo:
-        memo = px.memo[entry]
-        if memo:
-          linked_memo = {}
-          for epos, east in memo.items():
-            linked_memo[epos] = Link(east, ast)
-          new_pos2ast = merge(new_pos2ast, linked_memo)
-      else:
-        px.pos2ast = {pos:None}
-        if self.inner.p(px):
-          memo = {}
-          for epos, east in px.pos2ast.items():
-            memo[epos] = Tree(self.name, px.inputs, pos, epos, east)
-            px.pos2ast[epos] = Link(memo[epos], ast)
-          px.memo[entry] = memo
-          new_pos2ast = merge(new_pos2ast, px.pos2ast)
-        else:
-          px.memo[entry] = None
-    return check_empty(px, new_pos2ast)
+    @cython.cfunc
+    @cython.locals(pos=cython.int, epos=cython.int, ast=object, east=object, new_pos2ast=dict)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
+        for pos, ast in px.pos2ast.items():
+            entry = (pos, self.name)
+            if entry in px.memo:
+                memo = px.memo[entry]
+                if memo:
+                    linked_memo = {}
+                    for epos, east in memo.items():
+                        linked_memo[epos] = Link(east, ast)
+                    new_pos2ast = merge(new_pos2ast, linked_memo)
+            else:
+                px.pos2ast = {pos: None}
+                if self.inner.p(px):
+                    memo = {}
+                    for epos, east in px.pos2ast.items():
+                        memo[epos] = Tree(
+                            self.name, px.inputs, pos, epos, east)
+                        px.pos2ast[epos] = Link(memo[epos], ast)
+                    px.memo[entry] = memo
+                    new_pos2ast = merge(new_pos2ast, px.pos2ast)
+                else:
+                    px.memo[entry] = None
+        return check_empty(px, new_pos2ast)
 
 
 # Ref
 def emit_GRef(ref: Ref, **option):
-  key = ref.uname()
-  generated = option['generated']
-  if not key in generated:
-    generated[key] = RecRef(key, generated)
-    generated[key] = GMemo(bytes(ref.name, 'utf-8'), ref.deref().gen(**option))
-  return generated[key]
+    key = ref.uname()
+    generated = option['generated']
+    if not key in generated:
+        generated[key] = RecRef(key, generated)
+        generated[key] = GMemo(bytes(ref.name, 'utf-8'),
+                               ref.deref().gen(**option))
+    return generated[key]
 
 
 def gen_GRef(pe, **option):
-  return emit_GRef(pe, **option)
+    return emit_GRef(pe, **option)
 
 
-#Node
+# Node
 @cython.cclass
 class GNode(ParseFunc):
-  inner: ParseFunc
-  node: object
+    inner: ParseFunc
+    node: object
 
-  def __init__ (self, inner: ParseFunc, node: object):
-    self.inner = inner
-    self.node = node
-  
-  @cython.cfunc
-  @cython.locals(spos=cython.int, epos=cython.int, sast=object, east=object, new_pos2ast=dict)
-  def p(self, px: GParserContext) -> cython.bint:
-    new_pos2ast = {}
-    for spos, sast in copy(px.pos2ast).items():
-      px.pos2ast = {spos: sast}
-      if self.inner.p(px):
-        for epos, east in copy(px.pos2ast).items():
-          px.pos2ast[epos] = Link(Tree(self.node, px.inputs, spos, epos, east), None)
-        new_pos2ast = merge(new_pos2ast, px.pos2ast)
-    return check_empty(px, new_pos2ast)
+    def __init__(self, inner: ParseFunc, node: object):
+        self.inner = inner
+        self.node = node
+
+    @cython.cfunc
+    @cython.locals(spos=cython.int, epos=cython.int, sast=object, east=object, new_pos2ast=dict)
+    def p(self, px: GParserContext) -> cython.bint:
+        new_pos2ast = {}
+        for spos, sast in copy(px.pos2ast).items():
+            px.pos2ast = {spos: sast}
+            if self.inner.p(px):
+                for epos, east in copy(px.pos2ast).items():
+                    px.pos2ast[epos] = Link(
+                        Tree(self.node, px.inputs, spos, epos, east), None)
+                new_pos2ast = merge(new_pos2ast, px.pos2ast)
+        return check_empty(px, new_pos2ast)
 
 
 def gen_GNode(pe: Node, **option):
-  # GNode(pe.inner.gen(**option), pe.node)
-  return pe.inner.gen(**option)
+    # GNode(pe.inner.gen(**option), pe.node)
+    return pe.inner.gen(**option)
 
 
 # Edge
 @cython.cclass
 class GEdge(ParseFunc):
-  inner: ParseFunc
-  edge: object
+    inner: ParseFunc
+    edge: object
 
-  def __init__(self, inner: ParseFunc, edge: object):
-    self.inner = inner
-    self.edge = edge
+    def __init__(self, inner: ParseFunc, edge: object):
+        self.inner = inner
+        self.edge = edge
 
-  @cython.cfunc
-  def p(self, px: GParserContext) -> cython.bint:
-    return self.inner.p(px)
+    @cython.cfunc
+    def p(self, px: GParserContext) -> cython.bint:
+        return self.inner.p(px)
 
 
 def gen_GEdge(pe, **option):
-  # return GEdge(pe.inner.gen(**option), pe.edge)
-  return pe.inner.gen(**option)
+    # return GEdge(pe.inner.gen(**option), pe.edge)
+    return pe.inner.gen(**option)
 
 
 Ref.gen = gen_GRef
@@ -354,39 +359,40 @@ Edge.gen = gen_GEdge
 
 
 def collect_amb(s, urn, pos, result):
-  is_first = True
-  for result_pos, r in result.items():
-    if r == None:
-      r = Tree(emp, s, pos, result_pos, None)
-    if is_first:
-      prev = Link(r, None)
-      is_first = False
-    else:
-      prev = Link(r, prev)
-  return prev
+    is_first = True
+    for result_pos, r in result.items():
+        if r == None:
+            r = Tree(emp, s, pos, result_pos, None)
+        if is_first:
+            prev = Link(r, None)
+            is_first = False
+        else:
+            prev = Link(r, prev)
+    return prev
 
 
 @cython.ccall
-def call_p(f:ParseFunc, px: GParserContext):
-  return f.p(px)
+def call_p(f: ParseFunc, px: GParserContext):
+    return f.p(px)
 
 
 def cgpeg(peg, **option):
-  name = option.get('start', peg.start())
-  option['peg'] = peg
-  option['generated'] = {}
-  f = gen_GRef(Ref(name, peg, {}), **option)
-  def parse(inputs, urn='(unknown)', pos=0, epos=None):
-    if not epos:
-      epos = len(inputs)
-    px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
-    if not call_p(f, px):
-      return Tree(err, px.inputs, px.headpos, epos, None)
-    elif len(px.pos2ast) == 1:
-      (result_pos, result_ast) = list(px.pos2ast.items())[0]
-      if result_ast == None:
-        return Tree(emp, px.inputs, pos, result_pos, None)
-      else:
-        return result_ast
-    return Tree(amb, px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
-  return parse
+    name = option.get('start', peg.start())
+    option['peg'] = peg
+    option['generated'] = {}
+    f = gen_GRef(Ref(name, peg, {}), **option)
+
+    def parse(inputs, urn='(unknown)', pos=0, epos=None):
+        if not epos:
+            epos = len(inputs)
+        px = GParserContext(bytes(inputs, 'UTF-8'), pos, epos)
+        if not call_p(f, px):
+            return Tree(err, px.inputs, px.headpos, epos, None)
+        elif len(px.pos2ast) == 1:
+            (result_pos, result_ast) = list(px.pos2ast.items())[0]
+            if result_ast == None:
+                return Tree(emp, px.inputs, pos, result_pos, None)
+            else:
+                return result_ast
+        return Tree(amb, px.inputs, pos, max(px.pos2ast.keys()), collect_amb(px.inputs, urn, pos, px.pos2ast))
+    return parse

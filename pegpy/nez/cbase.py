@@ -1,6 +1,6 @@
 #cython: langauge_level=3
 import cython
-from libc.string cimport memcmp
+# from libc.string cimport memcmp
 
 if cython.compiled:
     print("Yep, I'm compiled.")
@@ -65,7 +65,8 @@ class ParseFunc:
 
     @cython.cfunc
     def p(self, px: ParserContext) -> cython.bint:
-        return 1
+        return True
+
 
 # Char
 @cython.cclass

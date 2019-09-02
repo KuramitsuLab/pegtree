@@ -68,16 +68,38 @@ class Tuple(ParsingExpression):
         return len(self.es)
 
 
+class Seq2(Tuple):
+    @classmethod
+    def new(cls, *es):
+        ls = [es[0]]
+        for e in es[1:]:
+            if e == EMPTY: continue
+            if isinstance(e, Char) and isinstance(ls[-1], Char):
+                ls[-1] = Char(ls[-1].text+e.text)
+                continue
+            ls.append(e)
+        return ls[0] if len(ls) == 1 else Seq2(*ls)
+
 class Alt2(Tuple):
     pass
 
-
 class Ore2(Tuple):
-    pass
+    @classmethod
+    def expand(cls, e):
+        choice = []
+        _expand(e, choice)
+        return choice[0] if len(choice)==1 else Ore2(*choice)
 
 
-class Seq2(Tuple):
-    pass
+def _expand(e, choice=[]):
+    s = e
+    while isinstance(e, Ref):
+        e = e.deref()
+    if isinstance(e, Ore2):
+        for x in e:
+            _expand(x, choice)
+    else:
+        choice.append(s)
 
 
 class Unary(ParsingExpression):
@@ -631,7 +653,7 @@ class ParseTree(object):
             return
         w.println(w.bold("[#" + self.tag))
         indent2 = '  ' + indent
-        for tag, child in self:
+        for tag, child in self.subs():
             w.print(indent2 if tag is '' else indent2 + tag + '=')
             child.dump(w, indent2)
         w.println(indent + w.bold("]"))
@@ -1336,6 +1358,20 @@ def setup2():
         return pe, state
     Unary.formTree = formUnary
 
+    def formAction(pe: Action, state):
+        if pe.func == 'cat':
+            e = Ore2.expand(pe.e)
+            if isinstance(e, Ore2):
+                y = pe.params[1:]
+                e.es = [Seq2.new(*((x,) + y)) for x in e.es]
+                print(e)
+                return formAlt(e, state)
+            return formSeq(Seq2(*pe.params), state)
+        else:
+            pe.e, state = formTree2(pe.e, state)
+            return pe, state
+    Action.formTree = formAction
+
     def formTerm(pe, state):
         return pe, state
     ParsingExpression.formTree = formTerm
@@ -1383,7 +1419,6 @@ def grammar_factory():
             print(file, e)
             return e
         return EMPTY
-
 
     class PEGConv(ParseTreeConv):
         def __init__(self, peg):
@@ -1480,7 +1515,7 @@ def grammar_factory():
                 inner = self.conv(tsub, logger)
             return Edge2(inner, name)
 
-        FIRST = {'lazy', 'scope', 'symbol', 'match', 'equals', 'contains'}
+        FIRST = {'lazy', 'scope', 'symbol', 'match', 'equals', 'contains', 'cat'}
 
         def Func(self, t, logger):
             funcname = t.getString('name', '')
@@ -1510,6 +1545,11 @@ def grammar_factory():
             if peg == pe.peg and pe.name not in visited:
                 visited[pe.name] = True
                 checkRec(peg[pe.name], consumed, peg, name, visited, logger)
+            return pe
+        if isinstance(pe, Action):
+            pe.e = checkRec(pe.e, consumed, peg, name, visited, logger)
+            pe.params = tuple([checkRec(x, consumed, peg, name,
+                                  visited, logger) for x in pe.params])
             return pe
         if isinstance(pe, Unary):
             pe.e = checkRec(pe.e, consumed, peg, name, visited, logger)
