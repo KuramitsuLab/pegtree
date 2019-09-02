@@ -6,6 +6,10 @@ from collections import namedtuple
 from enum import Enum
 from pathlib import Path
 
+def DEBUG(*x):
+    if 'DEBUG' in os.environ:
+        print('@DEBUG', *x)
+
 # ParsingExpression
 
 class ParsingExpression(object):
@@ -1364,7 +1368,7 @@ def setup2():
             if isinstance(e, Ore2):
                 y = pe.params[1:]
                 e.es = [Seq2.new(*((x,) + y)) for x in e.es]
-                print(e)
+                DEBUG(e)
                 return formAlt(e, state)
             return formSeq(Seq2(*pe.params), state)
         else:
@@ -1416,7 +1420,7 @@ def grammar_factory():
             ss = sorted(ss, key= lambda x: len(x))[::-1]
             choice = [Char(x) for x in ss]
             e = Ore2(*choice)
-            print(file, e)
+            DEBUG(file, e)
             return e
         return EMPTY
 
@@ -1625,11 +1629,11 @@ def grammar_factory():
             ts = pe.treeState()
             ts2 = nameTreeState(name)
             if ts != ts2:
-                print('(@NAME)', name, ts, ts2)
+                DEBUG('(@NAME)', name, ts, ts2)
             pe2,_ = pe.formTree(ts)
             if str(pe) != str(pe2):
-                print('(@OLD)', ts, name, '=', pe)
-                print('(@NEW)', ts, name, '=', pe2)
+                DEBUG('(@OLD)', ts, name, '=', pe)
+                DEBUG('(@NEW)', ts, name, '=', pe2)
             g[name] = pe2
         #end of load_grammar()
 
