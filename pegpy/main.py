@@ -102,6 +102,9 @@ def load_grammar(options, default=None):
     file = options.get('grammar', default)
     if file is None:
         raise CommandUsageError()
+    if file == 'stdin.tpeg':
+        data = sys.stdin.read()
+        return tpeg.grammar(data)
     return tpeg.grammar(file)
 
 
