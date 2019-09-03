@@ -429,18 +429,17 @@ TPEGGrammar = TPEG(Grammar())
 ######################################################################
 # ast.env
 
-Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
-
-
 def bytestr(b):
     return b.decode('utf-8') if isinstance(b, bytes) else b
 
-
-def decpos(urn, inputs, spos, epos):
+'''
+def expand_pos(urn, inputs, spos):
     inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
     raws = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
     return urn, spos, len(raws), len(raws[-1])-1
 
+
+Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
 
 def decpos4(pos4):
     urn, inputs, spos, epos = pos4
@@ -474,81 +473,62 @@ def serror4(pos4, msg='SyntaxError'):
         urn, pos, linenum, cols, line, mark = decpos4(pos4)
         return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
     return '{} (unknown source)'.format(msg)
-
-
-class Logger(object):
-    __slots__ = ['file', 'istty', 'isVerbose']
-
-    def __init__(self, file=None, isVerbose=True):
-        if file is None:
-            self.file = sys.stdout
-            self.istty = True
-        else:
-            self.file = open(file, 'w+')
-            self.istty = False
-        self.isVerbose = isVerbose
-
-    def print(self, *args):
-        file = self.file
-        if len(args) > 0:
-            file.write(str(args[0]))
-            for a in args[1:]:
-                file.write(' ')
-                file.write(str(a))
-
-    def println(self, *args):
-        self.print(*args)
-        self.file.write(os.linesep)
-        self.file.flush()
-
-    def dump(self, o, indent=''):
-        if hasattr(o, 'dump'):
-            o.dump(self, indent)
-        else:
-            self.println(o)
-
-    def verbose(self, *args):
-        if self.isVerbose:
-            ss = map(lambda s: self.c('Blue', s), args)
-            self.println(*ss)
-
-    def bold(self, s):
-        return '\033[1m' + str(s) + '\033[0m' if self.istty else str(s)
-
-    COLOR = {
-        "Black": '0;30', "DarkGray": '1;30',
-        "Red": '0;31', "LightRed": '1;31',
-        "Green": '0;32', "LightGreen": '1;32',
-        "Orange": '0;33', "Yellow": '1;33',
-        "Blue": '0;34', "LightBlue": '1;34',
-        "Purple": '0;35', "LightPurple": '1;35',
-        "Cyan": '0;36', "LightCyan": '1;36',
-        "LightGray": '0;37', "White": '1;37',
-    }
-
-    def c(self, color, s):
-        return '\033[{}m{}\033[0m'.format(Logger.COLOR[color], str(s)) + '' if self.istty else str(s)
-
-    def perror(self, pos4, msg='Syntax Error'):
-        self.println(serror4(pos4, self.c('Red', '[error] ' + str(msg))))
-
-    def warning(self, pos4, msg):
-        self.println(serror4(pos4, self.c('Orange', '[warning] ' + str(msg))))
-
-    def notice(self, pos4, msg):
-        self.println(serror4(pos4, self.c('Cyan', '[notice] ' + str(msg))))
-
-
-STDLOG = Logger()
+'''
 
 #####################################
 
+class ParseRange(object):
+    __slots__ = ['urn', 'inputs', 'spos', 'epos']
+    def __init__(self, urn, inputs, spos, epos):
+        self.urn = urn
+        self.inputs = inputs
+        self.spos = spos
+        self.epos = epos
 
-def Merge(prev, edge, child):
-    return (prev, edge, child)
+    @classmethod
+    def expand(cls, urn, inputs, spos):
+        inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
+        rows = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
+        return urn, spos, len(rows), len(rows[-1])-1
+
+    def start(self):
+        return ParseRange.expand(self.urn, self.inputs, self.spos)
+
+    def end(self):
+        return ParseRange.expand(self.urn, self.inputs, self.epos)
+
+    def decode(self):
+        urn, inputs, spos, epos = self.urn, self.inputs, self.spos, self.epos
+        #urn, inputs, pos, length = decsrc(s)
+        lines = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
+        linenum = 0
+        cols = spos
+        for line in lines:
+            len0 = len(line) + 1
+            linenum += 1
+            if cols < len0:
+                cols -= 1
+                break
+            cols -= len0
+        epos = cols + (epos - spos)
+        length = len(line) - cols if len(line) < epos else epos - cols
+        if length <= 0:
+            length = 1
+        mark = []
+        for i in range(cols):
+            c = line[i]
+            if c != '\t' and c != '　':
+                c = ' '
+            mark.append(c)
+        mark = ''.join(mark) + ('^' * length)
+        return (urn, spos, linenum, cols, bytestr(line), mark)
+    
+    def showing(self, msg='Syntax Error'):
+        urn, pos, linenum, cols, line, mark = self.decode()
+        return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
 
 
-class ParseTree(object):
+class ParseTree(ParseRange):
     __slots__ = ['tag', 'urn', 'inputs', 'spos', 'epos', 'child']
 
     def __init__(self, tag, urn, inputs, spos, epos, child):
@@ -618,6 +598,8 @@ class ParseTree(object):
         return s.decode('utf-8') if isinstance(s, bytes) else s
 
     def __repr__(self):
+        if self.tag == 'err':
+            return self.showing('Syntax Error')
         sb = []
         self.strOut(sb)
         return "".join(sb)
@@ -645,22 +627,22 @@ class ParseTree(object):
         sb.append("]")
 
     def pos(self):
-        return decpos(self.urn, self.inputs, self.spos, self.epos)
+        return self.start()
 
     def getpos4(self):
-        return Pos4(self.urn, self.inputs, self.spos, self.epos)
+        return ParseRange(self.urn, self.inputs, self.spos, self.epos)
 
-    def dump(self, w, indent=''):
+    def dump(self, indent='', edge='', bold=lambda x: x, println= lambda *x: print(*x)):
         if self.child is None:
-            s = self.inputs[self.spos:self.epos]
-            w.println(w.bold("[#" + self.tag), repr(s) + w.bold("]"))
+            s = self.inputs[self.spos : self.epos]
+            println(indent + edge + bold("[#" + self.tag), repr(s) + bold("]"))
             return
-        w.println(w.bold("[#" + self.tag))
+        println(indent + edge + bold("[#" + self.tag))
         indent2 = '  ' + indent
         for tag, child in self.subs():
-            w.print(indent2 if tag is '' else indent2 + tag + '=')
-            child.dump(w, indent2)
-        w.println(indent + w.bold("]"))
+            if tag != '': tag = tag+'='
+            child.dump(indent2, tag, bold, println)
+        println(indent + bold("]"))
 
 # TreeConv
 
@@ -676,6 +658,14 @@ class ParseTreeConv(object):
             f = getattr(self, tag)
             return self.settree(f(t, logger), t)
         return t
+
+class ParseError(IOError):
+    def __init__(self, pos):
+        self.pos = pos
+
+    def __str__(self):
+        return self.pos.showing()
+
 
 ######################################################################
 
@@ -915,6 +905,11 @@ def setup_generate():
             return False
 
         return tree
+
+
+    def Merge(prev, edge, child):
+        return (prev, edge, child)
+
 
     def gen_Edge(pe, **option):
         edge = pe.edge
@@ -1415,7 +1410,7 @@ def grammar_factory():
         urn, _, _, _ = t.pos()
         file = str(file)[1:-1]
         file = Path(urn).parent / file
-        with file.open() as f:
+        with file.open(encoding='utf-8_sig') as f:
             ss = [x.strip('\r\n') for x in f.readlines()]
             ss = sorted(ss, key= lambda x: len(x))[::-1]
             choice = [Char(x) for x in ss]
@@ -1423,6 +1418,9 @@ def grammar_factory():
             DEBUG(file, e)
             return e
         return EMPTY
+
+    def log(type, pos, msg):
+        print(pos.showing(msg))
 
     class PEGConv(ParseTreeConv):
         def __init__(self, peg):
@@ -1573,10 +1571,10 @@ def grammar_factory():
 
     def load_grammar(g, file, **options):
         g['@@example'] = []
-        logger = options.get('logger', STDLOG)
+        logger = options.get('logger', log)
         pegparser = generate(options.get('peg', TPEGGrammar))
         if isinstance(file, Path):
-            f = file.open()
+            f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
             data = f.read()
             f.close()
             t = pegparser(data, file)
@@ -1587,7 +1585,7 @@ def grammar_factory():
             basepath = (str(Path(basepath).resolve().parent))
         options['basepath'] = basepath
         if t == 'err':
-            logger.perror(t.getpos4())
+            logger('error', t, 'Syntax Error')
             return
         # load
         for stmt in t:
@@ -1595,7 +1593,7 @@ def grammar_factory():
                 name = str(stmt['name'])
                 pos4 = stmt['name'].getpos4()
                 if name in g:
-                    logger.perror(pos4, f'redefined name {name}')
+                    logger('error', stmt['name'], f'redefined name {name}')
                     continue
                 g.add(name, stmt['inner'])
                 g.newRef(name).pos = pos4
@@ -1613,7 +1611,7 @@ def grammar_factory():
                         name = lname.split('.')[-1]
                     pos4 = n.getpos4()
                     if not name in lg:
-                        logger.perror(pos4, f'undefined name {name}')
+                        logger('perror', pos4, f'undefined name {name}')
                         continue
                     g.add(lname, Action(lg.newRef(name),
                                         'import', (name, urn), pos4))

@@ -5,13 +5,52 @@ import subprocess
 # import readline
 import time
 import sys
+import os
 import importlib
 # m = importlib.import_module('foo.some')  # -> 'module'
 import pegpy.tpeg as tpeg
 
 
+istty = True
+
+
 def bold(s):
-    return '\033[1m' + str(s) + '\033[0m'
+    return '\033[1m' + str(s) + '\033[0m' if istty else str(s)
+
+
+COLOR = {
+    "Black": '0;30', "DarkGray": '1;30',
+    "Red": '0;31', "LightRed": '1;31',
+    "Green": '0;32', "LightGreen": '1;32',
+    "Orange": '0;33', "Yellow": '1;33',
+    "Blue": '0;34', "LightBlue": '1;34',
+    "Purple": '0;35', "LightPurple": '1;35',
+    "Cyan": '0;36', "LightCyan": '1;36',
+    "LightGray": '0;37', "White": '1;37',
+}
+
+
+def color(c, s):
+    return '\033[{}m{}\033[0m'.format(COLOR[c], str(s)) + '' if istty else str(s)
+
+
+def showing(pos, msg):
+    if pos is None:
+        print(msg)
+    else:
+        print(pos.showing(msg))
+
+
+def log(type, pos, *msg):
+    msg = ' '.join(map(str, msg))
+    if type.startswith('err'):
+        showing(pos, color('Red', '[error] ') + str(msg))
+    elif type.startswith('warn'):
+        showing(pos, color('Orange', '[warning] ') + str(msg))
+    elif type.startswith('info') or type.startswith('notice'):
+        showing(pos, color('Cyan', '[info] ') + str(msg))
+    else:
+        showing(pos, str(msg))
 
 
 def version():
@@ -48,7 +87,7 @@ def parse_options(argv):
     options = {
         'grammar': ['-g', '--grammar'],
         'start': ['-s', '--start'],
-        'start': ['-p', '--parser'],
+        'parser': ['-p', '--parser'],
         'output': ['-o', '--output'],
         'verbose': ['--verbose'],
     }
@@ -70,7 +109,7 @@ def parse_options(argv):
     d = {'inputs': []}
     while len(argv) > 0:
         argv = parse_each(argv, d)
-    d['logger'] = tpeg.STDLOG
+    d['logger'] = log
     return d
 
 
@@ -93,8 +132,8 @@ def usage():
 
     print("The most commonly used nez commands are:")
     print(" parse      run an interactive parser")
+    print(" example    test all examples")
     print(" nezcc      generate a cross-language parser")
-    print(" json       output tree as json file")
     print(" update     update pegpy (via pip)")
 
 
@@ -121,22 +160,21 @@ def parse(options, conv=None):
     peg = load_grammar(options)
     parser = generator(options)(peg, **options)
     inputs = options['inputs']
-    logger = tpeg.STDLOG
     if len(inputs) == 0:  # Interactive Mode
         try:
             while True:
                 s = readlines(bold('>>> '))
-                logger.dump(parser(s))
+                parser(s).dump()
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        logger.dump(parser(read_inputs(inputs[0])))
+        parser(read_inputs(inputs[0])).dump()
     else:
         for file in options['inputs']:
             st = time.time()
             t = parser(read_inputs(file))
             et = time.time()
-            logger.println(file, (et - st) * 1000.0, "[ms]:", t.tag)
+            print(file, (et - st) * 1000.0, "[ms]:", t.tag)
 
 
 def example(options):
@@ -146,7 +184,6 @@ def example(options):
     parsers = {}
     test = 0
     ok = 0
-    logger = tpeg.STDLOG
     for testcase in peg['@@example']:
         name, pos4 = testcase
         if not name in peg:
@@ -155,11 +192,12 @@ def example(options):
             parsers[name] = generator(options)(peg, start=name)
         res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
         if res == 'err':
-            logger.perror(res.getpos4(), 'NG ' + name)
+            log('error', res, 'NG ' + name)
         else:
-            logger.println('OK', name, '=>', repr(res))
+            print(color('Green', f'OK {name} => {repr(res)}'))
     if test > 0:
-        logger.println('OK', ok, 'FAIL', test - ok, ok / test * 100.0, '%')
+        print(color('Green', f'OK {ok}'), color(
+            'Red', f'FAIL {test - ok}'), ok / test * 100.0, '%')
 
 
 def peg(options):
