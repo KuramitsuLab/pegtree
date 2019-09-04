@@ -1458,7 +1458,7 @@ def grammar_factory():
             if name in self.peg:
                 return Action(self.peg.newRef(name), 'NT', (name,), t.getpos4())
             if name[0].isupper() or name[0].islower() or name.startswith('_'):
-                logger.warning(t.getpos4(), f'undefined nonterminal {name}')
+                logger('warning', t, f'undefined nonterminal {name}')
                 #self.peg.add(name, FAIL)
                 # return self.peg.newRef(name)
             return char1(name[1:-1]) if name.startswith('"') else char1(name)
@@ -1537,10 +1537,10 @@ def grammar_factory():
         if isinstance(pe, ParseTree):
             nt = str(pe)
             if nt == name and not consumed:
-                logger.warning(pe.getpos4(), f'left recursion {nt}')
+                logger('warning', pe, f'left recursion {nt}')
                 return FAIL
             if nt not in peg:
-                logger.warning(pe.getpos4(), f'undefined nonterminal {nt}')
+                logger('warning', pe, f'undefined nonterminal {nt}')
                 return char1(nt[1:-1]) if nt.startswith('"') else char1(nt)
             pe = peg.newRef(nt)
         if isinstance(pe, Ref):
