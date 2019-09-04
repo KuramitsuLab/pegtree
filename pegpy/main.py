@@ -143,8 +143,9 @@ def load_grammar(options, default=None):
         raise CommandUsageError()
     if file == 'stdin.tpeg':
         data = sys.stdin.read()
-        return tpeg.grammar(data)
-    return tpeg.grammar(file)
+        options['basepath'] = file
+        return tpeg.grammar(data, **options)
+    return tpeg.grammar(file, **options)
 
 
 def generator(options):
@@ -192,9 +193,9 @@ def example(options):
             parsers[name] = generator(options)(peg, start=name)
         res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
         if res == 'err':
-            log('error', res, 'NG ' + name)
+            log('error', res, name)
         else:
-            print(color('Green', f'OK {name} => {repr(res)}'))
+            print(color('Green', f'OK {name}'), f' => {repr(res)}')
     if test > 0:
         print(color('Green', f'OK {ok}'), color(
             'Red', f'FAIL {test - ok}'), ok / test * 100.0, '%')

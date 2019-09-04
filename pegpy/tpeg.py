@@ -1580,7 +1580,10 @@ def grammar_factory():
             t = pegparser(data, file)
             basepath = str(file)
         else:
-            basepath = inspect.currentframe().f_back.f_code.co_filename
+            if 'basepath' in options:
+                basepath = options['basepath']
+            else:
+                basepath = inspect.currentframe().f_back.f_code.co_filename
             t = pegparser(file, basepath)
             basepath = (str(Path(basepath).resolve().parent))
         options['basepath'] = basepath
@@ -1647,7 +1650,6 @@ def grammar_factory():
 
     GrammarDB = {}
 
-    #def grammar(urn, basepath='', logger=STDLOG):
     def grammar(urn, **options):
         paths = []
         basepath = options.get('basepath', '')
