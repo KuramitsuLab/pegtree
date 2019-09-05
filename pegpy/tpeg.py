@@ -669,6 +669,13 @@ class ParseError(IOError):
 
 ######################################################################
 
+class Memo(object):
+    __slots__ = ['key', 'pos', 'ast', 'result']
+    def __init__(self):
+        self.key = -1
+        self.pos = 0
+        self.ast = None
+        self.result = False
 
 class ParserContext:
     __slots__ = ['urn', 'inputs', 'pos', 'epos',
@@ -682,7 +689,7 @@ class ParserContext:
         self.headpos = spos
         self.ast = None
         self.state = None
-        self.memo = {}
+        self.memo = [Memo() for x in range(1789)]
 
     # setup parser
 
@@ -878,7 +885,7 @@ def setup_generate():
 
     # Ref
 
-    def gen_Ref(ref, **option):
+    def gen_Ref0(ref, **option):
         f = ref.get('tpegfunc', None)
         if f is None:
             try:
@@ -888,6 +895,47 @@ def setup_generate():
             except RecursionError:
                 return lambda px: ref.tpegfunc(px)
         return f
+
+    def gen_Memo(mp, msize, A):
+        def memoMatch(px):
+            key = (msize * px.pos) + mp
+            m = px.memo[key % 1789]
+            if m.key == key:
+                px.pos = m.pos
+                return m.result
+            m.result = A(px)
+            m.pos = px.pos
+            m.key = key
+            return m.result
+        return memoMatch
+
+    def gen_Tree(mp, msize, A):
+        def memoTree(px):
+            key = (msize * px.pos) + mp
+            m = px.memo[key % 1789]
+            if m.key == key:
+                px.pos = m.pos
+                px.ast = m.ast
+                return m.result
+            m.result = A(px)
+            m.pos = px.pos
+            m.ast = px.ast
+            m.key = key
+            return m.result
+        return memoTree
+
+    def gen_Ref(ref, **option):
+        A = gen_Ref0(ref, **option)
+        if 'memos' not in option: return A
+        memos = option['memos']
+        idx = memos.index(ref.name)
+        if idx == -1: return A
+        ts = ref.deref().treeState()
+        if ts == T.Unit:
+            return gen_Memo(idx, len(memos), A)
+        if ts == T.Tree:
+            return gen_Tree(idx, len(memos), A)
+        return A
 
     # Tree Construction
 
@@ -1147,6 +1195,8 @@ def setup_generate():
         name = option.get('start', peg.start())
         p = peg.newRef(name)
         option['peg'] = peg
+        # if 'memos' in option and not isinstance(option['memos'], list):
+        option['memos'] = peg.N
 
         pf = gen_Pexp(p, **option)
         mtree = option.get('tree', ParseTree)
@@ -1459,8 +1509,8 @@ def grammar_factory():
                 return Action(self.peg.newRef(name), 'NT', (name,), t.getpos4())
             if name[0].isupper() or name[0].islower() or name.startswith('_'):
                 logger('warning', t, f'undefined nonterminal {name}')
-                #self.peg.add(name, FAIL)
-                # return self.peg.newRef(name)
+                self.peg.add(name, EMPTY)
+                return self.peg.newRef(name)
             return char1(name[1:-1]) if name.startswith('"') else char1(name)
 
         def Many(self, t, logger):
