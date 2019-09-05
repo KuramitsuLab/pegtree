@@ -909,18 +909,9 @@ def setup_generate():
             return gen_Pexp(pe2, **option)
         pe = pe2
         dic = [e.text for e in pe if isinstance(e, Char)]
-        print('@choice', len(pe), len(dic))
+        #print('@choice', len(pe), len(dic))
         if len(dic) == len(pe):
             d = trie(dic)
-            # def match_dic(px):
-            #     pos = px.pos
-            #     inputs = px.inputs
-            #     for s in dic:
-            #         if inputs.startswith(s, pos): 
-            #             px.pos += len(s)
-            #             return True
-            #     return False
-            # return match_dic
             return lambda px: match_trie(px, d)
         return gen_Ore(pe, **option)
 
