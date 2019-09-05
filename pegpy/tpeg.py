@@ -869,18 +869,59 @@ def setup_generate():
 
         return match_ore
 
+    def trie(dic):
+        if '' in dic or len(dic) < 10:
+            return dic
+        d = {}
+        for s in dic:
+            s0, s = s[0], s[1:]
+            if s0 in d:
+                ss = d[s0]
+                if not s in ss: ss.append(s)
+            else:
+                d[s0] = [s]
+        for key in d:
+            d[key] = trie(d[key])
+        return d
+    
+    def match_trie(px, d):
+        if px.pos >= px.epos:
+            return False
+        if isinstance(d, dict):
+            c = px.inputs[px.pos]
+            if c in d:
+                px.pos += 1
+                return match_trie(px, d[c])
+            return False
+        pos = px.pos
+        inputs = px.inputs
+        for s in d:
+            if inputs.startswith(s, pos): 
+                px.pos += len(s)
+                return True
+        return False
+
+
     def gen_Ore2(pe, **option):
+        pe2 = Ore2.expand(pe)
+        if not isinstance(pe2, Ore2):
+            #print('@not choice', pe, pe2)
+            return gen_Pexp(pe2, **option)
+        pe = pe2
         dic = [e.text for e in pe if isinstance(e, Char)]
+        print('@choice', len(pe), len(dic))
         if len(dic) == len(pe):
-            def match_dic(px):
-                pos = px.pos
-                inputs = px.inputs
-                for s in dic:
-                    if inputs.startswith(s, pos): 
-                        px.pos += len(s)
-                        return True
-                return False
-            return match_dic
+            d = trie(dic)
+            # def match_dic(px):
+            #     pos = px.pos
+            #     inputs = px.inputs
+            #     for s in dic:
+            #         if inputs.startswith(s, pos): 
+            #             px.pos += len(s)
+            #             return True
+            #     return False
+            # return match_dic
+            return lambda px: match_trie(px, d)
         return gen_Ore(pe, **option)
 
     # Ref
@@ -1181,7 +1222,7 @@ def setup_generate():
     Seq2.gen = gen_Seq
     #Ore2.gen = gen_Ore
     Ore2.gen = gen_Ore2
-    Alt2.gen = gen_Ore
+    Alt2.gen = gen_Ore2
     Ref.gen = gen_Ref
 
     Node.gen = gen_Node
