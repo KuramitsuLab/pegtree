@@ -610,7 +610,10 @@ class ParseTree(ParseRange):
         c = len(sb)
         for tag, child in self.subs():
             sb.append(' ' if tag == '' else ' ' + tag + '=')
-            child.strOut(sb)
+            if hasattr(child, 'strOut'):
+                child.strOut(sb)
+            else:
+                sb.append(f'@FIXME({repr(child)})')
         if c == len(sb):
             s = self.inputs[self.spos:self.epos]
             if isinstance(s, str):
@@ -842,7 +845,12 @@ def setup_generate():
     # Seq
 
     def gen_Seq(pe, **option):
+        if len(pe) == 2:
+            pf0 = gen_Pexp(pe.es[0], **option)
+            pf1 = gen_Pexp(pe.es[1], **option)
+            return lambda px: pf0(px) and pf1(px)
         pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
+        #print('@seq', len(pe))
 
         def match_seq(px):
             for pf in pfs:
@@ -913,6 +921,7 @@ def setup_generate():
         if len(dic) == len(pe):
             d = trie(dic)
             return lambda px: match_trie(px, d)
+        #print('@choice', len(pe))
         return gen_Ore(pe, **option)
 
     # Ref
