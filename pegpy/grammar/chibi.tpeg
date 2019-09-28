@@ -9,7 +9,9 @@ print(fib(10))
 Program = {
   Statement*
   #Block
-}
+} EOF
+
+EOF = !.
 
 Statement = FuncDecl / LetDecl / Expression
 

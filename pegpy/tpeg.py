@@ -521,7 +521,7 @@ class ParseRange(object):
                 c = ' '
             mark.append(c)
         mark = ''.join(mark) + ('^' * length)
-        return (urn, spos, linenum, cols, bytestr(line), mark)
+        return (urn, spos, linenum, cols+1, bytestr(line), mark)
     
     def showing(self, msg='Syntax Error'):
         urn, pos, linenum, cols, line, mark = self.decode()
