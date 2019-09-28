@@ -733,6 +733,7 @@ def setup_generate():
             for c in range(ord(r[0]), ord(r[1])+1):
                 cs |= 1 << c
         return cs
+    Range.bits = first_range
 
     def gen_Range(pe, **option):
         #offset = pe.min()
@@ -851,7 +852,6 @@ def setup_generate():
             return lambda px: pf0(px) and pf1(px)
         pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
         #print('@seq', len(pe))
-
         def match_seq(px):
             for pf in pfs:
                 if not pf(px):
