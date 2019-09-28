@@ -566,6 +566,9 @@ class ParseTree(ParseRange):
     def __eq__(self, tag):
         return self.tag == tag
 
+    def isError(self):
+        return self.tag == 'err'
+
     def subs(self):
         if not isinstance(self.child, list):
             stack = []
@@ -622,7 +625,7 @@ class ParseTree(ParseRange):
         return s.decode('utf-8') if isinstance(s, bytes) else s
 
     def __repr__(self):
-        if self.tag == 'err':
+        if self.isError():
             return self.showing('Syntax Error')
         sb = []
         self.strOut(sb)
