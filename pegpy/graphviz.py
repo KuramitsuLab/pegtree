@@ -3,36 +3,40 @@ from pathlib import Path
 import unicodedata
 import subprocess
 import shutil
+import string
 
 
-def template(s, node, edge):
-    return (
-        'digraph sample {\n'
-        '    graph [\n'
-        '        charset = "UTF-8",\n'
-        '        label = "%s",\n'
-        '        labelloc = t,\n'
-        '        fontsize = 18,\n'
-        '        dpi = 300,\n'
-        '    ];\n\n'
-        '    edge [\n'
-        '        dir = none,\n'
-        '        fontname = "MS Gothic",\n'
-        '        fontcolor = "#252525",\n'
-        '        fontsize = 12,\n'
-        '    ];\n\n'
-        '    node [\n'
-        '        shape = box,\n'
-        '        style = "rounded,filled",\n'
-        '        color = "#3c3c3c",\n'
-        '        fillcolor = "#f5f5f5",\n'
-        '        fontname = "MS Gothic",\n'
-        '        fontsize = 16,\n'
-        '        fontcolor = "#252525",\n'
-        '    ];\n\n'
-        '    %s\n\n'
-        '    %s\n'
-        '}' % (s, node, edge))
+DOT = '''\
+digraph sample {
+    graph [
+        charset = "UTF-8",
+        label = "$input_text",
+        labelloc = t,
+        fontsize = 18,
+        dpi = 300,
+    ];
+
+    edge [
+        dir = none,
+        fontname = "MS Gothic",
+        fontcolor = "#252525",
+        fontsize = 12,
+    ];
+
+    node [
+        shape = box,
+        style = "rounded,filled",
+        color = "#3c3c3c",
+        fillcolor = "#f5f5f5",
+        fontname = "MS Gothic",
+        fontsize = 16,
+        fontcolor = "#252525",
+    ];
+
+    $node_description
+
+    $edge_description
+}'''
 
 
 def escape(s):
@@ -69,9 +73,12 @@ def make_dict(t, d, nid):
 def gen_dot(t):
     d = {'node': [], 'edge': []}
     make_dict(t, d, 0)
-    node_code = ';\n    '.join(d['node'])
-    edge_code = ';\n    '.join(d['edge'])
-    return template(escape(t.inputs), node_code, edge_code)
+    context = {
+        'input_text': escape(t.inputs),
+        'node_description': ';\n    '.join(d['node']),
+        'edge_description': ';\n    '.join(d['edge']),
+    }
+    return string.Template(DOT).substitute(context)
 
 
 def gen_graph(parse_tree):
@@ -89,3 +96,11 @@ def gen_graph(parse_tree):
     else:
         Path(GEN_DOT_PATH).unlink()
 
+
+# if __name__ == "__main__":
+#     from pegpy.main import *
+#     options = parse_options(['-g', 'math.tpeg'])
+#     peg = load_grammar(options)
+#     parser = generator(options)(peg, **options)
+#     s = '12+34*56/2'
+#     gen_graph(parser(s))
