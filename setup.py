@@ -5,7 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
     name='pegpy',
-    version='0.9.4.1',
+    version='0.9.4.2',
     url='https://github.com/KuramitsuLab/pegpy.git',
     license='KuramitsuLab',
     author='Kimio Kuramitsu and His Laboratory',

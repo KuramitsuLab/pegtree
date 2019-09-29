@@ -498,6 +498,30 @@ class ParseRange(object):
         return ParseRange.expand(self.urn, self.inputs, self.epos)
 
     def decode(self):
+        inputs, spos, epos = self.inputs, self.spos, self.epos
+        LF = b'\n' if isinstance(inputs, bytes) else '\n'
+        rows = inputs[:spos + (1 if len(inputs) > spos else 0)]
+        rows = rows.split(LF)
+        linenum, column = len(rows), len(rows[-1])-1
+        begin = inputs.rfind(LF, 0, spos) + 1
+        #print('@', spos, begin, inputs)
+        end = inputs.find(LF, spos)
+        #print('@', spos, begin, inputs)
+        if end == -1 : end = len(inputs)
+        #print('@[', begin, spos, end, ']', epos)
+        line = inputs[begin:end] #.replace('\t', '   ')
+        mark = []
+        endcolumn = column + (epos - spos)
+        for i, c in enumerate(line):
+            if column <= i and i <= endcolumn:
+                mark.append('^' if ord(c) < 256 else '^^')
+            else:
+                mark.append(' ' if ord(c) < 256 else '  ')
+        mark = ''.join(mark)
+        return (self.urn, spos, linenum, column, bytestr(line), mark)
+
+    '''    
+    def decode0(self):
         urn, inputs, spos, epos = self.urn, self.inputs, self.spos, self.epos
         #urn, inputs, pos, length = decsrc(s)
         lines = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
@@ -521,8 +545,8 @@ class ParseRange(object):
                 c = ' '
             mark.append(c)
         mark = ''.join(mark) + ('^' * length)
-        return (urn, spos, linenum, cols, bytestr(line), mark)
-    
+        return (urn, spos, linenum, cols+1, bytestr(line), mark)
+    '''
     def showing(self, msg='Syntax Error'):
         urn, pos, linenum, cols, line, mark = self.decode()
         return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
@@ -541,6 +565,9 @@ class ParseTree(ParseRange):
 
     def __eq__(self, tag):
         return self.tag == tag
+
+    def isError(self):
+        return self.tag == 'err'
 
     def subs(self):
         if not isinstance(self.child, list):
@@ -598,7 +625,7 @@ class ParseTree(ParseRange):
         return s.decode('utf-8') if isinstance(s, bytes) else s
 
     def __repr__(self):
-        if self.tag == 'err':
+        if self.isError():
             return self.showing('Syntax Error')
         sb = []
         self.strOut(sb)
@@ -733,6 +760,7 @@ def setup_generate():
             for c in range(ord(r[0]), ord(r[1])+1):
                 cs |= 1 << c
         return cs
+    Range.bits = first_range
 
     def gen_Range(pe, **option):
         #offset = pe.min()
@@ -851,7 +879,6 @@ def setup_generate():
             return lambda px: pf0(px) and pf1(px)
         pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
         #print('@seq', len(pe))
-
         def match_seq(px):
             for pf in pfs:
                 if not pf(px):
@@ -1243,14 +1270,15 @@ def setup_generate():
         mtree = option.get('tree', ParseTree)
         conv = option.get('conv', lambda x: x)
 
-        def parse(inputs, urn='(unknown)', pos=0, epos=None):
+        def parse(inputs, urn='(unknown source)', pos=0, epos=None):
             if epos is None:
                 epos = len(inputs)
             px = ParserContext(urn, inputs, pos, epos)
             pos = px.pos
             result = None
             if not pf(px):
-                result = mtree("err", urn, inputs, px.headpos, epos, None)
+                result = mtree("err", urn, inputs,
+                               px.headpos, px.headpos, None)
             else:
                 result = px.ast if px.ast is not None else mtree(
                     "", urn, inputs, pos, px.pos, None)
