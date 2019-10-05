@@ -4,7 +4,7 @@ class ParseTree {
   public inputs: string;
   public spos: number;
   public epos: number;
-  public child: [string, ParseTree][];
+  public nodes: [string, ParseTree][];
 
   public constructor(tag: string, spos: number, epos: number, child: any) {
     this.tag = tag;
@@ -12,69 +12,70 @@ class ParseTree {
     this.inputs = '';
     this.spos = spos;
     this.epos = epos;
-    this.child = ParseTree.empties;
+    this.nodes = ParseTree.empties;
   }
 
-  // def __eq__(self, tag):
-  // return self.tag == tag
+  static empties: [string, ParseTree][] = []
 
-  // def isError(self):
-  // return self.tag == 'err'
+  protected setup(urn: string, inputs: string) {
+    if (this.urn !== null) {
+      const nodes: [string, ParseTree][] = [];
+      var entry: Merge = this.urn;
+      while (entry !== null) {
+        nodes.push([entry.edge, entry.child.setup(urn, inputs)])
+        entry = entry.prev;
+      }
+      this.nodes = nodes.reverse();
+    }
+    this.urn = urn;
+    this.inputs = inputs;
+    var t: any = this;
+    for (var i = 0; i < this.nodes.length; i += 1) {
+      t[i] = this.nodes[i][1];
+      if (this.nodes[i][0] !== '') {
+        t[this.nodes[i][0]] = this.nodes[i][1];
+      }
+    }
+    return this;
+  }
 
-  // def subs(self):
-  // if not isinstance(self.child, list):
-  // stack = []
-  // cur = self.child
-  // while cur is not None:
-  // prev, edge, child = cur
-  // if child is not None:
-  // stack.append((edge, child))
-  // cur = prev
-  // self.child = list(stack[:: -1])
-  // return self.child
+  public is(tag: string) {
+    return this.tag === tag;
+  }
 
-  // def __len__(self):
-  // return len(self.subs())
+  public isError() {
+    return this.tag === 'err';
+  }
 
-  // def __contains__(self, label):
-  // for edge, _ in self.subs():
-  //   if label == edge: return True
-  // return False
+  public subs() {
+    const subs: ParseTree[] = [];
+    for (var i = 0; i < this.nodes.length; i += 1) {
+      subs.push(this.nodes[i][1]);
+    }
+    return subs;
+  }
 
-  // def __getitem__(self, label):
-  // if isinstance(label, int):
-  //   return self.subs()[label][1]
-  // for edge, child in self.subs():
-  //   if label == edge:
-  //     return child
-  // return None
+  public size() {
+    return this.nodes.length;
+  }
 
-  // def get(self, label: str, default=None, conv = lambda x: x):
-  // for edge, child in self.subs():
-  //   if label == edge:
-  //     return conv(child)
-  // return default
+  public contains(edge: string) {
+    for (var i = 0; i < this.nodes.length; i += 1) {
+      if (this.nodes[i][0] === edge) return true;
+    }
+    return false;
+  }
 
-  // def __getattr__(self, label: str):
-  // for edge, child in self.subs():
-  //   if label == edge: return child
-  // raise AttributeError()
+  public get(index: any) {
+    return (this as any)[index];
+  }
 
-  // def getString(self, label: str, default=None):
-  // return self.get(label, default, str)
-
-  // def keys(self):
-  // ks = []
-  // for edge, _ in self.subs():
-  //   if edge != '': ks.append(edge)
-  // return ks
-
-  // def __iter__(self):
-  // return map(lambda x: x[1], self.subs())
-
-  // def __str__(self):
-  // s = self.inputs[self.spos: self.epos]
-  // return s.decode('utf-8') if isinstance(s, bytes) else s
+  public tokenize(index?: any, defstr?: string) {
+    if (index === undefined) {
+      return this.inputs.substring(this.spos, this.epos);
+    }
+    return (this as any)[index] || (defstr || '')
+  }
 
   // def __repr__(self):
   // if self.isError():
@@ -92,11 +93,11 @@ class ParseTree {
   protected strOut(sb: string[]) {
     sb.push("[#")
     sb.push(this.tag)
-    for (const node of this.child) {
+    for (const node of this.nodes) {
       sb.push(node[0] === '' ? ' ' : ` ${node[0]}=`)
       node[1].strOut(sb);
     }
-    if (this.child.length == 0) {
+    if (this.nodes.length == 0) {
       const s = this.inputs.substring(this.spos, this.epos);
       sb.push(" '");
       sb.push(s);
@@ -123,21 +124,7 @@ class ParseTree {
   // child.dump(indent2, tag, bold, println)
   // println(indent + bold("]"))
 
-  static empties: [string, ParseTree][] = []
 
-  protected finalize(urn: string, inputs: string) {
-    if (this.urn !== null) {
-      const child: [string, ParseTree][] = [];
-      var entry: Merge = this.urn;
-      while (entry !== null) {
-        child.push([entry.edge, this.finalize(urn, inputs)])
-      }
-      this.child = child.reverse();
-    }
-    this.urn = urn;
-    this.inputs = inputs;
-    return this;
-  }
 }
 
 class Merge {
@@ -237,7 +224,7 @@ const pRange = (chars: string, ranges: string[]) => {
     set_bitmap(bitmap, chars.charCodeAt(i));
   }
   for (const range of ranges) {
-    for (var c = range.charCodeAt(0); i <= range.charCodeAt(1); i += 1) {
+    for (var c = range.charCodeAt(0); c <= range.charCodeAt(1); c += 1) {
       set_bitmap(bitmap, c);
     }
   }
@@ -416,7 +403,7 @@ const pNode = (match: (px: ParserContext) => boolean, tag: string, shift: number
 //def Merge(prev, edge, child):
 //return (prev, edge, child)
 
-const pEdge = (match: (px: ParserContext) => boolean, edge: string) => {
+const pEdge = (edge: string, match: (px: ParserContext) => boolean) => {
   return (px: ParserContext) => {
     const ast = px.ast;
     if (match(px)) {
@@ -519,6 +506,10 @@ const pScope = (match: (px: ParserContext) => boolean) => {
 
 export const generate = (start: string) => {
   const match = grammar(start);
+  if (match === undefined) {
+    console.log(`undefined ${start}`)
+    console.log(peg)
+  }
   return (inputs: string, options?: any) => {
     const op = (options === undefined) ? {} : options;
     const pos = 0;
@@ -531,18 +522,28 @@ export const generate = (start: string) => {
     else {
       px.ast = new ParseTree('err', px.head_pos, px.head_pos + 1, null);
     }
-    return px.ast.finalize(px.urn, inputs);
+    return px.ast.setup(px.urn, inputs);
   }
 }
 
+let peg: any = null;
+
 const grammar = (start: string) => {
-  const peg: any = {};
-  //TPEG
-  //peg['Name'] = pSeq(pChar('a'), pChar('b'), pRange('ABCDEFGHIJKLMNあ', []));
+  if (peg === null) {
+    peg = {};
+    //TPEG
+  }
   return peg[start];
 }
 
-//const parser = generate('Name');
-//const t = parser('abあc');
-//console.log(t.toString());
+const example = (start: string, sample?: string) => {
+  const parser = generate(start);
+  const t = parser(sample || 'abc');
+  console.log(`${start} ${sample}`)
+  console.log(t.toString());
+}
 
+//EXAMPLE
+
+// pegpy nezcc - g math.tpeg nez.ts > math.ts
+// node_modules/.bin /ts-node math.ts 

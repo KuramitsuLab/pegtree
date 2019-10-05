@@ -1,36 +1,36 @@
 /* testcase */
-A1 = a
-A2 = "a"
-A3 = ほげ
-A4 = O_NAME
-B1 = !a
-B2 = &a
-B3 = a+
-B4 = a*
-B5 = $a
-C1 = ''
-C2 = 'a'
-C3 = [ab]
-C4 = 'a' / 'b'
-C5 = 'ab'
-F1 = @ref(A)
-G1 = a b / c
-G2 = a (b / c)
+// input abc
+CASE0 = ''
+CASE1 = 'a'
+CASE2 = 'abc'
+CASE3 = [a-z]
+CASE4 = CASE1
+CASE5 = AB
+CASE6 = 'a' 'b' 'c'
+CASE7 = &'a' 'ab'
+CASE8 = !'z' 'ab'
+CASE9 = 'z' / 'abcd' / 'ab'
+CASE10 = AB* 'c'
+CASE11 = BC* 'a'
+CASE12 = BC+ 'a'
 
-Ta = '(' {} ')'
-TA = '(' {} ')'
-ta = '(' {} ')'
-Tb = {Ta}
-TB = {Ta}
-tb = {Ta}
 
-Tc = { x: 'a' }
-TC = { x: 'a' }
+Case0 = {''}
+Case1 = {'a' #a}
+Case2 = {'abc' #abc}
+Case3 = {[a-z] #a}
+Case4 = {CASE1 #a}
+Case5 = {AB #ab}
+Case6 = {CASE6 #abc}
+Case7 = {CASE7 #ab}
+Case8 = {CASE8 #ab}
+Case9 = {CASE9 #ab}
+Case10 = {CASE10 #abc}
+Case11 = {CASE11 #a}
+Case12 = {CASE12 #err}
 
-Td = 'x' / { x: 'a' } / 'b'
-td = 'a' / { x: 'a' } / 'b'
 
-Te = {'a'} {'b'} Ta
-te = {'a'} {'b'} Ta
+AB = 'ab'
+BC = 'bc'
 
 //from math.tpeg import Expression

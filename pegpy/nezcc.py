@@ -86,7 +86,8 @@ class NezCC(object):
 
     def Ref(self, pe, **options):
         quote = options['quote']
-        return self.apply('pRef', quote(pe.name))
+        grammar = options.get('peg', 'peg')
+        return self.apply('pRef', grammar, quote(pe.name))
 
     def Node(self, pe, **options):
         e = self.emit(pe.e, **options)
@@ -142,9 +143,17 @@ class NezCC(object):
         e = self.emit(pe.e, **options)
         return self.apply('pScope', e)
 
+    def example(self, g, options):
+        for testcase in g['@@example']:
+            name, pos4 = testcase
+            if not name in g:
+                continue
+            text = pos4.inputs[pos4.spos:pos4.epos]
+            indent = options['indent']
+            print(indent + self.apply('example', repr(name), repr(text)))
 
-def generate(g, **options):
-    nezcc = NezCC(options)
+
+def generate(nezcc, g, **options):
     quote = options.get('quote', repr)
     indent = options.get('indent', '\t')
     rule = options.get('rule', '{}peg[{}] = {};')
@@ -153,14 +162,17 @@ def generate(g, **options):
         print(rule.format(indent, quote(name), func))
 
 
-def getoption(path: Path, line: str):
-    options = {}
+def setline(line: str, options):
     indent = []
     for c in line:
         if c != ' ' and c != '\t':
             break
         indent.append(c)
     options['indent'] = ''.join(indent)
+
+
+def getoption(path: Path, line: str):
+    options = {}
     if 'quote' not in options:
         options['quote'] = repr
     return options
@@ -170,12 +182,17 @@ def nezcc(file, g):
     path = Path(file)
     if not path.exists():
         path = Path(__file__).resolve().parent / 'nezcc' / path
+    options = getoption(path, '')
+    pegcc = NezCC(options)
     with path.open() as f:
         for line in f.readlines():
             line = line.rstrip()
             if 'TPEG' in line:
-                options = getoption(path, line)
-                generate(g, **options)
+                setline(line, options)
+                generate(pegcc, g, **options)
+            elif 'EXAMPLE' in line and '@@example' in g:
+                setline(line, options)
+                pegcc.example(g, options)
             else:
                 print(line)
 
