@@ -128,7 +128,7 @@ def usage():
     print("Example:")
     print("  pegpy parse -g math.tpeg <inputs>")
     print("  pegpy example -g math.tpeg <inputs>")
-    print()
+    print("  pegpy nezcc -g math.tpeg nez.ts")
 
     print("The most commonly used nez commands are:")
     print(" parse      run an interactive parser")
@@ -204,6 +204,15 @@ def example(options):
 def peg(options):
     peg = load_grammar(options)
     print(peg)
+
+
+def nezcc(options):
+    from pegpy.nezcc import nezcc
+    inputs = options['inputs']
+    if len(inputs) == 0:
+        inputs.append('empty.ts')
+    peg = load_grammar(options)
+    nezcc(input[0], peg)
 
 
 '''

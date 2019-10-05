@@ -1113,8 +1113,8 @@ def setup_generate():
 
         if fname == 'skip':  # @recovery({..})
             def skip(px):
-                px.pos = px.headpos
-                return px.pos < px.epos
+                px.pos = min(px.headpos, px.epos)
+                return True
             return skip
 
         # SPEG

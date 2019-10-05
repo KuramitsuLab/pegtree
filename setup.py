@@ -5,7 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
     name='pegpy',
-    version='0.9.4.2',
+    version='0.9.5',
     url='https://github.com/KuramitsuLab/pegpy.git',
     license='KuramitsuLab',
     author='Kimio Kuramitsu and His Laboratory',
@@ -13,7 +13,7 @@ setup(
     install_requires=['setuptools'],
         packages=['pegpy', 'pegpy.nez', 'pegpy.origami'],
         package_data={'pegpy': ['grammar/*.tpeg',
-                                'grammar/*.gpeg', 'origami/*.origami']},
+                                'grammar/*.gpeg', 'nezcc/*.*']},
     entry_points={
         'console_scripts': [
             'pegpy = pegpy.main:main'
