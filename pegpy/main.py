@@ -212,7 +212,7 @@ def nezcc(options):
     if len(inputs) == 0:
         inputs.append('empty.ts')
     peg = load_grammar(options)
-    nezcc(input[0], peg)
+    nezcc(inputs[0], peg)
 
 
 '''

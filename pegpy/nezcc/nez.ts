@@ -138,7 +138,6 @@ class ParseTree {
     this.inputs = inputs;
     return this;
   }
-
 }
 
 class Merge {
@@ -209,14 +208,14 @@ const pChar = (text: string) => {
   }
 }
 
-const find_codemax = (chars: string, ranges: [number, number][]) => {
+const find_codemax = (chars: string, ranges: string[]) => {
   var code = 0;
   for (var i = 0; i < chars.length; i += 1) {
     code = Math.max(chars.charCodeAt(i), code);
   }
   for (const range of ranges) {
-    code = Math.max(range[0], code);
-    code = Math.max(range[1], code);
+    code = Math.max(range.charCodeAt(0), code);
+    code = Math.max(range.charCodeAt(1), code);
   }
   return code;
 }
@@ -230,7 +229,7 @@ const set_bitmap = (bitmap: Uint8Array, c: number) => {
   //console.log(bitmap);
 }
 
-const pRange = (chars: string, ranges: [number, number][]) => {
+const pRange = (chars: string, ranges: string[]) => {
   const codemax = find_codemax(chars, ranges) + 1;
   const bitmap = new Uint8Array(((codemax / 8) | 0) + 1);
   bitmap[0] = 2;
@@ -238,7 +237,7 @@ const pRange = (chars: string, ranges: [number, number][]) => {
     set_bitmap(bitmap, chars.charCodeAt(i));
   }
   for (const range of ranges) {
-    for (var c = range[0]; i <= range[1]; i += 1) {
+    for (var c = range.charCodeAt(0); i <= range.charCodeAt(1); i += 1) {
       set_bitmap(bitmap, c);
     }
   }

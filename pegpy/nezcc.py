@@ -3,8 +3,18 @@ import pegpy.tpeg as peg
 
 
 class NezCC(object):
-    def __init__(self):
+    def __init__(self, options):
         self.SIDs = {}
+        self.applyfmt = options.get('apply', '{}({})')
+        self.delimfmt = options.get('delim', ',')
+
+    def apply(self, name, *args):
+        if len(args) == 0:
+            return self.applyfmt.format(name, '')
+        elif len(args) == 1:
+            return self.applyfmt.format(name, args[0])
+        else:
+            return self.applyfmt.format(name, self.delimfmt.join(args))
 
     def emit(self, pe, **options):
         tag = pe.__class__.__name__
@@ -22,78 +32,80 @@ class NezCC(object):
     def Char(self, pe, **options):
         quote = options['quote']
         if len(pe.text) == 0:
-            return 'pEmpty()'
-        return f'pChar({quote(pe.text)})'
+            return self.apply('pEmpty')
+        return self.apply('pChar', quote(pe.text))
 
     def Range(self, pe, **options):
         quote = options['quote']
         chars = quote(pe.chars)
-        ranges = ','.join([quote(r[0]+r[1]) for r in pe.ranges])
-        return f'pRange({chars}, [{ranges}])'
+        delim = options.get('listdelim', ',')
+        listfmt = options.get('list', '[{}]')
+        ranges = listfmt.format(delim.join(
+            [quote(r[0]+r[1]) for r in pe.ranges]))
+        return self.apply('pRange', chars, ranges)
 
     def Any(self, pe, **options):
-        return 'pAny()'
+        return self.apply('pAny')
 
     def And(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pAnd({e})'
+        return self.apply('pAnd', e)
 
     def Not(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pNot({e})'
+        return self.apply('pNot', e)
 
     def Many(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pMany({e})'
+        return self.apply('pMany', e)
 
     def Many1(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pMany1({e})'
+        return self.apply('pMany1', e)
 
     def Option(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pOption({e})'
+        return self.apply('pOption', e)
 
     def Seq2(self, pe, **options):
-        fs = ','.join([self.emit(e, **options) for e in pe])
+        fs = [self.emit(e, **options) for e in pe]
         if len(fs) == 2:
-            return f'pSeq2({fs[0]},{fs[1]})'
+            return self.apply('pSeq2', *fs)
         if len(fs) == 3:
-            return f'pSeq3({fs[0]},{fs[1]},{fs[2]})'
-        return f'pSeq({fs})'
+            return self.apply('pSeq3', *fs)
+        return self.apply('pSeq', *fs)
 
     def Ore2(self, pe, **options):
-        fs = ','.join([self.emit(e, **options) for e in pe])
+        fs = [self.emit(e, **options) for e in pe]
         if len(fs) == 2:
-            return f'pOre2({fs[0]},{fs[1]})'
-        return f'pOre({fs})'
+            return self.apply('pOre2', *fs)
+        return self.apply('pOre', *fs)
 
     def Alt2(self, pe, **options):
-        fs = ','.join([self.emit(e, **options) for e in pe])
-        return f'pOre({fs})'
+        return self.Ore2(pe, **options)
 
     def Ref(self, pe, **options):
         quote = options['quote']
-        return f'pRef{quote(pe.name)})'
+        return self.apply('pRef', quote(pe.name))
 
     def Node(self, pe, **options):
         e = self.emit(pe.e, **options)
         quote = options['quote']
-        return f'pNode({e},{quote(pe.tag)},0)'
+        return self.apply('pNode', e, quote(pe.tag), '0')
 
     def Edge2(self, pe, **options):
         quote = options['quote']
         e = self.emit(pe.e, **options)
-        return f'pEdge({quote(pe.edge)}, {e})'
+        return self.apply('pEdge', quote(pe.edge), e)
 
     def Fold2(self, pe, **options):
         quote = options['quote']
         e = self.emit(pe.e, **options)
-        return f'pFold({quote(pe.edge)}, {e}, {quote(pe.tag)}, 0)'
+        return self.apply('pFold', quote(pe.edge), e, quote(pe.tag), '0')
 
     def Abs(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pAbs({e})'
+        return self.apply('pAbs', e)
 
     '''
     def Lazy(self, pe, **options):
@@ -106,7 +118,7 @@ class NezCC(object):
     '''
 
     def Skip(self, pe, **options):
-        return 'pSkipErr()'
+        return self.apply('pSkipErr')
 
     def getsid(self, name):
         if not name in self.SIDs:
@@ -116,27 +128,26 @@ class NezCC(object):
     def Symbol(self, pe, **options):
         sid = self.getsid(str(pe.params[0]))
         e = self.emit(pe.e, **options)
-        return f'pSymbol({sid}, {e})'
+        return self.apply('pSymbol', str(sid), e)
 
     def Exists(self, pe, **options):
         sid = self.getsid(str(pe.params[0]))
-        e = self.emit(pe.e, **options)
-        return f'pExists({sid})'
+        return self.apply('pExists', str(sid))
 
     def Match(self, pe, **options):
         sid = self.getsid(str(pe.params[0]))
-        return f'pMatch({sid})'
+        return self.apply('pMatch', str(sid))
 
     def Scope(self, pe, **options):
         e = self.emit(pe.e, **options)
-        return f'pScope({e})'
+        return self.apply('pScope', e)
 
 
 def generate(g, **options):
-    nezcc = NezCC()
+    nezcc = NezCC(options)
     quote = options.get('quote', repr)
     indent = options.get('indent', '\t')
-    rule = options.get('rule', '{}{} = {};')
+    rule = options.get('rule', '{}peg[{}] = {};')
     for name in g.N:
         func = nezcc.emit(g[name], **options)
         print(rule.format(indent, quote(name), func))
@@ -173,4 +184,4 @@ if __name__ == '__main__':
     g = peg.grammar('''
 A = 'abc' [A]
 ''')
-    nezcc('nez.ts', g)
+    nezcc('empty.ts', g)
