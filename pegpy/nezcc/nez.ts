@@ -74,7 +74,11 @@ class ParseTree {
     if (index === undefined) {
       return this.inputs.substring(this.spos, this.epos);
     }
-    return (this as any)[index] || (defstr || '')
+    const child = (this as any)[index];
+    if (child === undefined) {
+      return (defstr || '');
+    }
+    return child.tokenize();
   }
 
   // def __repr__(self):
@@ -486,7 +490,7 @@ const pMatch = (sid: number) => {
   return (px: ParserContext) => {
     const state = getstate(px.state, sid);
     if (state !== null) {
-      if (px.inputs.startsWith(state.value)) {
+      if (px.inputs.startsWith(state.value, px.pos)) {
         px.pos += (state.value as string).length;
         return true;
       }
