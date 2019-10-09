@@ -1,4 +1,4 @@
-class ParseTree {
+export class ParseTree {
   public tag: string;
   public urn: any;
   public inputs: string;
@@ -81,12 +81,34 @@ class ParseTree {
     return child.tokenize();
   }
 
-  // def __repr__(self):
-  // if self.isError():
-  //   return self.showing('Syntax Error')
-  // sb = []
-  // self.strOut(sb)
-  // return "".join(sb)
+  private pos(pos: number) {
+    const s = this.inputs;
+    pos = Math.min(pos, s.length);
+    var row = 0;
+    var col = 0;
+    for (var i = 0; i <= pos; i += 1) {
+      if (s.charCodeAt(i) == 10) {
+        row += 1;
+        col = 0;
+      }
+      else {
+        col += 1;
+      }
+    }
+    return [pos, row, col]
+  }
+
+  public begin() {
+    return this.pos(this.spos);
+  }
+
+  public end() {
+    return this.pos(this.spos);
+  }
+
+  public length() {
+    return this.epos - this.spos;
+  }
 
   public toString() {
     const sb: string[] = [];
@@ -109,25 +131,6 @@ class ParseTree {
     }
     sb.push("]")
   }
-
-  // def pos(self):
-  // return self.start()
-
-  // def getpos4(self):
-  // return ParseRange(self.urn, self.inputs, self.spos, self.epos)
-
-  // def dump(self, indent = '', edge = '', bold = lambda x: x, println = lambda * x: print(* x)):
-  // if self.child is None:
-  // s = self.inputs[self.spos : self.epos]
-  // println(indent + edge + bold("[#" + self.tag), repr(s) + bold("]"))
-  // return
-  // println(indent + edge + bold("[#" + self.tag))
-  // indent2 = '  ' + indent
-  // for tag, child in self.subs():
-  //   if tag != '': tag = tag + '='
-  // child.dump(indent2, tag, bold, println)
-  // println(indent + bold("]"))
-
 
 }
 
@@ -389,9 +392,6 @@ class Memo {
   }
 }
 
-
-
-
 const pNode = (match: (px: ParserContext) => boolean, tag: string, shift: number) => {
   return (px: ParserContext) => {
     const pos = px.pos
@@ -549,5 +549,5 @@ const example = (start: string, sample?: string) => {
 
 //EXAMPLE
 
-// pegpy nezcc - g math.tpeg nez.ts > math.ts
-// node_modules/.bin /ts-node math.ts 
+// pegpy nezcc -g math.tpeg parser.ts > math.ts
+// npx ts-node math.ts 
