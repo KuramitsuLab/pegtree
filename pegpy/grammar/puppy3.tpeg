@@ -1,0 +1,486 @@
+/**
+ * Puppy (Kids Python) Grammar
+ *
+ * Authors:
+ *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
+ */
+
+Source = EOL? {
+    (Statement EOL)*
+    #Source
+} EOF
+
+Block = {
+    @scope(
+        @symbol(INDENT) (Statement (";" Statement)* ";"? / _ &EOL)
+        (@match(INDENT) (Statement (";" Statement)* ";"? / _ &EOL) )*
+    )
+    #Block
+}
+
+example Source '''
+from puppy import *
+def cat_clicked(cat): print('Meaw')
+cat = Circle(500, 500, clicked=cat_clicked)
+'''
+
+Statement = 
+    / ClassDecl
+    / ImportDecl
+    / FuncDecl
+    / IfStmt
+    / ForStmt
+    / Return / Yield / Break / Continue
+    / VarDecl
+    / Expression
+
+/* import */
+
+ImportDecl = {
+    ('import' S) name: Name 
+    (('as' S) alias: Name)?
+    #ImportDecl
+} / {
+    ('from' S) name: Name 
+    //('import' S) names: ({ Name (',' _ Name)* } / {'*' _})
+    #FromDecl
+}
+
+/* class 定義 */
+
+example ClassDecl,Statement '''
+class Ball(Circle):
+    width = 80
+    heigh = 80
+'''
+
+ClassDecl = {
+    'class' S _ 
+    name: Name 
+    ('(' _ extends: Name ')' _)? ':' _
+    (Block / Statement)
+    #ClassDecl
+}
+
+/* 関数定義 */
+
+example FuncDecl,Statement '''
+def succ(x):
+    #hoge
+    return x+1
+'''
+
+FuncDecl = {
+    'def' S _ 
+    name: Name 
+    params: FuncParams ':' _
+    body: (Block / Statement)
+    #FuncDecl
+}
+
+FuncParams = {
+    "(" FuncParam? ( "," FuncParam )* ")"
+    #FuncParam
+}
+
+FuncParam = {
+    name: Name
+    (':' _ type: Name)?
+    #Param
+}
+
+Lambda = {
+    'lambda' 
+    (S _ params: LambdaParams)? ':' _
+    body: (Block / Statement)
+    #FuncExpr
+}
+
+LambdaParams = {
+    Name? ( "," Name )*
+    #Param
+}
+
+example Lambda lambda: print(1)
+example Lambda lambda x: print(x)
+example Lambda lambda x,y: print(x,y)
+
+Return = {
+    'return' 
+    (S _ expr: Expression)?
+    #Return
+} 
+
+Yield = { 'yield' _ #Yield } 
+Pass =  { 'pass' _ #Pass }
+Break = { 'break' _ #Break }
+Continue = { 'continue' _ #Continue }
+
+/* if文 */
+
+example IfStmt,Statement '''
+if A == 1 :
+    print(A)
+    #hoge
+    print(A, B)
+    A = Ball(跳ね返る)
+else:
+    print(A, B)
+
+    A = 2
+'''
+
+example IfStmt,Statement '''
+if A == 1 :
+    print(A)
+else:
+    print(A, B)
+'''
+
+IfStmt = {
+    ('if' S) _ 
+    cond: Expression ':' _
+    then: (Block / Statement)
+    (
+        (@match(INDENT) / NL)
+        'else' _  ':' _
+        else: (Block / Statement)
+    )?
+    #IfStmt
+}
+
+/* for文 (* *) */
+
+example ForStmt,Statement '''
+for x in [1,2,3]:
+    print(x)
+    print(x+1)
+'''
+
+ForStmt = {
+    ('for' S) _ 
+    each: Name 
+    ('in' S) _ 
+    list: Expression ':' _
+    body: (Block / Statement)
+    #ForStmt
+} / {
+    ('while' S) _ 
+    cond: Expression ':' _
+    body: (Block / Statement)
+    #WhileStmt
+}
+
+/* var */
+
+example VarDecl,Statement A = 1
+example VarDecl,Statement A += 1
+
+VarDecl = {
+    left: LeftHand
+    '=' _ 
+    right: Expression
+    #VarDecl
+} / SelfAssign
+
+LeftHand =
+    Name (
+	    recv:^ { [.] _ name: Name #GetExpr }
+    	/ recv:^ { "[" index: Expression "]" #IndexExpr }
+    )*
+
+SelfAssign = {
+    left: LeftHand
+    name: SelfAssignOp
+    right: Expression
+    #SelfAssign
+}
+
+SelfAssignOp = {
+    ('<<' / '>>' / '**' / '//' / [+=*@/%&|^]) '='
+} _
+
+/* Reserved */
+
+/* Expression */
+
+example Expression A
+example EqExpr, Expression A == 1
+
+Expression = 
+    Operator (then:^ { 'if' _ cond: Expression 'else' _ else: Expression #IfExpr })?
+
+Operator =
+	AndExpr (left:^ { OR _ right: AndExpr #Or })*
+
+OR = 'or' / '||'
+
+AndExpr =
+	EqExpr (left:^ { AND _ right: EqExpr #And })*
+
+AND = 'and' / '&&'
+
+NotExpr =
+	{ NOT _ NotExpr #Not } / EqExpr
+
+NOT = ('and' S) / '!'
+
+EqExpr =
+	SumExpr (left:^ { name: { EQ #Name } _ right: SumExpr #Infix })*
+
+EQ =
+	/ '==' !'=' 
+	/ '!=' !'='  
+	/ '<=' !'=' 
+	/ '>=' !'=' 
+	/ '<'  !'<' 
+	/ '>'  !'>'
+    / ('in' S) / ('not in' S)
+    / ('is' S) / ('is not' S)
+
+SumExpr =
+	ProdExpr (left:^ { name: { SUM #Name } _ right: ProdExpr #Infix })*
+
+SUM =
+	/ '+' / '＋'
+	/ '-' / 'ー'
+
+ProdExpr =
+	UnaryExpr (left:^ { name: { PROD #Name } _ right: UnaryExpr #Infix })*
+
+PROD =
+    / '//'
+    / '**' 
+	/ '/'
+	/ '*'
+	/ '%' 
+    / '@'
+	/ '^'
+
+UnaryExpr
+	= { name: {PRE #Name } _ expr: UnaryExpr #Unary }
+    / SuffixExpr
+
+PRE =
+    / '-'
+    / '+'
+    / '~'
+
+SuffixExpr =
+	Primary (
+	    recv:^ { '.' _ name: Name "(" params: Arguments ")" #MethodExpr }
+	    / recv:^ { [.] _ name: Name #GetExpr }
+	    / name:^ { "(" params: Arguments ")" #ApplyExpr }
+        / recv:^ { "[" (left: Expression)? ':' _ (right: Expression)? "]" #Slice }
+	    / recv:^ { "[" index: Expression "]" #IndexExpr }
+	)*
+
+Arguments = {
+	(Expression !'=')? ( ',' __ Expression !'=')*
+    KeywordArgument?
+    #Arguments
+}
+
+KeywordArgument = {
+    (',' __ )?
+    Argument ( ',' __ Argument )*
+    #Data
+}
+
+Argument = {
+    name: Name
+    '=' _ 
+    value: Expression
+    #KeyValue
+}
+
+example Expression Circle(500, 500)
+example Expression Circle(500, 500, clicked=cat_clicked)
+example Expression Circle(clicked=1, move=1)
+
+/* Primary */
+
+example Primary, Expression (1,2) //
+example Primary, Expression (1)
+example Primary, Expression [1,2,3]
+example Primary, Expression { name: 'naruto', age: 17 }
+
+Primary =
+  /	GroupExpr
+  / ListExpr
+  / DataExpr
+  / Lambda
+  / Constant
+  / Name
+
+GroupExpr = { "(" Expression ("," Expression)*  ")" #Tuple }
+
+ListExpr = { "[" (Expression ("," Expression)* )? ","*  "]" #List }
+
+DataExpr = { "{" KeyValue (","* KeyValue)* ","* "}" #Data }
+
+KeyValue = {
+	name: (Name/StringExpr/CharExpr)
+	":"
+	value: Expression
+	#KeyValue
+}
+
+/* Name, Identifier */
+
+Name = Identifier / NLPSymbol
+
+Identifier = {
+    [A-Za-z] [A-Za-z0-9_]*
+    #Name
+} _
+
+NLPSymbol = {
+    (HIRA / KATA / KANJI)+
+    #NLPSymbol
+} _
+
+/***
+RAWREF    = (!'」' .)+
+RESERVE   = '「' @def(RAWREF) '」'
+UNDEFINED = W (W/DIGIT)*
+
+REF =
+    / ADJECTIVE REF
+    / RESERVE
+    / @in(RAWREF)
+    / RESERVED
+    / UNDEFINED
+**/
+
+/* Literal */
+
+Constant =
+    / FormatString
+    / LongString
+	/ StringExpr
+	/ CharExpr
+	/ Number
+	/ TrueExpr
+	/ FalseExpr
+	/ NullExpr
+
+example FormatString,Expression f'{a}+{1}'
+
+FormatString = [Ff] (
+    '\'\'\'' { FormatContent3* #Format } '\'\'\''
+    / '\'' { FormatContent1* #Format } '\''
+    / '"""' { FormatContent3D* #Format } '"""'
+    / '"' { FormatContent1D* #Format } '"' ) _
+
+FormatContent3 =
+    '{' Expression '}' / { (!'\'\'\'' !'{' .)* #StringPart }
+
+FormatContent1 =
+    '{' Expression '}' / { (!'\'' !'{' .)* #StringPart }
+
+FormatContent3D =
+    '{' Expression '}' / { (!'"""' !'{' .)* #StringPart }
+
+FormatContent1D =
+    '{' Expression '}' / { (!'"' !'{' .)* #StringPart }
+
+LongString = 
+    '\'\'' { '\'' ( ESCAPE / ![\\'] . / !'\'\'\'' '\'' )* '\'' #String } '\'\'' _
+    / '""' { '"' ( ESCAPE / ![\\"] . / !'"""' '"' )* '"' #String } '""' _
+
+StringExpr =  { '"' STRING_CONTENT* '"' #String }  _
+CharExpr = { '\'' CHAR_CONTENT* '\'' #Char } _
+STRING_CONTENT = ESCAPE / ![\"\n\\] .
+CHAR_CONTENT   = ESCAPE / !['\n\\] .
+ESCAPE =
+	'\\' ['\"\\bfnrt]
+	/ '\\' [0-3] [0-7] [0-7]
+    / '\\' [0-7] [0-7]
+    / '\\' [0-7]
+	/ '\\' [uU] HEX HEX HEX HEX
+
+IntExpr = {
+	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
+	#Int
+} _
+
+DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
+HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
+BINARY = '0' [bB] [01] ( '_'* [01] )*
+OCTAL = '0' ( '_'* [0-7] )*
+DIGIT = [0-9]
+HEX = [a-fA-F0-9]
+LONG_SUFFIX = [lL]
+
+FloatExpr = {
+	FLOAT #Double
+} _
+
+FLOAT =
+	FRACTION EXPONENT?
+    / DIGIT+ EXPONENT
+
+FRACTION =
+	!'_' ( '_'* DIGIT )* '.' DIGIT ( '_'* DIGIT )*
+    / DIGIT ( '_'* DIGIT )* '.' !'.'
+
+EXPONENT =
+	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
+
+/* Number,Unit */
+
+Number = FloatExpr / IntExpr
+
+
+/* Const */
+
+TrueExpr  = { [Tt] 'rue' #TrueExpr } _
+FalseExpr = { [Ff] 'alse' #FalseExpr } _
+NullExpr  = { ('None' / 'null') #Null } _
+
+/* Indent-based Code Layout */
+
+EOF          = !.
+NL           = '\n' / EOF
+S            = [ \t\r　、，]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
+
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = '#' ( !NL . )*
+
+EOL          = _ NL (_ NL)*
+INDENT       = '\n' [ \t]+
+
+/* Character */
+
+C  =
+    / HIRA
+    / KATA
+    / KANJI
+    / MARK
+    / [ａ-ｚＡ-Ｚ０-９]
+
+HIRA = [ぁ-ん]
+KATA = [ァ-ヶ]
+KANJI = [㐀-䶵一-龠々〇〻ー]
+MARK = [ー]
+
+W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
+//DIGIT = [０-９]
+
+"{" = [{｛] __
+"}" = [}｝] _
+"[" = [[［【] __
+"]" = [\]］】] _
+"(" = [(（] __
+")" = [)）] _
+"=" = [=＝] ![=＝] _
+"." = [.．。] _
+"," = [,、] _
+";" = ([;；] _)+
+":" = [:：] _

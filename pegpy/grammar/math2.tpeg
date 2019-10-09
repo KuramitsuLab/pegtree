@@ -1,0 +1,13 @@
+// Basic mathematical operator
+//  author: Kimio Kuramitsu
+
+Expression = Product (left:^ { op: [+\-] right: Product #Infix })*
+Product = Value (left:^ { op: [*%/] right: Value #Infix })*
+Value = Int / '(' Expression ')'
+
+Int = { [0-9]+ #Int }
+
+example Expression 1*2+3
+example Expression 1+2*3
+example Int 123
+

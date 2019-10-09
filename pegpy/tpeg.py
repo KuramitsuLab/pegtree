@@ -1277,13 +1277,9 @@ def setup_generate():
 
         ps = makelist(p, {}, [])
         for ref in ps:
-            #print('@', ref.name)
+            assert isinstance(ref, Ref)
             ref.parsefunc = gen_dummy(ref)
-            #try:
             A = ref.deref().gen(**option)
-            #except RecursionError:
-            #    print('@@', ref.uname())
-            #    print('@@@', ref.deref())
             if 'memos' in option:
                 memos = option['memos']
                 idx = memos.index(ref.name)
@@ -1294,6 +1290,7 @@ def setup_generate():
                     if ts == T.Tree:
                         A = gen_Tree(idx, len(memos), A)
             ref.parsefunc = A
+        
         pf = p.parsefunc
         mtree = option.get('tree', ParseTree)
         conv = option.get('conv', lambda x: x)
