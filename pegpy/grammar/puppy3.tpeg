@@ -30,7 +30,11 @@ Statement =
     / FuncDecl
     / IfStmt
     / ForStmt
-    / Return / Yield / Break / Continue
+    / WhileStmt
+    / Return 
+    / Yield 
+    / Break 
+    / Continue
     / VarDecl
     / Expression
 
@@ -42,7 +46,7 @@ ImportDecl = {
     #ImportDecl
 } / {
     ('from' S) name: Name 
-    //('import' S) names: ({ Name (',' _ Name)* } / {'*' _})
+    ('import' S) names: ({ Name (',' _ Name)* } / {'*' _})
     #FromDecl
 }
 
@@ -164,7 +168,9 @@ ForStmt = {
     list: Expression ':' _
     body: (Block / Statement)
     #ForStmt
-} / {
+}
+
+WhileStmt = {
     ('while' S) _ 
     cond: Expression ':' _
     body: (Block / Statement)

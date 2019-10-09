@@ -178,7 +178,43 @@ def parse(options, conv=None):
             print(file, (et - st) * 1000.0, "[ms]:", t.tag)
 
 
+def dump(t, indent='  ', edge=''):
+    tag = color('Blue', '#' + t.tag)
+    if t.child is None:
+        s = t.inputs[t.spos: t.epos]
+        print(indent + edge + bold("[")+tag, color('Red', repr(s)) + bold("]"))
+        return
+    print(indent + edge + bold("[") + tag)
+    indent2 = '  ' + indent
+    for tag, child in t.subs():
+        if tag != '':
+            tag = tag+'='
+        dump(child, indent2, tag)
+    print(indent + bold("]"))
+
+
 def example(options):
+    peg = load_grammar(options)
+    if '@@example' not in peg:
+        return
+    parsers = {}
+    for testcase in peg['@@example']:
+        name, pos4 = testcase
+        if not name in peg:
+            continue
+        if not name in parsers:
+            parsers[name] = generator(options)(peg, start=name)
+        res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
+        if res == 'err':
+            log('error', res, name)
+        else:
+            print(bold(f'parsing {name}'))
+            print(color('Green', f'{pos4.inputs[pos4.spos:pos4.epos]}'), color(
+                'Red', '=>'))
+            dump(res)
+
+
+def test(options):
     peg = load_grammar(options)
     if '@@example' not in peg:
         return
