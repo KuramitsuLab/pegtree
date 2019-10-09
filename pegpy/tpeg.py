@@ -725,13 +725,12 @@ class ParserContext:
 
 
 def setup_generate():
-    def gen_Pexp(pe, **option):
-        try:
-            return pe.gen(**option)
-        except AttributeError:
-            print('@AttributeError', pe)
-            return pe.gen(**option)
-
+    # def gen_Pexp0(pe, **option):
+    #     try:
+    #         return pe.gen(**option)
+    #     except AttributeError:
+    #         print('@AttributeError', pe)
+    #         return pe.gen(**option)
     # def gen_Empty(pe, **option):
     #     def empty(px): return True
     #     return empty
@@ -790,7 +789,7 @@ def setup_generate():
     # And
 
     def gen_And(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def match_and(px):
             pos = px.pos
@@ -806,7 +805,7 @@ def setup_generate():
     # Not
 
     def gen_Not(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def match_not(px):
             pos = px.pos
@@ -824,7 +823,7 @@ def setup_generate():
     # Many
 
     def gen_Many(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def match_many(px):
             pos = px.pos
@@ -840,7 +839,7 @@ def setup_generate():
         return match_many
 
     def gen_Many1(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def match_many1(px):
             if pf(px):
@@ -858,7 +857,7 @@ def setup_generate():
         return match_many1
 
     def gen_Option(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def match_option(px):
             pos = px.pos
@@ -874,10 +873,10 @@ def setup_generate():
 
     def gen_Seq(pe, **option):
         if len(pe) == 2:
-            pf0 = gen_Pexp(pe.es[0], **option)
-            pf1 = gen_Pexp(pe.es[1], **option)
+            pf0 = pe.es[0].gen(**option)
+            pf1 = pe.es[1].gen(**option)
             return lambda px: pf0(px) and pf1(px)
-        pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
+        pfs = tuple(map(lambda e: e.gen(**option), pe))
         #print('@seq', len(pe))
         def match_seq(px):
             for pf in pfs:
@@ -889,7 +888,7 @@ def setup_generate():
     # Ore
 
     def gen_Ore(pe, **option):
-        pfs = tuple(map(lambda e: gen_Pexp(e, **option), pe))
+        pfs = tuple(map(lambda e: e.gen(**option), pe))
 
         def match_ore(px):
             pos = px.pos
@@ -941,7 +940,7 @@ def setup_generate():
         pe2 = Ore2.expand(pe)
         if not isinstance(pe2, Ore2):
             #print('@not choice', pe, pe2)
-            return gen_Pexp(pe2, **option)
+            return pe2.gen(**option)
         pe = pe2
         dic = [e.text for e in pe if isinstance(e, Char)]
         #print('@choice', len(pe), len(dic))
@@ -952,7 +951,7 @@ def setup_generate():
         return gen_Ore(pe, **option)
 
     # Ref
-
+    '''
     def gen_Ref0(ref, **option):
         f = ref.get('tpegfunc', None)
         if f is None:
@@ -961,8 +960,10 @@ def setup_generate():
                 ref.tpegfunc = gen_Pexp(ref.deref(), **option)
                 return ref.tpegfunc
             except RecursionError:
+                option['lazyfuncs'].append(ref)
                 return lambda px: ref.tpegfunc(px)
         return f
+    '''
 
     def gen_Memo(mp, msize, A):
         def memoMatch(px):
@@ -993,23 +994,15 @@ def setup_generate():
         return memoTree
 
     def gen_Ref(ref, **option):
-        A = gen_Ref0(ref, **option)
-        if 'memos' not in option: return A
-        memos = option['memos']
-        idx = memos.index(ref.name)
-        if idx == -1: return A
-        ts = ref.deref().treeState()
-        if ts == T.Unit:
-            return gen_Memo(idx, len(memos), A)
-        if ts == T.Tree:
-            return gen_Tree(idx, len(memos), A)
-        return A
+        if not hasattr(ref, 'parsefunc'):
+            return gen_dummy(ref)
+        return ref.parsefunc
 
     # Tree Construction
 
     def gen_Node(pe, **option):
         node = pe.tag
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
         mtree = option.get('tree', ParseTree)
 
         def tree(px):
@@ -1029,7 +1022,7 @@ def setup_generate():
 
     def gen_Edge(pe, **option):
         edge = pe.edge
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
         merge = option.get('merge', Merge)
 
         def fedge(px):
@@ -1043,7 +1036,7 @@ def setup_generate():
     def gen_Fold(pe, **option):
         edge = pe.edge
         node = pe.tag
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
         mtree = option.get('tree', ParseTree)
         merge = option.get('merge', Merge)
 
@@ -1058,7 +1051,7 @@ def setup_generate():
         return fold
 
     def gen_Abs(pe, **option):
-        pf = gen_Pexp(pe.e, **option)
+        pf = pe.e.gen(**option)
 
         def unit(px):
             ast = px.ast
@@ -1109,7 +1102,7 @@ def setup_generate():
         if fname == 'lazy':  # @lazy(A)
             name = pe.e.name
             peg = option.get('peg')
-            return gen_Pexp(peg.newRef(name), **option) if name in peg else gen_Pexp(pe.e, **option)
+            return peg.newRef(name).gen(**option) if name in peg else pe.e.gen(**option)
 
         if fname == 'skip':  # @recovery({..})
             def skip(px):
@@ -1120,7 +1113,7 @@ def setup_generate():
         # SPEG
         if fname == 'symbol':   # @symbol(A)
             sid = getsid(str(params[0]))
-            pf = gen_Pexp(pe.e, **option)
+            pf = pe.e.gen(**option)
 
             def symbol(px):
                 pos = px.pos
@@ -1146,7 +1139,7 @@ def setup_generate():
             return match
 
         if fname == 'scope':  # @scope(e)
-            pf = gen_Pexp(pe.e, **option)
+            pf = pe.e.gen(**option)
 
             def scope(px):
                 state = px.state
@@ -1157,7 +1150,7 @@ def setup_generate():
 
         if fname == 'on':  # @on(!A, e)
             name = str(params[0])
-            pf = gen_Pexp(pe.e, **option)
+            pf = pe.e.gen(**option)
             if name.startswith('!'):
                 sid = getsid(name[1:])
 
@@ -1190,7 +1183,7 @@ def setup_generate():
 
         if fname == 'def':  # @def(NAME)
             name = str(params[0])
-            pf = gen_Pexp(pe.e, **option)
+            pf = pe.e.gen(**option)
 
             def defdict(px):
                 pos = px.pos
@@ -1233,7 +1226,7 @@ def setup_generate():
             return refdict
 
         print('@TODO: gen_Action', pe.func)
-        return gen_Pexp(pe.e, **option)
+        return pe.e.gen(**option)
 
     #Empty.gen = gen_Empty
     Char.gen = gen_Char
@@ -1259,6 +1252,22 @@ def setup_generate():
 
     Action.gen = gen_Action
 
+    def makelist(pe, v: dict, ps: list):
+        if isinstance(pe, Ref):
+            u = pe.uname();
+            if u not in v and not hasattr(pe, 'parsefunc'): 
+                v[u] = pe
+                makelist(pe.deref(), v, ps)
+                ps.append(pe)
+            return ps
+        if isinstance(pe, Unary) or isinstance(pe, Tuple):
+            for e in pe:
+                makelist(e, v, ps)
+        return ps
+
+    def gen_dummy(ref):
+        return lambda px : ref.parsefunc(px)
+
     def generate(peg, **option):
         name = option.get('start', peg.start())
         p = peg.newRef(name)
@@ -1266,7 +1275,26 @@ def setup_generate():
         # if 'memos' in option and not isinstance(option['memos'], list):
         option['memos'] = peg.N
 
-        pf = gen_Pexp(p, **option)
+        ps = makelist(p, {}, [])
+        for ref in ps:
+            #print('@', ref.name)
+            ref.parsefunc = gen_dummy(ref)
+            #try:
+            A = ref.deref().gen(**option)
+            #except RecursionError:
+            #    print('@@', ref.uname())
+            #    print('@@@', ref.deref())
+            if 'memos' in option:
+                memos = option['memos']
+                idx = memos.index(ref.name)
+                if idx != -1: 
+                    ts = ref.deref().treeState()
+                    if ts == T.Unit:
+                        A = gen_Memo(idx, len(memos), A)
+                    if ts == T.Tree:
+                        A = gen_Tree(idx, len(memos), A)
+            ref.parsefunc = A
+        pf = p.parsefunc
         mtree = option.get('tree', ParseTree)
         conv = option.get('conv', lambda x: x)
 
