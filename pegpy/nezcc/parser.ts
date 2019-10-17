@@ -47,12 +47,12 @@ export class ParseTree {
     return this.tag === 'err';
   }
 
-  public subs() {
-    const subs: ParseTree[] = [];
+  public subs(): ParseTree[] {
+    const ts: ParseTree[] = [];
     for (var i = 0; i < this.nodes.length; i += 1) {
-      subs.push(this.nodes[i][1]);
+      ts.push(this.nodes[i][1]);
     }
-    return subs;
+    return ts;
   }
 
   public size() {
