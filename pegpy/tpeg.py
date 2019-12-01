@@ -432,49 +432,6 @@ TPEGGrammar = TPEG(Grammar())
 def bytestr(b):
     return b.decode('utf-8') if isinstance(b, bytes) else b
 
-'''
-def expand_pos(urn, inputs, spos):
-    inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
-    raws = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    return urn, spos, len(raws), len(raws[-1])-1
-
-
-Pos4 = namedtuple('Pos4', 'urn inputs spos epos')
-
-def decpos4(pos4):
-    urn, inputs, spos, epos = pos4
-    #urn, inputs, pos, length = decsrc(s)
-    lines = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    linenum = 0
-    cols = spos
-    for line in lines:
-        len0 = len(line) + 1
-        linenum += 1
-        if cols < len0:
-            cols -= 1
-            break
-        cols -= len0
-    epos = cols + (epos - spos)
-    length = len(line) - cols if len(line) < epos else epos - cols
-    if length <= 0:
-        length = 1
-    mark = []
-    for i in range(cols):
-        c = line[i]
-        if c != '\t' and c != '　':
-            c = ' '
-        mark.append(c)
-    mark = ''.join(mark) + ('^' * length)
-    return (urn, spos, linenum, cols, bytestr(line), mark)
-
-
-def serror4(pos4, msg='SyntaxError'):
-    if pos4 is not None:
-        urn, pos, linenum, cols, line, mark = decpos4(pos4)
-        return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
-    return '{} (unknown source)'.format(msg)
-'''
-
 #####################################
 
 class ParseRange(object):
@@ -1595,6 +1552,8 @@ def grammar_factory():
                     ranges.append((c, c2))
                 else:
                     chars.append(c)
+            if len(chars) == 1 and len(ranges) == 0:
+                return char1(chars[0])
             return Range(''.join(chars), ranges)
 
         def Ref(self, t, logger):
