@@ -1513,6 +1513,7 @@ def grammar_factory():
         file = Path(urn).parent / file
         with file.open(encoding='utf-8_sig') as f:
             ss = [x.strip('\r\n') for x in f.readlines()]
+            ss = [x for x in ss if len(x) > 0 and not x.startswith('#')]
             ss = sorted(ss, key= lambda x: len(x))[::-1]
             choice = [Char(x) for x in ss]
             e = Ore2(*choice)
