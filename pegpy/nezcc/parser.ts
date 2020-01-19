@@ -300,11 +300,11 @@ const pNot = (match: (px: ParserContext) => boolean) => {
     const pos = px.pos;
     const ast = px.ast;
     if (match(px)) {
-      px.head_pos = Math.max(px.pos, px.head_pos);
-      px.pos = pos;
-      px.ast = ast;
       return false;
     }
+    px.head_pos = Math.max(px.pos, px.head_pos);
+    px.pos = pos;
+    px.ast = ast;
     return true;
   }
 }
