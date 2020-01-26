@@ -171,6 +171,13 @@ def setline(line: str, options):
     options['indent'] = ''.join(indent)
 
 
+class Option():
+    def __init__(self, options):
+        self.quote = repr
+        for key in options.keys():
+            setattr(self, key, options[key])
+
+
 def getoption(path: Path, line: str):
     options = {}
     if 'quote' not in options:
