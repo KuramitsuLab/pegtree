@@ -251,7 +251,7 @@ class Edge(Unary):
         return ('$' if self.edge == '' else self.edge + ': ') + grouping(self.e, inUnary)
 
 
-class Fold2(Unary):
+class Fold(Unary):
     __slot__ = ['e', 'edge', 'tag']
 
     def __init__(self, e, edge='', tag=''):
@@ -298,7 +298,7 @@ def grouping(e, f):
 def inUnary(e):
     return isinstance(e, Ore2) \
         or isinstance(e, Seq) or isinstance(e, Alt) \
-        or (isinstance(e, Edge))or isinstance(e, Fold2)
+        or (isinstance(e, Edge))or isinstance(e, Fold)
 
 CharTBL = str.maketrans(
     {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', "'": "\\'"})
@@ -322,7 +322,7 @@ def setup():
     def inUnary(e):
         return isinstance(e, Ore2) \
             or isinstance(e, Seq) or isinstance(e, Alt) \
-            or (isinstance(e, Edge))or isinstance(e, Fold2)
+            or (isinstance(e, Edge))or isinstance(e, Fold)
 
     CharTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', "'": "\\'"})
@@ -358,7 +358,7 @@ def setup():
     Node.__repr__ = lambda p: '{' + str(p.e) + ' #' + p.tag + '}'
     Edge.__repr__ = lambda p: (
         '$' if p.edge == '' else p.edge + ': ') + grouping(p.e, inUnary)
-    Fold2.__repr__ = lambda p: (
+    Fold.__repr__ = lambda p: (
         '' if p.edge == '' else p.edge + ':') + '^ {' + str(p.e) + ' #' + p.tag + '}'
     Abs.__repr__ = lambda p: f'@abs({p.e})'
     Action.__repr__ = lambda p: f'@{p.func}{p.params}'
@@ -427,7 +427,7 @@ def TPEG(g):
     def option(*ps): return Option(seq(*ps))
     def TreeAs(node, *ps): return Node(seq(*ps), node)
     def ListAs(*ps): return Node(seq(*ps), '')
-    def FoldAs(edge, node, *ps): return Fold2(seq(*ps), edge, node)
+    def FoldAs(edge, node, *ps): return Fold(seq(*ps), edge, node)
 
     def c(*ps):
         chars = []
@@ -1814,7 +1814,7 @@ def setup_generate():
 
     Node.gen = gen_Node
     Edge.gen = gen_Edge
-    Fold2.gen = gen_Fold
+    Fold.gen = gen_Fold
     Abs.gen = gen_Abs
 
     Action.gen = gen_Action
@@ -1908,7 +1908,7 @@ def setup2():
 
     def defmethod(name, f, cs=[
         Char, Range, Any, Seq, Ore2, Alt, And, Not, Many, Many1, Ref,
-        Node, Edge, Fold2, Abs, Action]):
+        Node, Edge, Fold, Abs, Action]):
         for c in cs: setattr(c, name, f)
 
     defmethod('isAlwaysConsumed', lambda p: len(p.text) > 0, [Char])
@@ -1916,7 +1916,7 @@ def setup2():
     defmethod('isAlwaysConsumed', lambda p: False, [Many, Not, And, Option])
     defmethod('isAlwaysConsumed',
             lambda p: p.e.isAlwaysConsumed(),
-            [Many1, Edge, Node, Fold2, Abs, Action])
+            [Many1, Edge, Node, Fold, Abs, Action])
 
     def checkSeq(p):
         for e in p:
@@ -1948,7 +1948,7 @@ def setup2():
     defmethod('treeState', lambda p: T.Unit, [Char, Any, Range, Not, Abs])
     defmethod('treeState', lambda p: T.Tree, [Node] )
     defmethod('treeState', lambda p: T.Mut,  [Edge] )
-    defmethod('treeState', lambda p: T.Fold, [Fold2] )
+    defmethod('treeState', lambda p: T.Fold, [Fold] )
 
     def mutTree(ts): return T.Mut if ts == T.Tree else ts
     defmethod('treeState', lambda p: mutTree(treeState(p.e)), [Many, Many1, Option, And])
@@ -1992,7 +1992,7 @@ def setup2():
         if state == T.Unit:  # {e #T} => e
             return formTree(pe.e, state), T.Unit
         if state == T.Fold:  # {e #T} => ^{e #T}
-            return Fold2(formTree(pe.e, T.Mut), '', pe.tag), T.Fold
+            return Fold(formTree(pe.e, T.Mut), '', pe.tag), T.Fold
         pe = Node(formTree(pe.e, T.Mut), pe.tag)
         if state == T.Mut:  # {e #T} => : {e #T}
             return Edge(pe, ''), state
@@ -2003,7 +2003,7 @@ def setup2():
         if state == T.Unit:  # L: e  => e
             return formTree(pe.e, state), T.Unit
         if state == T.Fold: # L: e => L:^ {e}
-            return Fold2(formTree(pe.e, T.Mut), pe.edge, ''), T.Fold
+            return Fold(formTree(pe.e, T.Mut), pe.edge, ''), T.Fold
         sub, ts2 = formTree2(pe.e, T.Tree)
         if ts2 != T.Fold:  
             sub = Node(sub, '')  # L:e => L: {e}
@@ -2011,15 +2011,15 @@ def setup2():
         return (Node(pe, ''), T.Fold)  if state == T.Tree else (pe, T.Mut)
     Edge.formTree = formEdge
 
-    def formFold(pe: Fold2, state):
+    def formFold(pe: Fold, state):
         if state == T.Unit:  # ^{e #T} => e
             return formTree(pe.e, state), T.Unit
         if state == T.Mut: # L:^ {e #T} => L:{ e #T}
             return Edge(Node(formTree(pe.e, T.Mut), pe.tag), pe.edge), T.Mut
         if state == T.Tree: # L:^ {e #T} => {e #T}
             return Node(formTree(pe.e, T.Mut), pe.tag), T.Fold
-        return Fold2(formTree(pe.e, T.Mut), pe.edge, pe.tag), T.Fold
-    Fold2.formTree = formFold
+        return Fold(formTree(pe.e, T.Mut), pe.edge, pe.tag), T.Fold
+    Fold.formTree = formFold
 
     def formRef(pe, state):
         refstate = pe.treeState()
@@ -2043,9 +2043,9 @@ def setup2():
             if refstate == T.Unit:
                 return pe, T.Fold
             if refstate == T.Tree:  # Expr => ^{ Expr }
-                return Fold2(Edge(pe, ''), '', ''), T.Fold
+                return Fold(Edge(pe, ''), '', ''), T.Fold
             if refstate == T.Mut:  # expr => ^{ expr }
-                return Fold2(pe, '', ''), T.Fold
+                return Fold(pe, '', ''), T.Fold
         assert(pe == None)  # Never happen
     Ref.formTree = formRef
 
@@ -2217,7 +2217,7 @@ def grammar_factory():
             edge = t.getString('edge', '')
             node = t.getString('node', '')
             inner = self.conv(t['inner'], logger)
-            return Fold2(inner, edge, node)
+            return Fold(inner, edge, node)
 
         def Append(self, t, logger):
             name = ''
