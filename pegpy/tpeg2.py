@@ -240,7 +240,7 @@ class Node(Unary):
         return '{' + repr(self.e) + ' #' + self.tag + '}'
 
 
-class Edge2(Unary):
+class Edge(Unary):
     __slot__ = ['e', 'edge']
 
     def __init__(self, e, edge=''):
@@ -298,7 +298,7 @@ def grouping(e, f):
 def inUnary(e):
     return isinstance(e, Ore2) \
         or isinstance(e, Seq) or isinstance(e, Alt) \
-        or (isinstance(e, Edge2))or isinstance(e, Fold2)
+        or (isinstance(e, Edge))or isinstance(e, Fold2)
 
 CharTBL = str.maketrans(
     {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', "'": "\\'"})
@@ -322,7 +322,7 @@ def setup():
     def inUnary(e):
         return isinstance(e, Ore2) \
             or isinstance(e, Seq) or isinstance(e, Alt) \
-            or (isinstance(e, Edge2))or isinstance(e, Fold2)
+            or (isinstance(e, Edge))or isinstance(e, Fold2)
 
     CharTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\\': '\\\\', "'": "\\'"})
@@ -356,7 +356,7 @@ def setup():
     Option.__repr__ = lambda p: grouping(p.e, inUnary)+'?'
     Ref.__repr__ = lambda p: p.name
     Node.__repr__ = lambda p: '{' + str(p.e) + ' #' + p.tag + '}'
-    Edge2.__repr__ = lambda p: (
+    Edge.__repr__ = lambda p: (
         '$' if p.edge == '' else p.edge + ': ') + grouping(p.e, inUnary)
     Fold2.__repr__ = lambda p: (
         '' if p.edge == '' else p.edge + ':') + '^ {' + str(p.e) + ' #' + p.tag + '}'
@@ -409,7 +409,7 @@ def TPEG(g):
             return Char(p)
         if isinstance(p, dict):
             for key in p:
-                return Edge2(Xe(p[key]), key)
+                return Edge(Xe(p[key]), key)
             return EMPTY
         return p
 
@@ -1813,7 +1813,7 @@ def setup_generate():
     Ref.gen = gen_Ref
 
     Node.gen = gen_Node
-    Edge2.gen = gen_Edge
+    Edge.gen = gen_Edge
     Fold2.gen = gen_Fold
     Abs.gen = gen_Abs
 
@@ -1908,7 +1908,7 @@ def setup2():
 
     def defmethod(name, f, cs=[
         Char, Range, Any, Seq, Ore2, Alt, And, Not, Many, Many1, Ref,
-        Node, Edge2, Fold2, Abs, Action]):
+        Node, Edge, Fold2, Abs, Action]):
         for c in cs: setattr(c, name, f)
 
     defmethod('isAlwaysConsumed', lambda p: len(p.text) > 0, [Char])
@@ -1916,7 +1916,7 @@ def setup2():
     defmethod('isAlwaysConsumed', lambda p: False, [Many, Not, And, Option])
     defmethod('isAlwaysConsumed',
             lambda p: p.e.isAlwaysConsumed(),
-            [Many1, Edge2, Node, Fold2, Abs, Action])
+            [Many1, Edge, Node, Fold2, Abs, Action])
 
     def checkSeq(p):
         for e in p:
@@ -1947,7 +1947,7 @@ def setup2():
 
     defmethod('treeState', lambda p: T.Unit, [Char, Any, Range, Not, Abs])
     defmethod('treeState', lambda p: T.Tree, [Node] )
-    defmethod('treeState', lambda p: T.Mut,  [Edge2] )
+    defmethod('treeState', lambda p: T.Mut,  [Edge] )
     defmethod('treeState', lambda p: T.Fold, [Fold2] )
 
     def mutTree(ts): return T.Mut if ts == T.Tree else ts
@@ -1995,11 +1995,11 @@ def setup2():
             return Fold2(formTree(pe.e, T.Mut), '', pe.tag), T.Fold
         pe = Node(formTree(pe.e, T.Mut), pe.tag)
         if state == T.Mut:  # {e #T} => : {e #T}
-            return Edge2(pe, ''), state
+            return Edge(pe, ''), state
         return pe, T.Fold   # state == T.Tree
     Node.formTree = formNode
 
-    def formEdge(pe: Edge2, state):
+    def formEdge(pe: Edge, state):
         if state == T.Unit:  # L: e  => e
             return formTree(pe.e, state), T.Unit
         if state == T.Fold: # L: e => L:^ {e}
@@ -2007,15 +2007,15 @@ def setup2():
         sub, ts2 = formTree2(pe.e, T.Tree)
         if ts2 != T.Fold:  
             sub = Node(sub, '')  # L:e => L: {e}
-        pe = Edge2(sub, pe.edge)
+        pe = Edge(sub, pe.edge)
         return (Node(pe, ''), T.Fold)  if state == T.Tree else (pe, T.Mut)
-    Edge2.formTree = formEdge
+    Edge.formTree = formEdge
 
     def formFold(pe: Fold2, state):
         if state == T.Unit:  # ^{e #T} => e
             return formTree(pe.e, state), T.Unit
         if state == T.Mut: # L:^ {e #T} => L:{ e #T}
-            return Edge2(Node(formTree(pe.e, T.Mut), pe.tag), pe.edge), T.Mut
+            return Edge(Node(formTree(pe.e, T.Mut), pe.tag), pe.edge), T.Mut
         if state == T.Tree: # L:^ {e #T} => {e #T}
             return Node(formTree(pe.e, T.Mut), pe.tag), T.Fold
         return Fold2(formTree(pe.e, T.Mut), pe.edge, pe.tag), T.Fold
@@ -2038,12 +2038,12 @@ def setup2():
             if refstate == T.Unit or refstate == T.Mut:
                 return pe, T.Mut
             assert refstate == T.Tree  # Expr => L: Expr
-            return Edge2(pe, ''), T.Mut
+            return Edge(pe, ''), T.Mut
         if state == T.Fold:
             if refstate == T.Unit:
                 return pe, T.Fold
             if refstate == T.Tree:  # Expr => ^{ Expr }
-                return Fold2(Edge2(pe, ''), '', ''), T.Fold
+                return Fold2(Edge(pe, ''), '', ''), T.Fold
             if refstate == T.Mut:  # expr => ^{ expr }
                 return Fold2(pe, '', ''), T.Fold
         assert(pe == None)  # Never happen
@@ -2211,7 +2211,7 @@ def grammar_factory():
         def Edge(self, t, logger):
             edge = t.getString('edge', '')
             inner = self.conv(t['inner'], logger)
-            return Edge2(inner, edge)
+            return Edge(inner, edge)
 
         def Fold(self, t, logger):
             edge = t.getString('edge', '')
@@ -2228,7 +2228,7 @@ def grammar_factory():
                 inner = self.conv(a[1], logger)
             else:
                 inner = self.conv(tsub, logger)
-            return Edge2(inner, name)
+            return Edge(inner, name)
 
         FIRST = {'lazy', 'scope', 'symbol', 'match', 'equals', 'contains', 'cat'}
 
