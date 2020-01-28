@@ -167,11 +167,11 @@ def parse(options, conv=None):
         try:
             while True:
                 s = readlines(bold('>>> '))
-                parser(s).dump()
+                parser(s).dump(tag=lambda x: color('Blue', x))
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        parser(read_inputs(inputs[0])).dump()
+        parser(read_inputs(inputs[0])).dump(tag=lambda x: color('Blue', x))
     else:
         for file in options['inputs']:
             st = time.time()
@@ -206,14 +206,10 @@ def example(options):
             continue
         if not name in parsers:
             parsers[name] = generator(options)(peg, start=name)
-        res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
-        if res == 'err':
-            log('error', res, name)
-        else:
-            print(bold(f'parsing {name}'))
-            print(color('Green', f'{pos4.inputs[pos4.spos:pos4.epos]}'), color(
-                'Red', '=>'))
-            dump(res)
+        res = parsers[name](pos4.inputs_, pos4.urn_, pos4.spos_, pos4.epos_)
+        print(bold(f'parsing {name}'))
+        print(color('Green', f'{str(pos4)}'), color('Red', '=>'))
+        res.dump()
 
 
 def test(options):

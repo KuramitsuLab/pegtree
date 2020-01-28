@@ -126,7 +126,7 @@ EdgeFold = {
 Func = {
   '@' Identifier
   '(' __
-    (Expression / Empty) (_ ',' __ Expression)*
+    (Expression _ / Empty) (_ ',' __ Expression _)*
   __ ')'
   #Func
 }

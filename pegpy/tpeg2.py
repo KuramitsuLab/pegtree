@@ -15,6 +15,8 @@ def DEBUG(*x):
 class ParsingExpression(object):
     def __iter__(self): pass
     def __len__(self): return 0
+    def cname(self):
+        return self.__class__.__name__
 
 
 class Any(ParsingExpression):
@@ -25,42 +27,95 @@ class Any(ParsingExpression):
 
 class Char(ParsingExpression):
     __slots__ = ['text']
+    ESCTBL = str.maketrans(
+     {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
+     '\\': '\\\\', "'": "\\'"})
 
     def __init__(self, text):
         self.text = text
 
     def __repr__(self):
-        return "'" + self.text.translate(CharTBL) + "'"
+        return "'" + self.text.translate(Char.ESCTBL) + "'"
 
     def minLen(self): return len(self.text)
 
+
+def newranges(ranges):
+    if not isinstance(ranges, str):
+        sb = []
+        for r in ranges:
+            sb.append(r[0]+r[1])
+        return ''.join(sb)
+    return ranges
+
 class Range(ParsingExpression):
     __slots__ = ['chars', 'ranges']
+    ESCTBL = str.maketrans(
+    {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
+    '\\': '\\\\', ']': '\\]', '-': '\\-'})
 
     def __init__(self, chars, ranges):
         self.chars = chars
-        self.ranges = ranges
+        self.ranges = newranges(ranges)
 
     def __repr__(self):
-        return "[" + rs(self.ranges) + self.chars.translate(RangeTBL) + "]"
+        sb = []
+        sb.append('[')
+        sb.append(self.chars.translate(Range.ESCTBL))
+        r = self.ranges
+        while len(r) > 1:
+            sb.append(r[0].translate(Range.ESCTBL))
+            sb.append('-')
+            sb.append(r[1].translate(Range.ESCTBL))
+            r = r[2:]
+        sb.append(']')
+        return ''.join(sb)
 
     def minLen(self): return 1
 
+def isSingleChar(e):
+    return (isinstance(e, Char) and len(e.text) == 1) or isinstance(e, Range)
 
-def unique_range(chars, ranges):
+def mergeRange(e, e2):
+    chars = ''
+    ranges = ''
+    if isinstance(e, Char): chars += e.text
+    if isinstance(e2, Char): chars += e2.text
+    if isinstance(e, Range):
+        chars += e.chars
+        ranges += e.ranges
+    if isinstance(e2, Range):
+        chars += e2.chars
+        ranges += e2.ranges
+    return Range(chars, ranges)
+
+def unique_range(chars, ranges, memo=None):
     cs = 0
     for c in chars:
         cs |= 1 << ord(c)
-    if isinstance(ranges, str):
-        r = []
-        while len(ranges) > 1:
-            r.append(ranges[0:2])
-            ranges = ranges[2:]
-        ranges = tuple(r)
-    for r in ranges:
+    r = ranges
+    while len(r)>1:
         for c in range(ord(r[0]), ord(r[1])+1):
             cs |= 1 << c
+        r = r[2:]
+    if memo is not None:
+        if cs in memo: 
+            return memo[cs]
+        memo[cs] = cs
     return cs
+
+
+def minimum_range(chars, ranges):
+    cs = 0xffff
+    for c in chars:
+        cs = min(cs, ord(c))
+    r = ranges
+    while len(r) > 1:
+        cs = min(cs, ord(r[0]))
+        cs = min(cs, ord(r[1]))
+        r = r[2:]
+    return cs
+
 
 class Ref(ParsingExpression):
     def __init__(self, peg, name):
@@ -126,21 +181,52 @@ class Seq(Tuple):
             self.minlen = sum(map(lambda e: e.minLen(), self.es))
         return self.minlen
 
+    def splitFixed(self):
+        fixed = []
+        size = 0
+        for e in self:
+            if isinstance(e, Char):
+                size += len(e.text)
+                fixed.append(e)
+            elif isinstance(e, Range) or isinstance(e, Any):
+                size += 1
+                fixed.append(e)
+            elif isinstance(e, And) or isinstance(e, Not):
+                size += 0
+                fixed.append(e)
+            else:
+                break
+        
+        
+
+
+
 class Alt(Tuple):
     def __repr__(self):
         return ' | '.join(map(repr, self))
 
 class Ore(Tuple):
     @classmethod
-    def expand(cls, e):
-        choice = []
-        _expand(e, choice)
-        return choice[0] if len(choice)==1 else Ore(*choice)
+    def new(cls, *es):
+        choices = []
+        for e in es:
+            appendChoice(choices, e)
+        return choices[0] if len(choices) == 1 else Ore(*choices)
     
     def __repr__(self):
         return ' / '.join(map(repr, self))
     
-    def listDic(self):
+    def optimize(self):
+        choices = []
+        optimizedChoice(choices, self)
+        return choices[0] if len(choices) == 1 else Ore(*choices)
+
+    def isDict(self):
+        for e in self:
+            if not isinstance(e, Char): return False
+        return True
+
+    def listDict(self):
         dic = [e.text for e in self if isinstance(e, Char)]
         dic2 = []
         for s in dic:
@@ -148,9 +234,9 @@ class Ore(Tuple):
             dic2.append(s)
         return dic2
     
-    def trieDic(self, dic = None):
+    def trieDict(self, dic = None):
         if dic is None:
-            dic = self.listDic()
+            dic = self.listDict()
         if '' in dic or len(dic) < 10:
             return dic
         d = {}
@@ -163,21 +249,48 @@ class Ore(Tuple):
             else:
                 d[s0] = [s]
         for key in d:
-            d[key] = self.trieDic(d[key])
+            d[key] = self.trieDict(d[key])
         return d
 
-
-
-def _expand(e, choice=[]):
-    s = e
-    while isinstance(e, Ref):
-        e = e.deref()
-    if isinstance(e, Ore):
-        for x in e:
-            _expand(x, choice)
+def appendChoice(choices, pe):
+    if isinstance(pe, Ore):
+        for e in pe:
+            appendChoice(choices, e)
+    elif len(choices) == 0:
+        choices.append(pe)
+    elif isSingleChar(choices[-1]) and isSingleChar(pe):
+        DEBUG('OPTIMIZE', choices[-1], pe, '=>', mergeRange(choices[-1], pe))
+        choices[-1] = mergeRange(choices[-1], pe)
+    elif choices[-1] != EMPTY:
+        choices.append(pe)
     else:
-        choice.append(s)
+        DEBUG('IGNORED', pe)
 
+def inline(pe):
+    start = pe
+    while isinstance(pe, Ref):
+        pe = pe.deref()
+    if isinstance(pe, Char) or isinstance(pe, Range):
+        if(pe != start):
+            DEBUG('INLINE', start, '=>', pe)
+        return pe
+    return start
+
+def optimizedChoice(choices, pe):
+    start = pe
+    while isinstance(pe, Ref):
+        pe = pe.deref()
+    if isinstance(pe, Ore):
+        if(pe != start):
+            DEBUG('INLINE', start, '=>', pe)
+        for e in pe: 
+            optimizedChoice(choices, e)
+    elif isinstance(pe, Range) or isinstance(pe, Char):
+        if(pe != start):
+            DEBUG('INLINE', start, '=>', pe)
+        appendChoice(choices, pe)
+    else:
+        appendChoice(choices, start)
 
 class Unary(ParsingExpression):
     __slot__ = ['e']
@@ -221,7 +334,6 @@ class Many1(Unary):
 class Option(Unary):
     def __repr__(self):
         return grouping(self.e, inUnary)+'?'
-
 
 class Node(Unary):
     __slot__ = ['e', 'tag']
@@ -297,9 +409,9 @@ def pOption(e): return Option(e)
 def pSeq(*es): return Seq(*es)
 def pSeq2(e,e2): return Seq(e,e2)
 def pSeq3(e,e2,e3): return Seq(e,e2,e3)
-def pOre(*es): return Ore(*es)
-def pOre2(e,e2): return Ore(e,e2)
-def pOre3(e,e2,e3): return Ore(e,e2,e3)
+def pOre(*es): return Ore.new(*es)
+def pOre2(e,e2): return Ore.new(e,e2)
+def pOre3(e,e2,e3): return Ore.new(e,e2,e3)
 def pRef(peg, name): return Ref(peg, name)
 def pNode(e, tag, shift): return Node(e, tag)
 def pEdge(label,e): return Edge(label, e) if label != '' else e
@@ -315,19 +427,6 @@ def inUnary(e):
         or isinstance(e, Seq) or isinstance(e, Alt) \
         or (isinstance(e, Edge))or isinstance(e, Fold)
 
-CharTBL = str.maketrans(
-    {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
-     '\\': '\\\\', "'": "\\'"})
-
-RangeTBL = str.maketrans(
-    {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
-    '\\': '\\\\', ']': '\\]', '-': '\\-'})
-
-def rs(ranges):
-    ss = tuple(map(lambda x: x[0].translate(
-        RangeTBL) + '-' + x[1].translate(RangeTBL), ranges))
-    return ''.join(ss)
-
 def ss(e): 
     return grouping(e, lambda e: isinstance(e, Ore) or isinstance(e, Alt))
 
@@ -342,8 +441,6 @@ class Grammar(dict):
         self.N = []
         GrammarId += 1
         super().__setitem__('@@example', [])
-
-
 
     def __repr__(self):
         ss = []
@@ -556,6 +653,23 @@ def match_any(px):
         return True
     return False
 
+def match_trie(px, d):
+    if px.pos >= px.epos:
+        return False
+    if isinstance(d, dict):
+        c = px.inputs[px.pos]
+        if c in d:
+            px.pos += 1
+            return match_trie(px, d[c])
+        return False
+    pos = px.pos
+    inputs = px.inputs
+    for s in d:
+        if inputs.startswith(s, pos):
+            px.pos += len(s)
+            return True
+    return False
+
 
 class Generator(object):
     def __init__(self):
@@ -617,6 +731,7 @@ class Generator(object):
         return parse
 
     def emit(self, pe: ParsingExpression, step: int):
+        pe = inline(pe)
         if isinstance(pe, Action):
             cname = pe.func
         else:
@@ -649,11 +764,11 @@ class Generator(object):
 
     def Char(self, pe, step):
         if pe.text in self.cache:
+            #DEBUG('CHACHE', pe)
             return self.cache[pe.text]
         chars = pe.text
         clen = len(pe.text)
         #
-
         def match_char(px):
             if px.inputs.startswith(chars, px.pos):
                 px.pos += clen
@@ -662,18 +777,75 @@ class Generator(object):
         self.cache[pe.text] = match_char
         return match_char
 
+    def ManyChar(self, pe, step):
+        chars = pe.text
+        clen = len(pe.text)
+        #
+        def match_manychar(px):
+            while px.inputs.startswith(chars, px.pos):
+                px.pos += clen
+            return True
+        return match_manychar
+
+    def AndChar(self, pe, step):
+        chars = pe.text
+        def match_andchar(px):
+            return px.inputs.startswith(chars, px.pos)
+        return match_andchar
+
+    def NotChar(self, pe, step):
+        chars = pe.text
+        def match_notchar(px):
+            return not px.inputs.startswith(chars, px.pos)
+        return match_notchar
+
     def Range(self, pe, step):
-        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
+        offset = minimum_range(pe.chars, pe.ranges)
+        bitset = unique_range(pe.chars, pe.ranges) >> offset
 
         def match_bitset(px):
             if px.pos < px.epos:
-                shift = ord(px.inputs[px.pos])  # - offset
+                shift = ord(px.inputs[px.pos]) - offset
                 if shift >= 0 and (bitset & (1 << shift)) != 0:
                     px.pos += 1
                     return True
             return False
-
         return match_bitset
+
+    def ManyRange(self, pe, step):
+        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
+
+        def match_manybitset(px):
+            while px.pos < px.epos:
+                shift = ord(px.inputs[px.pos])  # - offset
+                if shift >= 0 and (bitset & (1 << shift)) != 0:
+                    px.pos += 1
+                    continue
+                
+            return False
+        return match_bitset
+
+    def AndRange(self, pe, step):
+        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
+
+        def match_andbitset(px):
+            if px.pos < px.epos:
+                shift = ord(px.inputs[px.pos])  # - offset
+                if shift >= 0 and (bitset & (1 << shift)) != 0:
+                    return True
+            return False
+        return match_bitset
+
+    def NotRange(self, pe, step):
+        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
+
+        def match_notbitset(px):
+            if px.pos < px.epos:
+                shift = ord(px.inputs[px.pos])  # - offset
+                if shift >= 0 and (bitset & (1 << shift)) != 0:
+                    return False
+            return True
+        return match_notbitset
 
     def And(self, pe, step):
         pf = self.emit(pe.e, step)
@@ -773,35 +945,15 @@ class Generator(object):
         return match_seq
 
     # Ore
-    def OreDic(self, dic: list):
-        d = trie(dic)
-
-        def match_trie(px, d):
-            if px.pos >= px.epos:
-                return False
-            if isinstance(d, dict):
-                c = px.inputs[px.pos]
-                if c in d:
-                    px.pos += 1
-                    return match_trie(px, d[c])
-                return False
-            pos = px.pos
-            inputs = px.inputs
-            for s in d:
-                if inputs.startswith(s, pos):
-                    px.pos += len(s)
-                    return True
-            return False
-
-    def Ore(self, pe, step):
+    def Ore(self, pe: Ore, step):
         # pe2 = Ore.expand(pe)
         # if not isinstance(pe2, Ore):
         #     return self.emit(pe2)
         # pe = pe2
-        # dic = pe.listDic()
-        # if len(dic) == len(pe):
-        #     d = pe.trieDic(dic)
-        #     return lambda px: match_trie(px, d)
+        if pe.isDict():
+            dic = pe.trieDict()
+            print('DIC', dic)
+            return lambda px: match_trie(px, dic)
 
         pfs = tuple(map(lambda e: self.emit(e, step), pe))
 
@@ -1219,21 +1371,6 @@ class TPEGLoader(object):
         else:
             return s[0], s[1:]
 
-    @classmethod
-    def choice(t: ParseTree, file):
-        urn, _, _, _ = t.pos()
-        file = str(file)[1:-1]
-        file = Path(urn).parent / file
-        with file.open(encoding='utf-8_sig') as f:
-            ss = [x.strip('\r\n') for x in f.readlines()]
-            ss = [x for x in ss if len(x) > 0 and not x.startswith('#')]
-            ss = sorted(ss, key=lambda x: len(x))[::-1]
-            choice = [Char(x) for x in ss]
-            e = Ore(*choice)
-            DEBUG(file, e)
-            return e
-        return EMPTY
-
     def Empty(self, t, step):
         return EMPTY
 
@@ -1345,13 +1482,50 @@ class TPEGLoader(object):
              'match', 'equals', 'contains', 'cat'}
 
     def Func(self, t, step):
-        funcname = str(t.name)
-        ps = [self.conv(p, step) for p in t.params]
-        if funcname == 'choice' and len(ps) > 0:
-            return TPEGLoader.choice(t, ps[0])
+        funcname = str(t[0])
+        ps = [self.conv(p, step) for p in t[1:]]
+        if funcname.startswith('choice'):
+            n = funcname[6:]
+            if n.isdigit():
+                return TPEGLoader.choiceN(t.urn_, int(n), ps)
+            return TPEGLoader.choice(t.urn_, ps)
         if funcname in PEGConv.FIRST:
             return Action(ps[0], funcname, tuple(ps), t)
         return Action(EMPTY, funcname, tuple(ps), t)
+
+    @classmethod
+    def fileName(cls, e):
+        s = str(e)
+        return s[1:-1] # if s.startswith('"') else s
+
+    @classmethod
+    def choice(cls, urn, es):
+        ds = set()
+        for e in es:
+            file = TPEGLoader.fileName(e)
+            file = Path(urn).parent / file
+            with file.open(encoding='utf-8_sig') as f:
+                ss = [x.strip('\r\n') for x in f.readlines()]
+                ds |= {x for x in ss if len(x) > 0 and not x.startswith('#')}
+        choice = [Char(x) for x in sorted(ds, key=lambda x: len(x))[::-1]]
+        return Ore(*choice)
+
+    @classmethod
+    def choiceN(cls, urn, n, es):
+        ds = set()
+        for e in es:
+            file = TPEGLoader.fileName(e)
+            file = Path(urn).parent / file
+            with file.open(encoding='utf-8_sig') as f:
+                ss = [x.strip('\r\n') for x in f.readlines()]
+                if n == 0:
+                    ds |= {x for x in ss if len(x) >9 and not x.startswith('#')}
+                else:
+                    ds |= {x for x in ss if len(x) == n and not x.startswith('#')}
+        choice = [Char(x) for x in ds]
+        return Ore(*choice)
+
+
 
 def grammar_factory():
 
@@ -1451,7 +1625,7 @@ class Combinator(object):
         es = {ns[0]: peg[ns[0]] }
         makeNonterminalList(peg, peg[ns[0]], ns, es)
         ns.reverse()
-        for n in ns:
+        for n in ns[-5:]:
             ref = self.getref(n)
             print(f'peg[{ref}] = {self.emit(es[n])}')
 
@@ -1501,6 +1675,7 @@ class Combinator(object):
         return self.emitApply('Any')
 
     def And(self, pe):
+        #if self.has(f'And{pe.cname()}'):
         e = self.emit(pe.e)
         return self.emitApply('And', e)
 
@@ -1514,7 +1689,7 @@ class Combinator(object):
 
     def Many1(self, pe):
         e = self.emit(pe.e)
-        if self.has('Option'):
+        if self.has('Many1'):
           return self.emitApply('Many1', e)
         return self.emitApply('Seq2', e, self.emitApply('Many', e))
 
@@ -1626,11 +1801,9 @@ class Combinator(object):
             print(indent + self.emitApply('example', repr(name), repr(text)))
 
 
-
-
 if __name__ == '__main__':
     peg = grammar('es.tpeg')
     #peg = grammar('test.tpeg')
-    print(peg)
+    #print(peg)
     c = Combinator()
     c.emitAll(peg)
