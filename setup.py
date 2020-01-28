@@ -5,15 +5,15 @@ sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
     name='pegpy',
-    version='0.9.5',
+    version='0.9.6',
     url='https://github.com/KuramitsuLab/pegpy.git',
     license='KuramitsuLab',
     author='Kimio Kuramitsu and His Laboratory',
-    description='PEG/TPEG for Python',
+    description='Tree PEG for Python',
     install_requires=['setuptools'],
-        packages=['pegpy', 'pegpy.nez', 'pegpy.origami'],
+        packages=['pegpy'],
         package_data={'pegpy': ['grammar/*.tpeg',
-                                'grammar/*.gpeg', 'nezcc/*.*']},
+                                'grammar/*.peg', 'parser/*.*']},
     entry_points={
         'console_scripts': [
             'pegpy = pegpy.main:main'

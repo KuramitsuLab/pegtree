@@ -1,6 +1,7 @@
 // Tree PEG 
+// 
 
-Start = __ Source EOF
+File = __ Source EOF
 
 __ = ([ \t\r\n] / COMMENT)*
 _ = ([ \t] / COMMENT)*

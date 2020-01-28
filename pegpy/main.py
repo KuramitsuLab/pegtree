@@ -8,7 +8,7 @@ import sys
 import os
 import importlib
 # m = importlib.import_module('foo.some')  # -> 'module'
-import pegpy.tpeg as tpeg
+import pegpy
 
 
 istty = True
@@ -144,15 +144,15 @@ def load_grammar(options, default=None):
     if file == 'stdin.tpeg':
         data = sys.stdin.read()
         options['basepath'] = file
-        return tpeg.grammar(data, **options)
-    return tpeg.grammar(file, **options)
+        return pegpy.grammar(data, **options)
+    return pegpy.grammar(file, **options)
 
 
 def generator(options):
     if 'parser' in options:
         m = importlib.import_module(options['parser'])
         return m.generate
-    return tpeg.generate
+    return pegpy.generate
 
 # parse command
 
