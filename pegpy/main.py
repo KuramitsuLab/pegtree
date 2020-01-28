@@ -54,7 +54,7 @@ def log(type, pos, *msg):
 
 
 def version():
-    print(bold('PEGPY - A PEG-based Parsing for Python'))
+    print(bold('PEGPY - TPEG Parsing for Python3'))
 
 
 def read_inputs(a):
@@ -128,12 +128,13 @@ def usage():
     print("Example:")
     print("  pegpy parse -g math.tpeg <inputs>")
     print("  pegpy example -g math.tpeg <inputs>")
-    print("  pegpy nezcc -g math.tpeg nez.ts")
+    print("  pegpy function -g math.tpeg parser.ts")
+    print()
 
     print("The most commonly used nez commands are:")
     print(" parse      run an interactive parser")
+    print(" function   generate a parser combinator function")
     print(" example    test all examples")
-    print(" nezcc      generate a cross-language parser")
     print(" update     update pegpy (via pip)")
 
 
@@ -153,6 +154,7 @@ def generator(options):
         m = importlib.import_module(options['parser'])
         return m.generate
     return pegpy.generate
+
 
 # parse command
 
@@ -242,7 +244,7 @@ def peg(options):
     print(peg)
 
 
-def nezcc(options):
+def function(options):
     from pegpy.nezcc import nezcc
     inputs = options['inputs']
     if len(inputs) == 0:
@@ -264,44 +266,16 @@ def bench(opt):
 '''
 
 
-'''
-
-def origami(opt, out, grammar='konoha6.tpeg', ts=None):
-    from pegpy.origami.typesys import transpile, transpile_init
-    g = load_grammar(opt, grammar)
-    if 'Snippet' in g:
-        g = g['Snippet']
-    parser = switch_generator(opt, 'tpeg')(g)
-    origami_files = [f for f in opt['inputs'] if f.endswith('.origami')]
-    source_files = [f for f in opt['inputs'] if not f.endswith('.origami')]
-    env = transpile_init(origami_files, ts, out)
-    if len(source_files) == 0:
-        try:
-            linenum = 1
-            while True:
-                s = readlines(bold('[{}]>>> '.format(linenum)))
-                t = parser(s, '[{}]>>> '.format(linenum))
-                linenum += 1
-                out.verbose(repr(t))
-                out.println(repr(transpile(env, t, out)))
-        except (EOFError, KeyboardInterrupt):
-            pass
-        return None
-    else:
-        for input in source_files:
-            t = parser(read_inputs(input), input)
-            out.println(repr(transpile(env, t, out)))
-
-def test(opt, out):
-    from pegpy.origami.arare import compile
-    for f in opt['inputs']:
-        print(f)
-        print('---')
-        print(compile(read_inputs(f)))
-'''
-
-
 def update(options):
+    try:
+        # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
+        subprocess.check_call(
+            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
+    except:
+        pass
+
+
+def beta(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(

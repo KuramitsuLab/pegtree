@@ -1117,6 +1117,13 @@ class ParseTree(list):
         self.strOut(sb)
         return "".join(sb)
 
+    def dump(self, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
+        if self.isSyntaxError():
+            return self.showing('Syntax Error')
+        sb = []
+        self.strOut(sb)
+        return "".join(sb)
+
     def strOut(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
         sb.append("[" + tag(f'#{self.tag_}'))
         hasContent = False
