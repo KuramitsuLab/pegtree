@@ -243,10 +243,9 @@ def peg(options):
 def function(options):
     from pegpy.nezcc import nezcc
     inputs = options['inputs']
-    if len(inputs) == 0:
-        inputs.append('empty.ts')
+    file = 'pegpy.json' if len(inputs) == 0 else f[0]
     peg = load_grammar(options)
-    nezcc(inputs[0], peg)
+    nezcc(inputs[0], peg, **options)
 
 
 '''
