@@ -8,7 +8,7 @@ from pathlib import Path
 
 def DEBUG(*x):
     if 'DEBUG' in os.environ:
-        print('@DEBUG', *x)
+        print('DEBUG', *x)
 
 # ParsingExpression
 
@@ -952,7 +952,7 @@ class Generator(object):
         # pe = pe2
         if pe.isDict():
             dic = pe.trieDict()
-            print('DIC', dic)
+            DEBUG('DIC', dic)
             return lambda px: match_trie(px, dic)
 
         pfs = tuple(map(lambda e: self.emit(e, step), pe))
