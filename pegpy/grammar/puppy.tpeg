@@ -5,33 +5,57 @@
  *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
  */
 
+ // pegpy nezcc -g puppy3.tpeg parser.ts > puppy-parser.ts
+
 Source = EOL? {
-    (Statement EOL)*
+    (Statement (";" Statement)* ";"? EOL)*
     #Source
 } EOF
 
-
-Block = {
-    @scope(
-        @symbol(INDENT) Statement (";" Statement)* ";"?
-        (@match(INDENT) Statement (";" Statement)* ";"? )*
-    )
-    #Block
-}
-
 example Source '''
+from puppy import *
 def cat_clicked(cat): print('Meaw')
 cat = Circle(500, 500, clicked=cat_clicked)
 '''
 
 Statement = 
     / ClassDecl
+    / ImportDecl
     / FuncDecl
     / IfStmt
     / ForStmt
-    / Return
+    / WhileStmt
+    / Return 
+    / Pass 
+    / Break 
+    / Continue
     / VarDecl
     / Expression
+
+Block = {
+    @scope(
+        @symbol(INDENT) (Statement (";" Statement)* ";"? / _ &EOL)
+        (@match(INDENT) (Statement (";" Statement)* ";"? / _ &EOL) )*
+    )
+    #Block
+}
+
+BlockStmt = {
+    Statement
+    #Block
+}
+
+/* import */
+
+ImportDecl = {
+    ('import' S) name: Name 
+    (('as' S) alias: Name)?
+    #ImportDecl
+} / {
+    ('from' S) name: Name 
+    ('import' S) names: ({ Name (',' _ Name)* } / {'*' _})
+    #FromDecl
+}
 
 /* class 定義 */
 
@@ -45,7 +69,7 @@ ClassDecl = {
     'class' S _ 
     name: Name 
     ('(' _ extends: Name ')' _)? ':' _
-    (Block / Statement)
+    (Block / BlockStmt)
     #ClassDecl
 }
 
@@ -53,196 +77,295 @@ ClassDecl = {
 
 example FuncDecl,Statement '''
 def succ(x):
+    #hoge
     return x+1
 '''
 
 FuncDecl = {
     'def' S _ 
     name: Name 
-    params: FuncParam ':' _
-    (Block / Statement)
+    params: FuncParams ":"
+    body: (Block / BlockStmt)
     #FuncDecl
 }
 
-FuncParam = {
-    "(" Argument? ( "," Argument )* ")"
+FuncParams = {
+    "(" FuncParam? ( "," __ FuncParam )* (__ ")" / CloseP)
     #FuncParam
 }
 
-Return = {
-    'return' 
-    (S _ expr: Expression)?
-    #Return
-} / {
-    'yeild' 
-    (S _ expr: Expression)?
-    #Yeild
-} / {
-    'pass' _
-    #Pass
+FuncParam = {
+    name: Name
+    ( ":" type: Name)?
+    #Param
 }
 
+Lambda = {
+    'lambda' 
+    (S _ params: LambdaParams)? ":"
+    body: (Block / Expression)
+    #FuncExpr
+}
+
+LambdaParams = {
+    Name? ( "," Name )*
+    #Param
+}
+
+example Lambda lambda: print(1)
+example Lambda lambda x: print(x)
+example Lambda lambda x,y: print(x,y)
+
+Return = {
+    'return' 
+    (!W _ expr: Expression)?
+    #Return
+} 
+
+Yield = { 'yield' _ #Yield } 
+Pass =  { 'pass' _ #Pass }
+Break = { 'break' _ #Break }
+Continue = { 'continue' _ #Continue }
 
 /* if文 */
 
-example IfStmt,Statement '''
+example Statement '''
 if A == 1 :
     print(A)
+    #hoge
     print(A, B)
     A = Ball(跳ね返る)
 else:
     print(A, B)
+
     A = 2
 '''
 
-example IfStmt,Statement '''
-if A == 1 :
-    print(A)
-else:
-    print(A, B)
+example Statement '''
+if A :
+    A
+elif B :
+    B
+elif C :
+    C
+else :
+    D
 '''
 
 IfStmt = {
-    ('もし' / 'if') _ 
-    cond: Expression ('なら' 'ば'? / 'then')? ':' _
-    then: (Block / Statement)
+    ('if' !W) _ 
+    cond: Expression ":"
+    then: (Block / BlockStmt)
+    (elif: ElifBlock)?
     (
         (@match(INDENT) / NL)
-        ('else' _ / 'そうでなければ' _ ) ':' _
-        else: (Block / Statement)
+        'else' !W _  ":"
+        else: (Block / BlockStmt)
     )?
     #IfStmt
 }
 
+ElifBlock = {
+    ElifStmt+
+}
+
+ElifStmt = {
+    (@match(INDENT) / NL)
+    ('elif' !W) _ 
+    cond: Expression ":"
+    then: (Block / BlockStmt)
+    #ElifStmt
+}
+
 /* for文 (* *) */
 
-example ForStmt,Statement '''
+example Statement '''
 for x in [1,2,3]:
     print(x)
     print(x+1)
 '''
 
 ForStmt = {
-    ('for' S) _ 
+    ('for' !W) _ 
     each: Name 
-    ('in' S) _ 
-    list: Expression ':' _
-    body: (Block / Statement)
+    ('in' !W) _ 
+    list: Expression ":"
+    body: (Block / BlockStmt)
     #ForStmt
+}
+
+WhileStmt = {
+    ('while' !W) _ 
+    cond: Expression ":"
+    body: (Block / BlockStmt)
+    #WhileStmt
 }
 
 /* var */
 
 example VarDecl,Statement A = 1
+example VarDecl,Statement A += 1
 
 VarDecl = {
     left: LeftHand
-    [=＝] _ 
+    "=" 
     right: Expression
     #VarDecl
-}
+} / SelfAssign
 
 LeftHand =
     Name (
-	    recv:^ { [の.．] _ name: Name #GetExpr }
-    	/ recv:^ { "[" params: Expressions "]" #IndexExpr }
+	    recv:^ { "." name: Name #GetExpr }
+    	/ recv:^ { "[" index: Expression "]" #IndexExpr }
     )*
+
+SelfAssign = {
+    left: LeftHand
+    name: SelfAssignOp
+    right: Expression
+    #SelfAssign
+}
+
+SelfAssignOp = {
+    ('<<' / '>>' / '**' / '//' / [+=*/%&|^＋＝＊／％＆｜＾×÷]) ('='/'＝')
+} _
 
 /* Reserved */
 
 /* Expression */
 
-example Expression A
-example EqExpr, Expression A == 1
+example Expression not 1 == 2
+example Expression not 1 == 2 and 1 > 3
 
-Expression = Operator
+// Expression = Operator ( 
+//     (then:^ { 'if' !W _ cond: Expression 'else' !W _ else: Expression #IfExpr })
+//     / (left:^ { "=" right: Expression #AssignExpr})
+// )?
+
+Expression =
+     Operator (then:^ { 'if' !W _ cond: Expression 'else' !W _ else: Expression #IfExpr })?
+
+BUGS = [)\]} ）］｝　]*
 
 Operator =
 	AndExpr (left:^ { OR _ right: AndExpr #Or })*
 
-OR = '||' / 'or' / 'または'
+OR = 'or' !W / '||' / '｜｜'
 
 AndExpr =
-	EqExpr (left:^ { AND _ right: EqExpr #And })*
+	NotExpr (left:^ { AND _ right: NotExpr #And })*
 
-AND = '&&' / 'and' / 'かつ' / 'で'
+AND = 'and' !W / '&&' / '＆＆'
+
+NotExpr =
+	{ NOT _ NotExpr #Not } / EqExpr
+
+NOT = ('not' !W _) / '!' / '！'
 
 EqExpr =
 	SumExpr (left:^ { name: { EQ #Name } _ right: SumExpr #Infix })*
 
 EQ =
-	/ '==' !'='
-	/ '!=' !'='
-	/ '<=' !'='
-	/ '>=' !'='
-	/ '<'  !'<'
-	/ '>'  !'>'
+	/ '==' !'=' / '＝＝' !'＝'
+	/ '!=' !'=' / '！＝' !'＝'
+	/ '<=' !'=' / '＜＝' !'＝'
+	/ '>=' !'=' / '＞＝' !'＝'
+	/ '<'  !'<' / '＜' !'＜'
+	/ '>'  !'>' / '＞' !'＞'
+    / '=' !'='  / '＝' !'＝'
+    / ('in' S)
 
 SumExpr =
 	ProdExpr (left:^ { name: { SUM #Name } _ right: ProdExpr #Infix })*
 
-SUM =
-	/ '+' / '＋'
-	/ '-' / 'ー'
+SUM = [+\-|＋ー｜]
 
 ProdExpr =
-	UnaryExpr (left:^ { name: { PROD #Name } _ right: UnaryExpr #Infix })*
+	PowExpr (left:^ { name: { PROD #Name } _ right: PowExpr #Infix })*
 
 PROD =
-	/ '/' / '÷' / '／'
-	/ '*' / '×' / '＊'
-	/ '%' / '％'
-	/ '^'
+    / '//' / '<<' / '>>' / '／／' / '＜＜' / '＞＞'
+	/ [*/%^&＊・／％＾＆×÷]
+
+PowExpr = UnaryExpr (left:^ { name: { '**' #Name } _ right: UnaryExpr #Infix })*
 
 UnaryExpr
 	= { name: {PRE #Name } _ expr: UnaryExpr #Unary }
     / SuffixExpr
 
-PRE =
-    / '-' / 'ー'
-    / '!' / '！'
-    / '+' / '＋'
+PRE = [+\-~＋ー〜]
 
 SuffixExpr =
 	Primary (
-	    recv:^ { '.' _ name: Name "(" params: Expressions ")" #MethodExpr }
-	    / recv:^ { [の.．] _ name: Name #GetExpr }
-	    / name:^ { "(" Argument? ( "," Argument )* ")" #ApplyExpr }
-	    / recv:^ { "[" params: Expressions "]" #IndexExpr }
-//	    / recv:^ { "<" type: Name ">" #CastExpr }
+	    recv:^ { "." name: Name "(" params: Arguments (__ ")" / err: CloseP) #MethodExpr }
+	    / recv:^ { "." name: Name #GetExpr }
+	    / name:^ { "(" params: Arguments (__ ")" / err: CloseP)  #ApplyExpr }
+        / recv:^ { "[" (left: Expression)? ":" (right: Expression)? ("]" / err: CloseS) #Slice }
+	    / recv:^ { "[" index: Expression ("]" / err: CloseS) #IndexExpr }
 	)*
+
+example Expression a[1:2]
+example Expression a[1:]
+example Expression a[:2]
+
+Arguments = {
+	( !(NAME _ '=') Expression)? 
+    ( "," __ !(NAME _ '=') Expression )*
+    KeywordArgument?
+    #Arguments
+}
+
+KeywordArgument = {
+    ("," __ )?
+    Argument ( "," __ Argument )*
+    #Data
+}
 
 Argument = {
     name: Name
-    [=＝] _ 
+    "=" _ 
     value: Expression
-    #KeywordArgument
-} / Expression
-
-Expressions = {
-	Expression? ( [,:] Expression )*
-    #Arguments
+    #KeyValue
 }
+
+example Expression Circle(500, 500)
+example Expression Circle(500, 500, clicked=cat_clicked)
+example Expression Circle(clicked=1, move=1)
 
 /* Primary */
 
 example Primary, Expression (1,2) //
 example Primary, Expression (1)
 example Primary, Expression [1,2,3]
-example Primary, Expression { name: 'naruto', age: 17 }
+example Primary, Expression '''
+{ 
+    name: 'naruto', 
+    "age": 17,
+}
+'''
 
 Primary =
   /	GroupExpr
   / ListExpr
   / DataExpr
+  / Lambda
   / Constant
   / Name
 
-GroupExpr = { "(" Expression ("," Expression)*  ")" #Tuple }
+GroupExpr = { "(" Expression ("," __ Expression)*  (__ ")" / CloseP) #Tuple }
 
-ListExpr = { "[" (Expression ("," Expression)* )? ","*  "]" #List }
+ListExpr = { "[" (Expression ("," __ Expression)* )? ","?  (__ "]"/CloseS) #List }
 
-DataExpr = { "{" KeyValue (","* KeyValue)* ","* "}" #Data }
+DataExpr = { "{" KeyValue ("," __ KeyValue)* ","? (__ "}"/CloseB) #Data }
+
+DELIM = [.:+\-*/%<>=!(){}[\],\n]
+
+CloseP = { !")" (&DELIM / EOF) #RecoverP }
+CloseS = { !"]" (&DELIM / EOF) #RecoverS }
+CloseB = { !"}" (&DELIM / EOF) #RecoverB }
+
+example GroupExpr （1, (1）= 
+example GroupExpr (1,(2))= 
 
 KeyValue = {
 	name: (Name/StringExpr/CharExpr)
@@ -253,17 +376,31 @@ KeyValue = {
 
 /* Name, Identifier */
 
-Name = Identifier / NLPSymbol
+Name = Identifier / IdentifierNLP
+
+NAME = [A-Za-z_] W*
 
 Identifier = {
-    [A-Za-z] [A-Za-z0-9_]*
+    NAME
     #Name
+} _
+
+IdentifierNLP = {
+    (HIRA / KATA / KANJI/ '_')+ W*
+    #NameOrNLP
 } _
 
 NLPSymbol = {
     (HIRA / KATA / KANJI)+
     #NLPSymbol
 } _
+
+NLKeyValue = {
+    (HIRA / KATA / KANJI)+
+    #NLKeyValue
+} _
+
+W = [A-Za-z0-9_]
 
 /***
 RAWREF    = (!'」' .)+
@@ -281,6 +418,8 @@ REF =
 /* Literal */
 
 Constant =
+    / FormatString
+    / LongString
 	/ StringExpr
 	/ CharExpr
 	/ Number
@@ -288,75 +427,93 @@ Constant =
 	/ FalseExpr
 	/ NullExpr
 
-//example StringExpr, Expression "\n\u1234a\0"
-//example CharExpr, Expression '\''
-//example FloatExpr, Expression 1.1e-9
-//example TrueExpr, Expression 有効
+example Expression f'{a}+{1}'
 
-StringExpr = '"' { STRING_CONTENT* #String } '"' _
-CharExpr = '\'' { CHAR_CONTENT* #Char } '\'' _
-STRING_CONTENT = ESCAPE / ![\"\n\\] .
-CHAR_CONTENT   = ESCAPE / !['\n\\] .
+FormatString = [Ff] (
+    '\'\'\'' { FormatContent3* #Format } '\'\'\''
+    / '\'' { FormatContent1* #Format } '\''
+    / '"""' { FormatContent3D* #Format } '"""'
+    / '"' { FormatContent1D* #Format } '"' ) _
+
+FormatContent3 =
+    '{' Expression '}' / { (!'\'\'\'' !'{' .)* #StringPart }
+
+FormatContent1 =
+    '{' Expression '}' / { (!'\'' !'{' .)* #StringPart }
+
+FormatContent3D =
+    '{' Expression '}' / { (!'"""' !'{' .)* #StringPart }
+
+FormatContent1D =
+    '{' Expression '}' / { (!'"' !'{' .)* #StringPart }
+
+LongString = 
+    '\'\'' { '\'' ( ESCAPE / ![\\'] . / !'\'\'\'' '\'' )* '\'' #MultiString } '\'\'' _
+    / '""' { '"' ( ESCAPE / ![\\"] . / !'"""' '"' )* '"' #MultiString } '""' _
+
+StringExpr = 
+    / { '"' STRING* '"' #String } _
+    / { DQ ZSTRING* DQ #ZString } _
+CharExpr = 
+    / { '\'' CHAR* '\'' #Char } _
+    / { SQ ZCHAR* SQ #ZChar } _
+
+SQ = ['’‘＇]
+DQ = ["”“＂]
+STRING = ESCAPE / ![\"\n\\] .
+CHAR   = ESCAPE / !['\n\\] .
+ZSTRING = ESCAPE / !DQ ![\n\\] .
+ZCHAR   = ESCAPE / !SQ ![\n\\] .
+
 ESCAPE =
 	'\\' ['\"\\bfnrt]
 	/ '\\' [0-3] [0-7] [0-7]
     / '\\' [0-7] [0-7]
     / '\\' [0-7]
-	/ '\\' 'u'+ HEX HEX HEX HEX
+	/ '\\' [uU] HEX HEX HEX HEX
 
 IntExpr = {
-	(DECIMAL / HEXADECIMAL / BINARY / OCTAL)
+	(HEXADECIMAL / BINARY / DECIMAL )
 	#Int
 } _
 
-DECIMAL = '0' ![bBxX0-9_] / [1-9] ( '_'* DIGIT )*
+DECIMAL = !'_' DIGIT ( DIGIT )*
 HEXADECIMAL = '0' [xX] HEX ( '_'* HEX )*
 BINARY = '0' [bB] [01] ( '_'* [01] )*
-OCTAL = '0' ( '_'* [0-7] )*
-DIGIT = [0-9]
-HEX = [a-fA-F0-9]
+DIGIT = [0-9０-９_]
+HEX = [a-fA-F0-9]
 LONG_SUFFIX = [lL]
 
 FloatExpr = {
 	FLOAT #Double
 } _
 
-FLOAT =
-	FRACTION EXPONENT?
-    / DIGIT+ EXPONENT
+FLOAT = !'_' (
+	FRACTION EXPONENT? / DIGIT+ EXPONENT
+)
 
 FRACTION =
-	!'_' ( '_'* DIGIT )* '.' DIGIT ( '_'* DIGIT )*
-    / DIGIT ( '_'* DIGIT )* '.' !'.'
+	/ DIGIT* "." !'_' DIGIT+
+    / DIGIT DIGIT* "." !'.'
 
 EXPONENT =
-	[eE] [+\-]? DIGIT ( '_'* DIGIT )*
+	[eE] [+\-]? !'_' DIGIT+
 
 /* Number,Unit */
 
-Number = (FloatExpr / IntExpr) ( ^{ Unit #Unit} )?
-
-Unit = {
-    UNIT
-    #Symbol
-}
-
-UNIT = [%％度]
-    / 'px' / 'pt'
-
-example Number,Expression 33.3%
+Number = FloatExpr / IntExpr
 
 /* Const */
 
 TrueExpr  = { [Tt] 'rue' #TrueExpr } _
 FalseExpr = { [Ff] 'alse' #FalseExpr } _
-NullExpr  = { 'None' / 'まだ'? ('ない'/'無い'/'なし'/'無し') #Null } _
+NullExpr  = { ('None' / 'null') #Null } _
 
 /* Indent-based Code Layout */
 
 EOF          = !.
 NL           = '\n' / EOF
-S            = [ \t\r　、，]
+S            = [ \t\u200B\v\r　]
 
 _            = ( S / BLOCKCOMMENT / LINECOMMENT )*
 __           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
@@ -364,7 +521,7 @@ SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
 
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
              / '(*' ( !'*)' . )* '*)'
-LINECOMMENT  = '#' ( !NL . )*
+LINECOMMENT  = ('#'/'＃') ( !NL . )*
 
 EOL          = _ NL (_ NL)*
 INDENT       = '\n' [ \t]+
@@ -383,17 +540,38 @@ KATA = [ァ-ヶ]
 KANJI = [㐀-䶵一-龠々〇〻ー]
 MARK = [ー]
 
-W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
+//W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
 //DIGIT = [０-９]
 
-"{" = [{｛] _
+"{" = [{｛] __
 "}" = [}｝] _
-"[" = [[［【] _
-"]" = [\]］】] _
-"(" = [(（] _
+"[" = [[［] __
+"]" = [\]］] _
+"(" = [(（] __
 ")" = [)）] _
 "=" = [=＝] ![=＝] _
 "." = [.．。] _
-"," = [,、] _
+"," = [,，、] _
 ";" = ([;；] _)+
 ":" = [:：] _
+"_" = [_＿]
+
+example Source '''
+World(1600, 900, background="white");
+​
+Rectangle(800, 900, width=1600, height=100, isStatic=true)
+​
+for x in range(100, 701, 100):
+    Rectangle(x*1.5, 100, width=40, height=300)
+​
+Rectangle(100, 200, width=200, height=200)
+
+'''
+
+example Source '''
+a=1;b=1
+'''
+
+example Expression ”Hello World“
+example Expression Circle(0, hoge, hoge=1)
+example Source if a = b and b = c: pass

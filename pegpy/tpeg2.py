@@ -181,26 +181,23 @@ class Seq(Tuple):
             self.minlen = sum(map(lambda e: e.minLen(), self.es))
         return self.minlen
 
-    def splitFixed(self):
-        fixed = []
-        size = 0
-        for e in self:
-            if isinstance(e, Char):
-                size += len(e.text)
-                fixed.append(e)
-            elif isinstance(e, Range) or isinstance(e, Any):
-                size += 1
-                fixed.append(e)
-            elif isinstance(e, And) or isinstance(e, Not):
-                size += 0
-                fixed.append(e)
-            else:
-                break
+def splitFixed(remains):
+    fixed = []
+    size = 0
+    for e in remains:
+        if isinstance(e, Char):
+            size += len(e.text)
+            fixed.append(e)
+        elif isinstance(e, Range) or isinstance(e, Any):
+            size += 1
+            fixed.append(e)
+        elif isinstance(e, And) or isinstance(e, Not):
+            size += 0
+            fixed.append(e)
+        else:
+            break
+    remains = remains[len(fixed):]
         
-        
-
-
-
 class Alt(Tuple):
     def __repr__(self):
         return ' | '.join(map(repr, self))
@@ -733,7 +730,7 @@ class Generator(object):
     def emit(self, pe: ParsingExpression, step: int):
         pe = inline(pe)
         if isinstance(pe, Action):
-            cname = pe.func
+            cname = pe.func.capitalize()
         else:
             cname = pe.__class__.__name__
         if hasattr(self, cname):
@@ -1489,7 +1486,7 @@ class TPEGLoader(object):
             if n.isdigit():
                 return TPEGLoader.choiceN(t.urn_, int(n), ps)
             return TPEGLoader.choice(t.urn_, ps)
-        if funcname in PEGConv.FIRST:
+        if funcname in TPEGLoader.FIRST:
             return Action(ps[0], funcname, tuple(ps), t)
         return Action(EMPTY, funcname, tuple(ps), t)
 

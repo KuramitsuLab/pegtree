@@ -201,21 +201,21 @@ def example(options):
         return
     parsers = {}
     for testcase in peg['@@example']:
-        name, pos4 = testcase
+        name, doc = testcase
         if not name in peg:
             continue
         if not name in parsers:
             parsers[name] = generator(options)(peg, start=name)
-        res = parsers[name](pos4.inputs_, pos4.urn_, pos4.spos_, pos4.epos_)
+        res = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
         print(bold(f'parsing {name}'))
-        print(color('Green', f'{str(pos4)}'), color('Red', '=>'))
+        ok = doc.inputs_[doc.spos_:res.epos_]
+        fail = doc.inputs_[res.epos_:doc.epos_]
+        print(color('Green', f'{ok}')+color('Red', f'{fail}'), bold('=>'))
         res.dump()
 
 
 def test(options):
     peg = load_grammar(options)
-    if '@@example' not in peg:
-        return
     parsers = {}
     test = 0
     ok = 0
