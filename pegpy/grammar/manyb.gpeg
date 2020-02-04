@@ -1,8 +1,0 @@
-
-Many = { (B Many Many) | Many1 #S }
-Many1 = { (B Many) | B #S1 } 
-B = {'b' #B}
-
-example Many bb
-example Many bbb
-example Many bbbb
