@@ -8,7 +8,7 @@ import sys
 import os
 import importlib
 # m = importlib.import_module('foo.some')  # -> 'module'
-import pegpy
+import pegtree
 
 
 istty = True
@@ -243,29 +243,16 @@ def peg(options):
 def function(options):
     from pegpy.nezcc import nezcc
     inputs = options['inputs']
-    file = 'pegpy.json' if len(inputs) == 0 else f[0]
+    file = 'pegtree.json' if len(inputs) == 0 else f[0]
     peg = load_grammar(options)
     nezcc(inputs[0], peg, **options)
-
-
-'''
-def json(opt, out):
-    parse(opt, out, lambda t: t.asJSON())
-
-def nezcc(opt, out):
-    pass
-
-
-def bench(opt):
-    pass
-'''
 
 
 def update(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(
-            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
+            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegtree.git'])
     except:
         pass
 
@@ -274,7 +261,7 @@ def beta(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(
-            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegpy.git'])
+            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegtree.git'])
     except:
         pass
 
