@@ -240,12 +240,12 @@ def peg(options):
     print(peg)
 
 
-def function(options):
-    from pegpy.nezcc import nezcc
+def parsec(options):
+    from pegtree.parsec import parsec
     inputs = options['inputs']
     file = 'pegtree.json' if len(inputs) == 0 else f[0]
     peg = load_grammar(options)
-    nezcc(inputs[0], peg, **options)
+    parsec(inputs[0], peg, **options)
 
 
 def update(options):
