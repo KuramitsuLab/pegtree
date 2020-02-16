@@ -1,5 +1,5 @@
+// Utilities from Python3 Porting
 
-// utils
 const len = (s: string | any[]) => s.length
 
 const translate = (s: string, dic: { [key: string]: string }) => {
@@ -82,7 +82,7 @@ class PExpr {
     }
 }
 
-class Any extends PExpr {
+class PAny extends PExpr {
     public toString() {
         return '.';
     }
@@ -91,7 +91,7 @@ class Any extends PExpr {
     }
 }
 
-class Char extends PExpr {
+class PChar extends PExpr {
     text: string;
     constructor(text: string) {
         super();
@@ -107,7 +107,7 @@ class Char extends PExpr {
     }
 }
 
-class CRange extends PExpr {
+class PRange extends PExpr {
     static readonly ESCTBL: { [key: string]: string } = {
         '\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
         '\\': '\\\\', ']': '\\]', '-': '\\-'
@@ -123,12 +123,12 @@ class CRange extends PExpr {
     public toString() {
         const sb = []
         sb.push('[')
-        sb.push(translate(this.chars, CRange.ESCTBL))
+        sb.push(translate(this.chars, PRange.ESCTBL))
         const r = this.ranges
         for (var i = 0; i < r.length; i += 2) {
-            sb.push(translate(r[i], CRange.ESCTBL))
+            sb.push(translate(r[i], PRange.ESCTBL))
             sb.push('-')
-            sb.push(translate(r[i + 1], CRange.ESCTBL))
+            sb.push(translate(r[i + 1], PRange.ESCTBL))
         }
         sb.push(']')
         return sb.join('')
@@ -138,9 +138,7 @@ class CRange extends PExpr {
     }
 }
 
-
-
-class Ref extends PExpr {
+class PRef extends PExpr {
     peg: Grammar
     name: string
     minlen: number | null = null;
@@ -175,7 +173,7 @@ class Ref extends PExpr {
 }
 
 
-class Tuple extends PExpr {
+class PTuple extends PExpr {
     es: PExpr[]
     minlen: number | null = null;
     constructor(...es: PExpr[]) {
@@ -188,7 +186,7 @@ const tail = (xs: PExpr[]) => {
     return xs[xs.length - 1];
 }
 
-class Seq extends Tuple {
+class PSeq extends PTuple {
     static new(...es: PExpr[]) {
         const ls = []
         for (const e of es) {
@@ -198,7 +196,7 @@ class Seq extends Tuple {
                 continue;
             }
             const pe = tail(ls);
-            if (e instanceof Char && pe instanceof Char) {
+            if (e instanceof PChar && pe instanceof PChar) {
                 ls[ls.length - 1] = pChar(pe.text + e.text)
                 continue
             }
@@ -208,7 +206,7 @@ class Seq extends Tuple {
     }
 
     public toString() {
-        return this.es.map((e) => grouping(e, (x) => x instanceof Ore)).join(' ');
+        return this.es.map((e) => grouping(e, (x) => x instanceof POre)).join(' ');
     }
 
     minLen() {
@@ -239,20 +237,20 @@ class Seq extends Tuple {
 // break
 // remains = remains[len(fixed):]
 
-class Alt extends Tuple {
+class PAlt extends PTuple {
     public toString() {
         return this.es.map((e) => e.toString()).join(' | ')
     }
 }
 
-class Ore extends Tuple {
+class POre extends PTuple {
     // @classmethod
     static new(...es: PExpr[]) {
         const choices: PExpr[] = []
         for (const e of es) {
             O2.appendChoice(choices, e)
         }
-        return choices.length === 1 ? choices[0] : new Ore(...choices)
+        return choices.length === 1 ? choices[0] : new POre(...choices)
     }
 
     public toString() {
@@ -277,7 +275,7 @@ class Ore extends Tuple {
 
     isDict() {
         for (const e of this.es) {
-            if (!(e instanceof Char)) {
+            if (!(e instanceof PChar)) {
                 return false;
             }
         }
@@ -285,7 +283,7 @@ class Ore extends Tuple {
     }
 
     listDict() {
-        const dic = this.es.map(e => (e instanceof Char) ? e.text : '')
+        const dic = this.es.map(e => (e instanceof PChar) ? e.text : '')
         const dic2 = [];
         for (const s of dic) {
             if (s === '') break;
@@ -326,9 +324,9 @@ class O2 {
 
     static inline(pe: PExpr) {
         const start = pe
-        while (pe instanceof Ref) {
+        while (pe instanceof PRef) {
             pe = pe.deref();
-            if (pe instanceof Char || pe instanceof CRange) {
+            if (pe instanceof PChar || pe instanceof PRange) {
                 return pe;
             }
         }
@@ -336,31 +334,31 @@ class O2 {
     }
 
     static isCRange(e: PExpr) {
-        return (e instanceof Char && len(e.text) == 1) || (e instanceof CRange);
+        return (e instanceof PChar && len(e.text) == 1) || (e instanceof PRange);
     }
 
     static mergeRange(e: PExpr, e2: PExpr) {
         var chars = ''
         var ranges = ''
-        if (e instanceof Char) {
+        if (e instanceof PChar) {
             chars += e.text;
         }
-        if (e2 instanceof Char) {
+        if (e2 instanceof PChar) {
             chars += e2.text;
         }
-        if (e instanceof CRange) {
+        if (e instanceof PRange) {
             chars += e.chars
             ranges += e.ranges
         }
-        if (e2 instanceof CRange) {
+        if (e2 instanceof PRange) {
             chars += e2.chars
             ranges += e2.ranges
         }
-        return new CRange(chars, ranges)
+        return new PRange(chars, ranges)
     }
 
     static appendChoice(es: PExpr[], pe: PExpr) {
-        if (pe instanceof Ore) {
+        if (pe instanceof POre) {
             for (const e of pe.es) {
                 O2.appendChoice(es, e);
             }
@@ -378,15 +376,15 @@ class O2 {
 
     static appendChoice2(es: PExpr[], pe: PExpr) {
         const start = pe;
-        while (pe instanceof Ref) {
+        while (pe instanceof PRef) {
             pe = pe.deref()
         }
-        if (pe instanceof Ore) {
+        if (pe instanceof POre) {
             for (const e of pe.es) {
                 O2.appendChoice2(es, e);
             }
         }
-        else if (pe instanceof Char || pe instanceof CRange) {
+        else if (pe instanceof PChar || pe instanceof PRange) {
             O2.appendChoice(es, pe);
         }
         else {
@@ -397,8 +395,7 @@ class O2 {
 
 // def inline(pe):
 
-
-class Unary extends PExpr {
+class PUnary extends PExpr {
     e: PExpr
     constructor(e: PExpr) {
         super()
@@ -409,7 +406,7 @@ class Unary extends PExpr {
     }
 }
 
-class And extends Unary {
+class PAnd extends PUnary {
     public toString() {
         return '&' + grouping(this.e, inUnary)
     }
@@ -418,7 +415,7 @@ class And extends Unary {
     }
 }
 
-class Not extends Unary {
+class PNot extends PUnary {
     public toString() {
         return '!' + grouping(this.e, inUnary)
     }
@@ -427,7 +424,7 @@ class Not extends Unary {
     }
 }
 
-class Many extends Unary {
+class PMany extends PUnary {
     public toString() {
         return grouping(this.e, inUnary) + '*';
     }
@@ -435,20 +432,20 @@ class Many extends Unary {
 }
 
 
-class Many1 extends Unary {
+class PMany1 extends PUnary {
     public toString() {
         return grouping(this.e, inUnary) + '+';
     }
 }
 
-class POption extends Unary {
+class POption extends PUnary {
     public toString() {
         return grouping(this.e, inUnary) + '?'
     }
     minLen() { return 0 }
 }
 
-class TNode extends Unary {
+class PNode extends PUnary {
     tag: string
     constructor(e: PExpr, tag = '') {
         super(e);
@@ -460,7 +457,7 @@ class TNode extends Unary {
     }
 }
 
-class Edge extends Unary {
+class PEdge extends PUnary {
     edge: string
     constructor(edge: string, e: PExpr) {
         super(e);
@@ -471,7 +468,7 @@ class Edge extends Unary {
     }
 }
 
-class Fold extends Unary {
+class PFold extends PUnary {
     tag: string
     edge: string
     constructor(edge: string, e: PExpr, tag = '') {
@@ -487,7 +484,7 @@ class Fold extends Unary {
 }
 
 
-class Abs extends Unary {
+class PAbs extends PUnary {
     constructor(e: PExpr) {
         super(e)
     }
@@ -496,7 +493,7 @@ class Abs extends Unary {
     }
 }
 
-class Action extends Unary {
+class PAction extends PUnary {
     func: string;
     params: PExpr[];
     constructor(e: PExpr, func: string, params: PExpr[], t?: ParseTree) {
@@ -512,29 +509,29 @@ class Action extends Unary {
 }
 
 // CONSTANT
-const EMPTY = new Char('')
-const ANY = new Any()
-const FAIL = new Not(EMPTY)
+const EMPTY = new PChar('')
+const ANY = new PAny()
+const FAIL = new PNot(EMPTY)
 
 const pEmpty = () => EMPTY
 const pAny = () => ANY
-const pChar = (c: string) => len(c) > 0 ? new Char(c) : EMPTY
-const pRange = (cs: string, rs = '') => new CRange(cs, rs)
-const pAnd = (e: PExpr) => new And(e)
-const pNot = (e: PExpr) => new Not(e)
-const pMany = (e: PExpr) => new Many(e)
-const pMany1 = (e: PExpr) => new Many1(e)
+const pChar = (c: string) => len(c) > 0 ? new PChar(c) : EMPTY
+const pRange = (cs: string, rs = '') => new PRange(cs, rs)
+const pAnd = (e: PExpr) => new PAnd(e)
+const pNot = (e: PExpr) => new PNot(e)
+const pMany = (e: PExpr) => new PMany(e)
+const pMany1 = (e: PExpr) => new PMany1(e)
 const pOption = (e: PExpr) => new POption(e)
-const pSeq = (...es: PExpr[]) => new Seq(...es)
-const pSeq2 = (e: PExpr, e2: PExpr) => new Seq(e, e2)
-const pSeq3 = (e: PExpr, e2: PExpr, e3: PExpr) => new Seq(e, e2, e3)
-const pOre = (...es: PExpr[]) => Ore.new(...es)
-const pOre2 = (e: PExpr, e2: PExpr) => Ore.new(e, e2)
-const pOre3 = (e: PExpr, e2: PExpr, e3: PExpr) => Ore.new(e, e2, e3)
-const pRef = (peg: Grammar, name: string) => new Ref(peg, name)
-const pNode = (e: PExpr, tag: string, shift = 0) => new TNode(e, tag)
-const pEdge = (label: string, e: PExpr) => (label !== '') ? new Edge(label, e) : e
-const pFold = (label: string, e: PExpr, tag: string, shift = 0) => new Fold(label, e, tag)
+const pSeq = (...es: PExpr[]) => new PSeq(...es)
+const pSeq2 = (e: PExpr, e2: PExpr) => new PSeq(e, e2)
+const pSeq3 = (e: PExpr, e2: PExpr, e3: PExpr) => new PSeq(e, e2, e3)
+const pOre = (...es: PExpr[]) => POre.new(...es)
+const pOre2 = (e: PExpr, e2: PExpr) => POre.new(e, e2)
+const pOre3 = (e: PExpr, e2: PExpr, e3: PExpr) => POre.new(e, e2, e3)
+const pRef = (peg: Grammar, name: string) => new PRef(peg, name)
+const pNode = (e: PExpr, tag: string, shift = 0) => new PNode(e, tag)
+const pEdge = (label: string, e: PExpr) => (label !== '') ? new PEdge(label, e) : e
+const pFold = (label: string, e: PExpr, tag: string, shift = 0) => new PFold(label, e, tag)
 
 // repr
 
@@ -543,7 +540,7 @@ const grouping = (e: PExpr, f: (e: PExpr) => boolean) => {
 }
 
 const inUnary = (e: PExpr) => {
-    return e instanceof Ore || e instanceof Seq || e instanceof Alt || e instanceof Edge || e instanceof Fold;
+    return e instanceof POre || e instanceof PSeq || e instanceof PAlt || e instanceof PEdge || e instanceof PFold;
 }
 
 // // Grammar
@@ -581,7 +578,7 @@ class Grammar {
     }
 
     newRef(name: string, t?: ParseTree) {
-        return new Ref(this, name);
+        return new PRef(this, name);
     }
 
     public toString() {
@@ -593,8 +590,8 @@ class Grammar {
     }
 }
 
-const makelist = (pe: PExpr, cnt: { [key: string]: number }, es: Ref[]) => {
-    if (pe instanceof Ref) {
+const makelist = (pe: PExpr, cnt: { [key: string]: number }, es: PRef[]) => {
+    if (pe instanceof PRef) {
         const u = pe.uname()
         const c = cnt[u] || 0;
         cnt[u] = c + 1;
@@ -604,63 +601,67 @@ const makelist = (pe: PExpr, cnt: { [key: string]: number }, es: Ref[]) => {
         }
         return es;
     }
-    if (pe instanceof Tuple) {
+    if (pe instanceof PTuple) {
         for (const e of pe.es) {
             makelist(e, cnt, es);
         }
         return es;
     }
-    if (pe instanceof Unary) {
+    if (pe instanceof PUnary) {
         makelist(pe.e, cnt, es);
     }
     return es;
 }
 
+export const pRule = (peg: Grammar, name: string, e: PExpr) => {
+    peg.set(name, e);
+}
+
 const TPEG = (peg: Grammar) => {
-    peg.set('Start', pSeq3(pRef(peg, '__'), pRef(peg, 'Source'), pRef(peg, 'EOF')));
-    peg.set('__', pMany(pOre2(pRange(' \t\r\n'), pRef(peg, 'COMMENT'))))
-    peg.set('_', pMany(pOre2(pRange(' \t'), pRef(peg, 'COMMENT'))))
-    peg.set('COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())), pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
-    peg.set('EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
-    peg.set('EOF', pNot(pAny()))
-    peg.set('S', pRange(' \t'))
-    peg.set('Source', pNode(pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
-    peg.set('EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
-    peg.set('Statement', pOre(pRef(peg, 'Import'), pRef(peg, 'Example'), pRef(peg, 'Rule')))
-    peg.set('Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
-    peg.set('Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
-    peg.set('Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
-    peg.set('Doc', pOre(pRef(peg, 'Doc1'), pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
-    peg.set('Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
-    peg.set('Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
-    peg.set('DELIM1', pChar("'''"))
-    peg.set('Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
-    peg.set('DELIM2', pChar('```'))
-    peg.set('Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar('<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|'), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
-    peg.set('Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
-    peg.set('NAME', pSeq2(pRange('_', 'AZaz'), pMany(pRange('_.', 'AZaz09'))))
-    peg.set('Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar('|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
-    peg.set('Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
-    peg.set('Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
-    peg.set('SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
-    peg.set('Predicate', pOre(pRef(peg, 'Not'), pRef(peg, 'And'), pRef(peg, 'Suffix')))
-    peg.set('Not', pSeq2(pChar('!'), pNode(pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
-    peg.set('And', pSeq2(pChar('&'), pNode(pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
-    peg.set('Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar('*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
-    peg.set('Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
-    peg.set('Empty', pNode(pEmpty(), 'Empty', 0))
-    peg.set('Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
-    peg.set('Any', pNode(pChar('.'), 'Any', 0))
-    peg.set('Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
-    peg.set('Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
-    peg.set('Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
-    peg.set('Tag', pSeq2(pChar('#'), pNode(pMany1(pSeq2(pNot(pRange(' \t\r\n}')), pAny())), 'Tag', 0)))
-    peg.set('Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-    peg.set('Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
-    peg.set('EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-    peg.set('Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge('', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
-    peg.set('Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
-    peg.set('QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
+    pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(peg, 'Source'), pRef(peg, 'EOF')));
+    pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n'), pRef(peg, 'COMMENT'))))
+    pRule(peg, '_', pMany(pOre2(pRange(' \t'), pRef(peg, 'COMMENT'))))
+    pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())), pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
+    pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
+    pRule(peg, 'EOF', pNot(pAny()))
+    pRule(peg, 'S', pRange(' \t'))
+    pRule(peg, 'Source', pNode(pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
+    pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
+    pRule(peg, 'Statement', pOre(pRef(peg, 'Import'), pRef(peg, 'Example'), pRef(peg, 'Rule')))
+    pRule(peg, 'Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
+    pRule(peg, 'Doc', pOre(pRef(peg, 'Doc1'), pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
+    pRule(peg, 'Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
+    pRule(peg, 'Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
+    pRule(peg, 'DELIM1', pChar("'''"))
+    pRule(peg, 'Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
+    pRule(peg, 'DELIM2', pChar('```'))
+    pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar('<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|'), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
+    pRule(peg, 'NAME', pSeq2(pRange('_', 'AZaz'), pMany(pRange('_.', 'AZaz09'))))
+    pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar('|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
+    pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
+    pRule(peg, 'Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
+    pRule(peg, 'SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
+    pRule(peg, 'Predicate', pOre(pRef(peg, 'Not'), pRef(peg, 'And'), pRef(peg, 'Suffix')))
+    pRule(peg, 'Not', pSeq2(pChar('!'), pNode(pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
+    pRule(peg, 'And', pSeq2(pChar('&'), pNode(pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
+    pRule(peg, 'Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar('*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
+    pRule(peg, 'Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
+    pRule(peg, 'Empty', pNode(pEmpty(), 'Empty', 0))
+    pRule(peg, 'Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
+    pRule(peg, 'Any', pNode(pChar('.'), 'Any', 0))
+    pRule(peg, 'Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
+    pRule(peg, 'Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
+    pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
+    pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(pMany1(pSeq2(pNot(pRange(' \t\r\n}')), pAny())), 'Tag', 0)))
+    pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+    pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
+    pRule(peg, 'EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+    pRule(peg, 'Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge('', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
+    pRule(peg, 'Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
+    pRule(peg, 'QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
     return peg
 }
 
@@ -710,26 +711,6 @@ class PTree {
         return sb.join('')
     }
 }
-
-// def splitPTree(pt):
-// if pt is null: return null, null
-// if pt.prev is null: return null, pt
-// return pt.prev, PTree(null, pt.tag, pt.spos, pt.epos, pt.child)
-
-// def makePTree(pt: PTree, inputs: str):
-// ns = []
-// while pt != null:
-//     if pt.child == null:
-//         child = repr(inputs[pt.spos: pt.epos])
-//     else:
-//     child = makePTree(pt.child)
-// child = (pt.tag, child)
-// ns.push(child)
-// pt = pt.prev
-// if len(ns) == 1:
-//     return ns[0]
-// return list(reversed(ns))
-
 
 class ParseTree {
     static readonly EMPTY: ParseTree[] = [];
@@ -1089,11 +1070,11 @@ class Generator {
     // return m.result
     // return match_memo
 
-    Any(pe: Any, step: number) {
+    PAny(pe: PAny, step: number) {
         return match_any
     }
 
-    Char(pe: Char, step: number) {
+    PChar(pe: PChar, step: number) {
         if (pe.text in this.cache) {
             return this.cache[pe.text]
         }
@@ -1132,7 +1113,7 @@ class Generator {
     // return not px.x.startswith(chars, px.pos)
     // return match_notchar
 
-    CRange(pe: CRange, step: number) {
+    PRange(pe: PRange, step: number) {
         const key = pe.toString();
         if (!(key in this.bitmaps)) {
             this.bitmaps[key] = range_bitmap(pe.chars, pe.ranges);
@@ -1188,7 +1169,7 @@ class Generator {
     // return true
     // return match_notbitset
 
-    And(pe: Unary, step: number) {
+    PAnd(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             const pos = px.pos
@@ -1201,7 +1182,7 @@ class Generator {
         }
     }
 
-    Not(pe: Unary, step: number) {
+    PNot(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             const pos = px.pos
@@ -1216,7 +1197,7 @@ class Generator {
         }
     }
 
-    Many(pe: Unary, step: number) {
+    PMany(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             var pos = px.pos
@@ -1232,7 +1213,7 @@ class Generator {
         }
     }
 
-    Many1(pe: Unary, step: number) {
+    PMany1(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             if (!pf(px)) {
@@ -1251,7 +1232,7 @@ class Generator {
         }
     }
 
-    POption(pe: Unary, step: number) {
+    POption(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             const pos = px.pos
@@ -1265,7 +1246,7 @@ class Generator {
         }
     }
 
-    Seq(pe: Tuple, step: number) {
+    PSeq(pe: PTuple, step: number) {
         const pfs = pe.es.map(e => this.emit(e, step))
         return (px: PContext) => {
             for (const pf of pfs) {
@@ -1277,7 +1258,7 @@ class Generator {
         }
     }
 
-    Ore(pe: Tuple, step: number) {
+    POre(pe: PTuple, step: number) {
         const pfs = pe.es.map(e => this.emit(e, step))
 
         return (px: PContext) => {
@@ -1319,11 +1300,11 @@ class Generator {
     // px.ast = ast
     // return false
 
-    Alt(pe: Tuple, step: number) {
-        return this.Ore(pe, step);
+    PAlt(pe: PTuple, step: number) {
+        return this.POre(pe, step);
     }
 
-    Ref(pe: Ref, step: number) {
+    PRef(pe: PRef, step: number) {
         const uname = pe.uname();
         const generated = this.generated;
         if (!(uname in generated)) {
@@ -1332,7 +1313,7 @@ class Generator {
         return generated[uname];
     }
 
-    TNode(pe: TNode, step: number) {
+    PNode(pe: PNode, step: number) {
         const pf = this.emit(pe.e, step);
         const tag = pe.tag;
 
@@ -1348,7 +1329,7 @@ class Generator {
         }
     }
 
-    Edge(pe: Edge, step: number) {
+    PEdge(pe: PEdge, step: number) {
         const pf = this.emit(pe.e, step);
         const edge = pe.edge;
         if (edge === '') {
@@ -1366,7 +1347,7 @@ class Generator {
         }
     }
 
-    Fold(pe: Fold, step: number) {
+    PFold(pe: PFold, step: number) {
         const pf = this.emit(pe.e, step);
         const tag = pe.tag;
         const edge = pe.edge;
@@ -1384,7 +1365,7 @@ class Generator {
         }
     }
 
-    Abs(pe: Action, step: number) {
+    PAbs(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             const ast = px.ast
@@ -1418,14 +1399,14 @@ class Generator {
     // peg = this.peg
     // return peg.newRef(name).gen(** option) if name in peg else pe.e.gen(** option)
 
-    Skip(pe: Action, step: number) { // @skip()
+    Skip(pe: PAction, step: number) { // @skip()
         return (px: PContext) => {
             px.pos = Math.min(px.headpos, px.epos)
             return true
         }
     }
 
-    Symbol(pe: Action, step: number) {
+    Symbol(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
         const sid = this.getsid(pe.params[0]);
         return (px: PContext) => {
@@ -1438,7 +1419,7 @@ class Generator {
         }
     }
 
-    Scope(pe: Action, step: number) {
+    Scope(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
         return (px: PContext) => {
             const pos = px.pos;
@@ -1451,14 +1432,14 @@ class Generator {
         }
     }
 
-    Exists(pe: Action, step: number) {
+    Exists(pe: PAction, step: number) {
         const sid = this.getsid(pe.params[0]);
         return (px: PContext) => {
             return getstate(px.state, sid) !== null;
         }
     }
 
-    Match(pe: Action, step: number) {
+    Match(pe: PAction, step: number) {
         const sid = this.getsid(pe.params[0]);
         return (px: PContext) => {
             const state = getstate(px.state, sid);
@@ -1781,12 +1762,12 @@ class TPEGLoader {
         //     return TPEGLoader.choiceN(t.urn_, int(n), ps)
         // return TPEGLoader.choice(t.urn_, ps)
         if (funcname === 'abs') {
-            return new Abs(es[0]);
+            return new PAbs(es[0]);
         }
         if (funcname in TPEGLoader.EPSILON) {
-            return new Action(EMPTY, funcname, es, t);
+            return new PAction(EMPTY, funcname, es, t);
         }
-        return new Action(es[0], funcname, es, t)
+        return new PAction(es[0], funcname, es, t)
     }
 
     // static fileName(e) {

@@ -126,6 +126,9 @@ def minimum_range(chars, ranges):
 
 
 class PRef(PExpr):
+    peg: Grammar
+    name: str
+
     def __init__(self, peg, name):
         self.peg = peg
         self.name = name
@@ -133,8 +136,10 @@ class PRef(PExpr):
     def __repr__(self):
         return self.name
 
-    def uname(self):
-        return self.name if self.name[0].isdigit() else self.peg.gid + self.name
+    def uname(self, peg=None):
+        if self.peg == peg:
+            return self.name
+        return f'{self.peg.ns}{self.name}'
 
     def deref(self):
         return self.peg[self.name]
@@ -425,46 +430,46 @@ def pEmpty(): return EMPTY
 def pAny(): return ANY
 
 
-def pChar(c): return PChar(c) if len(c) > 0 else EMPTY
+def pChar(c: str): return PChar(c) if len(c) > 0 else EMPTY
 
 
-def pRange(cs, rs): return PRange(cs, rs)
+def pRange(cs: str, rs: str): return PRange(cs, rs)
 
 
-def pAnd(e): return PAnd(e)
+def pAnd(e: PExpr): return PAnd(e)
 
 
-def pNot(e): return PNot(e)
+def pNot(e: PExpr): return PNot(e)
 
 
-def pMany(e): return PMany(e)
+def pMany(e: PExpr): return PMany(e)
 
 
-def pMany1(e): return PMany1(e)
+def pMany1(e: PExpr): return PMany1(e)
 
 
-def pOption(e): return POption(e)
+def pOption(e: PExpr): return POption(e)
 
 
 def pSeq(*es): return PSeq(*es)
 
 
-def pSeq2(e, e2): return PSeq(e, e2)
+def pSeq2(e: PExpr, e2: PExpr): return PSeq(e, e2)
 
 
-def pSeq3(e, e2, e3): return PSeq(e, e2, e3)
+def pSeq3(e: PExpr, e2: PExpr, e3: PExpr): return PSeq(e, e2, e3)
 
 
 def pOre(*es): return POre.new(*es)
 
 
-def pOre2(e, e2): return POre.new(e, e2)
+def pOre2(e: PExpr, e2: PExpr): return POre.new(e, e2)
 
 
-def pOre3(e, e2, e3): return POre.new(e, e2, e3)
+def pOre3(e: PExpr, e2: PExpr, e3: PExpr): return POre.new(e, e2, e3)
 
 
-def pRef(peg, name): return PRef(peg, name)
+def pRef(peg: Grammar, name: str): return PRef(peg, name)
 
 
 def pNode(e, tag, shift): return PNode(e, tag)
@@ -500,7 +505,7 @@ GrammarId = 0
 class Grammar(dict):
     def __init__(self):
         global GrammarId
-        self.gid = str(GrammarId)
+        self.ns = str(GrammarId)
         self.N = []
         GrammarId += 1
         super().__setitem__('@@example', [])
@@ -786,7 +791,7 @@ class Generator(object):
         return self.sids[name]
 
     def makelist(self, pe, v: dict, ps: list):
-        if isinstance(pe, Ref):
+        if isinstance(pe, PRef):
             u = pe.uname()
             if u not in self.generated and u not in v:
                 v[u] = pe
@@ -807,7 +812,7 @@ class Generator(object):
         ps = self.makelist(start, {}, [])
 
         for ref in ps:
-            assert isinstance(ref, Ref)
+            assert isinstance(ref, PRef)
             uname = ref.uname()
             self.generating_nonterminal = uname
             A = self.emit(ref.deref(), 0)
@@ -833,10 +838,7 @@ class Generator(object):
 
     def emit(self, pe: PExpr, step: int):
         pe = inline(pe)
-        if isinstance(pe, PAction):
-            cname = pe.func.capitalize()
-        else:
-            cname = pe.PExpr.__name__
+        cname = pe.cname()
         if hasattr(self, cname):
             f = getattr(self, cname)
             return f(pe, step)
@@ -860,10 +862,10 @@ class Generator(object):
             return m.result
         return match_memo
 
-    def Any(self, pe, step):
+    def PAny(self, pe, step):
         return match_any
 
-    def Char(self, pe, step):
+    def PChar(self, pe, step):
         if pe.text in self.cache:
             #DEBUG('CHACHE', pe)
             return self.cache[pe.text]
@@ -904,7 +906,7 @@ class Generator(object):
             return not px.inputs.startswith(chars, px.pos)
         return match_notchar
 
-    def Range(self, pe, step):
+    def PRange(self, pe, step):
         offset = minimum_range(pe.chars, pe.ranges)
         bitset = unique_range(pe.chars, pe.ranges) >> offset
 
@@ -952,7 +954,7 @@ class Generator(object):
             return True
         return match_notbitset
 
-    def And(self, pe, step):
+    def PAnd(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_and(px):
@@ -966,7 +968,7 @@ class Generator(object):
 
         return match_and
 
-    def Not(self, pe, step):
+    def PNot(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_not(px):
@@ -982,7 +984,7 @@ class Generator(object):
 
         return match_not
 
-    def Many(self, pe, step):
+    def PMany(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_many(px):
@@ -998,7 +1000,7 @@ class Generator(object):
 
         return match_many
 
-    def Many1(self, pe, step):
+    def PMany1(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_many1(px):
@@ -1016,7 +1018,7 @@ class Generator(object):
 
         return match_many1
 
-    def Option(self, pe, step):
+    def POption(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_option(px):
@@ -1030,7 +1032,7 @@ class Generator(object):
         return match_option
     # Seq
 
-    def Seq(self, pe, step):
+    def PSeq(self, pe, step):
         # if len(pe) == 2:
         #    return self.Seq2(pe)
         # if len(pe) == 3:
@@ -1050,7 +1052,7 @@ class Generator(object):
         return match_seq
 
     # Ore
-    def Ore(self, pe: POre, step):
+    def POre(self, pe: POre, step):
         # pe2 = Ore.expand(pe)
         # if not isinstance(pe2, Ore):
         #     return self.emit(pe2)
@@ -1075,7 +1077,7 @@ class Generator(object):
 
         return match_ore
 
-    def Ref(self, pe, step):
+    def PRef(self, pe, step):
         uname = pe.uname()
         generated = self.generated
         if uname not in generated:
@@ -1084,7 +1086,7 @@ class Generator(object):
 
     # Tree Construction
 
-    def Node(self, pe, step):
+    def PNode(self, pe, step):
         pf = self.emit(pe.e, step)
         node = pe.tag
 
@@ -1100,7 +1102,7 @@ class Generator(object):
 
         return make_tree
 
-    def Edge(self, pe, step):
+    def PEdge(self, pe, step):
         pf = self.emit(pe.e, step)
         edge = pe.edge
         # if edge == '': return pf
@@ -1116,7 +1118,7 @@ class Generator(object):
             return False
         return match_edge
 
-    def Fold(self, pe, step):
+    def PFold(self, pe, step):
         pf = self.emit(pe.e, step)
         node = pe.tag
         edge = pe.edge
@@ -1133,7 +1135,7 @@ class Generator(object):
             return False
         return match_fold
 
-    def Abs(self, pe, step):
+    def PAbs(self, pe, step):
         pf = self.emit(pe.e, step)
 
         def match_abs(px):
@@ -1160,11 +1162,10 @@ class Generator(object):
     #         l.append(s)
     #     else:
     #         px.memo[key] = [s]
-
-    def Lazy(self, pe, step):  # @lazy(A)
-        name = pe.e.name
-        peg = self.peg
-        return peg.newRef(name).gen(**option) if name in peg else pe.e.gen(**option)
+    # def Lazy(self, pe, step):  # @lazy(A)
+    #     name = pe.e.name
+    #     peg = self.peg
+    #     return peg.newRef(name).gen(**option) if name in peg else pe.e.gen(**option)
 
     def Skip(self, pe, step):  # @skip()
         def skip(px):
@@ -1244,6 +1245,7 @@ class Generator(object):
         return define_dict
 
     def In(self, pe, step):  # @in(NAME)
+        params = pe.params
         name = str(params[0])
 
         def refdict(px):
