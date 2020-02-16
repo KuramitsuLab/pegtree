@@ -92,7 +92,7 @@ const match_skip: PFunc = (px: PContext) => {
   return true
 }
 
-const match_trie = (px: PContext, d: any): boolean => {
+export const match_trie = (px: PContext, d: any): boolean => {
   if (px.pos >= px.epos) {
     return false
   }
@@ -124,6 +124,7 @@ const match_trie = (px: PContext, d: any): boolean => {
     return false;
   }
 }
+
 export const pEmpty = () => {
   return match_empty;
 }

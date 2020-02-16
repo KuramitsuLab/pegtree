@@ -1,5 +1,7 @@
 // Utilities from Python3 Porting
-import { quote, generate as generate_pasm } from './pasm';
+import {
+    quote, generate as generate_pasm, pChar, pSeq, pEmpty, pAny,
+} from './pasm';
 import { TPEG } from './tpeg';
 
 const len = (s: string | any[]) => s.length
@@ -190,7 +192,7 @@ const tail = (xs: PExpr[]) => {
 
 class PSeq extends PTuple {
     static new(...es: PExpr[]) {
-        const ls = []
+        const ls: PExpr[] = []
         for (const e of es) {
             if (e === EMPTY) continue;
             if (ls.length === 0) {
@@ -199,12 +201,12 @@ class PSeq extends PTuple {
             }
             const pe = tail(ls);
             if (e instanceof PChar && pe instanceof PChar) {
-                ls[ls.length - 1] = pChar(pe.text + e.text)
+                ls[ls.length - 1] = new PChar(pe.text + e.text)
                 continue
             }
             ls.push(e)
         }
-        return len(ls) === 1 ? ls[0] : pSeq(...ls)
+        return len(ls) === 1 ? ls[0] : new PSeq(...ls)
     }
 
     public toString() {
@@ -514,26 +516,6 @@ class PAction extends PUnary {
 const EMPTY = new PChar('')
 const ANY = new PAny()
 const FAIL = new PNot(EMPTY)
-
-const pEmpty = () => EMPTY
-const pAny = () => ANY
-const pChar = (c: string) => len(c) > 0 ? new PChar(c) : EMPTY
-const pRange = (cs: string, rs = '') => new PRange(cs, rs)
-const pAnd = (e: PExpr) => new PAnd(e)
-const pNot = (e: PExpr) => new PNot(e)
-const pMany = (e: PExpr) => new PMany(e)
-const pMany1 = (e: PExpr) => new PMany1(e)
-const pOption = (e: PExpr) => new POption(e)
-const pSeq = (...es: PExpr[]) => new PSeq(...es)
-const pSeq2 = (e: PExpr, e2: PExpr) => new PSeq(e, e2)
-const pSeq3 = (e: PExpr, e2: PExpr, e3: PExpr) => new PSeq(e, e2, e3)
-const pOre = (...es: PExpr[]) => POre.new(...es)
-const pOre2 = (e: PExpr, e2: PExpr) => POre.new(e, e2)
-const pOre3 = (e: PExpr, e2: PExpr, e3: PExpr) => POre.new(e, e2, e3)
-const pRef = (peg: Grammar, name: string) => new PRef(peg, name)
-const pNode = (e: PExpr, tag: string, shift = 0) => new PNode(e, tag)
-const pEdge = (label: string, e: PExpr) => (label !== '') ? new PEdge(label, e) : e
-const pFold = (label: string, e: PExpr, tag: string, shift = 0) => new PFold(label, e, tag)
 
 // repr
 
@@ -932,55 +914,12 @@ const getstate = (state: State | null, sid: number) => {
 
 // Generator
 
-const match_empty = (px: PContext) => true
-
-const match_any = (px: PContext) => {
-    if (px.pos < px.epos) {
-        px.pos += 1
-        return true
-    }
-    return false;
-}
-
-const match_trie = (px: PContext, d: any): boolean => {
-    if (px.pos >= px.epos) {
-        return false
-    }
-    if (!Array.isArray(d)) {
-        const c = px.x[px.pos];
-        if (c in d) {
-            px.pos += 1;
-            const s = d[c];
-            if (typeof s === 'string') {
-                if (px.x.startsWith(s, px.pos)) {
-                    px.pos += len(s)
-                    return true
-                }
-                return false;
-            }
-            return match_trie(px, s);
-        }
-        return false;
-    }
-    else {
-        const inputs = px.x;
-        const pos = px.pos;
-        for (const s of d) {
-            if (inputs.startsWith(s, pos)) {
-                px.pos += len(s)
-                return true
-            }
-        }
-        return false;
-    }
-}
 
 
 class Generator {
     peg: Grammar | null;
     generated: { [key: string]: (px: PContext) => boolean }
     generating_nonterminal: string;
-    cache: { [key: string]: (px: PContext) => boolean }
     sids: { [key: string]: number }
     bitmaps: { [key: string]: Uint8Array };
 
@@ -988,7 +927,6 @@ class Generator {
         this.peg = null
         this.generated = {}
         this.generating_nonterminal = ''
-        this.cache = { '': match_empty }
         this.sids = {}
         this.bitmaps = {}
     }
@@ -1052,7 +990,7 @@ class Generator {
             return (this as any)[cname](pe, step);
         }
         console.log('@TODO(Generator)', cname, pe)
-        return match_empty
+        return pEmpty();
     }
 
     //     def memoize(self, mp, msize, A):
@@ -1073,24 +1011,11 @@ class Generator {
     // return match_memo
 
     PAny(pe: PAny, step: number) {
-        return match_any
+        return pAny();
     }
 
     PChar(pe: PChar, step: number) {
-        if (pe.text in this.cache) {
-            return this.cache[pe.text]
-        }
-        const chars = pe.text
-        const clen = len(pe.text)
-        //
-        this.cache[pe.text] = (px: PContext) => {
-            if (px.x.startsWith(chars, px.pos)) {
-                px.pos += clen
-                return true
-            }
-            return false
-        }
-        return this.cache[pe.text];
+        return pChar(pe.text);
     }
 
     //     def ManyChar(self, pe, step):
@@ -1656,7 +1581,8 @@ class TPEGLoader {
         while (pos < len(s)) {
             pos = TPEGLoader.unquote(s, pos, sb)
         }
-        return pChar(sb.join(''));
+        const text = sb.join('');
+        return text.length > 0 ? new PChar(text) : EMPTY;
     }
 
     Class(t: ParseTree) {
@@ -1672,9 +1598,9 @@ class TPEGLoader {
             }
         }
         if (len(chars) == 1 && len(ranges) == 0) {
-            return pChar(chars.join(''));
+            return new PChar(chars.join(''));
         }
-        return pRange(chars.join(''), ranges.join(''))
+        return new PRange(chars.join(''), ranges.join(''))
     }
 
     // def Ref(self, t):
@@ -1700,54 +1626,54 @@ class TPEGLoader {
     }
 
     Many(t: TPEGExpr) {
-        return pMany(this.conv(t.e))
+        return new PMany(this.conv(t.e))
     }
 
     Many1(t: TPEGExpr) {
-        return pMany1(this.conv(t.e))
+        return new PMany1(this.conv(t.e))
     }
 
     Option(t: TPEGExpr) {
-        return pOption(this.conv(t.e))
+        return new POption(this.conv(t.e))
     }
 
     And(t: TPEGExpr) {
-        return pAnd(this.conv(t.e))
+        return new PAnd(this.conv(t.e))
     }
 
     Not(t: TPEGExpr) {
-        return pNot(this.conv(t.e))
+        return new PNot(this.conv(t.e))
     }
 
     Seq(t: ParseTree) {
-        return pSeq(...t.subNodes().map(p => this.conv(p)))
+        return new PSeq(...t.subNodes().map(p => this.conv(p)))
     }
 
     Ore(t: ParseTree) {
-        return pOre(...t.subNodes().map(p => this.conv(p)))
+        return POre.new(...t.subNodes().map(p => this.conv(p)))
     }
 
     Alt(t: ParseTree) {
-        return pOre(...t.subNodes().map(p => this.conv(p)))
+        return POre.new(...t.subNodes().map(p => this.conv(p)))
     }
 
     Node(t: ParseTree | any) {
         const tag = str(t.tag)
         const e = this.conv(t.e)
-        return pNode(e, tag, 0)
+        return new PNode(e, tag)
     }
 
     Edge(t: ParseTree | any) {
         const edge = str(t.edge)
         const e = this.conv(t.e)
-        return pEdge(edge, e)
+        return new PEdge(edge, e)
     }
 
     Fold(t: ParseTree | any) {
         const edge = str(t.edge)
         const tag = str(t.tag)
         const e = this.conv(t.e)
-        return pFold(edge, e, tag, 0)
+        return new PFold(edge, e, tag)
     }
 
     static readonly EPSILON: { [key: string]: string } = {
