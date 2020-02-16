@@ -752,10 +752,12 @@ export const quote = (s: string) => {
   return "'" + translate(s, ESCTBL) + "'"
 }
 
+export type Parser = (inputs: string, options?: any) => ParseTree;
 
-export const generate = (generated: { [key: string]: PFunc }, start: string) => {
+export const generate = (generated: { [key: string]: PFunc }, start: string): Parser => {
   const pf = generated[start];
-  return (inputs: string, options: any = {}) => {
+  return (inputs: string, options?: any) => {
+    options = options || {};
     const pos: number = options.pos || options.spos || 0;
     const epos: number = options.epos || (inputs.length - pos);
     const px = new PContext(inputs, pos, epos);
@@ -767,7 +769,7 @@ export const generate = (generated: { [key: string]: PFunc }, start: string) => 
     else {
       px.ast = new PTree(null, "err", px.headpos, px.headpos, null);
     }
-    const conv: ((t: PTree, urn: string, inputs: string) => any) = options.conv || PTree2ParseTree;
+    const conv: ((t: PTree, urn: string, inputs: string) => ParseTree) = options.conv || PTree2ParseTree;
     const urn = options.urn || '(unknown source)';
     return conv(px.ast!, urn, inputs);
   }

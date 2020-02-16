@@ -1,12 +1,14 @@
 {
   "name": "pegtree",
-  "version": "1.0.0",
-  "description": "A PEG-Tree Parser",
-  "main": "index.js",
+  "version": "0.9.0",
+  "description": "A PEG-Tree Parser Combinator",
+  "main": "dist/index.js",
   "directories": {
     "test": "tests"
   },
   "scripts": {
+    "prepare": "tsc",
+    "build": "tsc",
     "test": "jst"
   },
   "repository": {
@@ -14,7 +16,9 @@
     "url": "git+https://github.com/KuramitsuLab/pegtree.git"
   },
   "keywords": [
-    "PEG"
+    "PEG",
+    "parsing",
+    "parser"
   ],
   "author": "Kimio Kuramitsu <kkuramitsu@gmail.com> (https://github.com/kkuramitsu)",
   "license": "ISC",
@@ -27,5 +31,8 @@
     "ts-node": "^8.6.2",
     "ts-node-dev": "^1.0.0-pre.44",
     "typescript": "^3.7.5"
+  },
+  "dependencies": {
+    "user": "0.0.0"
   }
 }
