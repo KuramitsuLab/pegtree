@@ -21,7 +21,7 @@
     "parser"
   ],
   "author": "Kimio Kuramitsu <kkuramitsu@gmail.com> (https://github.com/kkuramitsu)",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
     "url": "https://github.com/KuramitsuLab/pegtree/issues"
   },
@@ -31,8 +31,5 @@
     "ts-node": "^8.6.2",
     "ts-node-dev": "^1.0.0-pre.44",
     "typescript": "^3.7.5"
-  },
-  "dependencies": {
-    "user": "0.0.0"
   }
 }

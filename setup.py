@@ -9,15 +9,24 @@ setup(
     url='https://github.com/KuramitsuLab/pegtree.git',
     license='MIT',
     author='Kimio Kuramitsu',
-    description='PEG Tree for Python',
+    description='PEGTree for Python and JavaScript',
     install_requires=['setuptools'],
         packages=['pegtree'],
         package_data={'pegtree': ['grammar/*.tpeg',
-                                  'grammar/*.peg', 'parser/*.*']},
+                                  'grammar/*.peg']},
     entry_points={
         'console_scripts': [
             'pegtree = pegtree.main:main'
         ]
     },
+    classifiers=[
+        'Development Status :: 5 - Production/Stable',
+        'License :: OSI Approved :: MIT',
+        'Programming Language :: Python :: 3.4',
+        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3.6',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Text Processing',
+    ],
     test_suite='test_all.suite'
 )
