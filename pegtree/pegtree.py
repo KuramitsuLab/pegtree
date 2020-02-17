@@ -126,9 +126,6 @@ def minimum_range(chars, ranges):
 
 
 class PRef(PExpr):
-    peg: Grammar
-    name: str
-
     def __init__(self, peg, name):
         self.peg = peg
         self.name = name
