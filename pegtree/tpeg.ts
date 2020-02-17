@@ -56,6 +56,6 @@ export const TPEG = (peg?: any) => {
   return peg
 }
 
-const G = TPEG({})
-console.log(G)
-example(G, 'Expression', 'A A A')
+// const G = TPEG({})
+// console.log(G)
+// example(G, 'Expression', 'A A A')

@@ -9,7 +9,7 @@
   "scripts": {
     "prepare": "tsc",
     "build": "tsc",
-    "test": "jst"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -27,9 +27,31 @@
   },
   "homepage": "https://github.com/KuramitsuLab/pegtree#readme",
   "devDependencies": {
+    "@types/jest": "^25.1.2",
     "@types/node": "^13.7.0",
+    "jest": "^25.1.0",
+    "ts-jest": "^25.2.0",
     "ts-node": "^8.6.2",
     "ts-node-dev": "^1.0.0-pre.44",
     "typescript": "^3.7.5"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js"
+    ],
+    "transform": {
+      "^.+\\.(ts|tsx)$": "ts-jest"
+    },
+    "globals": {
+      "ts-jest": {
+        "tsConfig": "tsconfig.json"
+      },
+      "window": {}
+    },
+    "testMatch": [
+      "**/test/*.+(ts|tsx|js)"
+    ]
   }
 }

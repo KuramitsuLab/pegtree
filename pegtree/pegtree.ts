@@ -952,7 +952,7 @@ const load_grammar = (peg: Grammar, source: string, options: any = {}) => {
     return peg;
 }
 
-const peg = load_grammar(new Grammar(), `
-A = 'a'
-`)
-console.log(peg);
+// const peg = load_grammar(new Grammar(), `
+// A = 'a'
+// `)
+// console.log(peg);

@@ -54,7 +54,7 @@ def log(type, pos, *msg):
 
 
 def version():
-    print(bold('PEGPY - TPEG Parsing for Python3'))
+    print(bold('PEGTree Parsing for Python3'))
 
 
 def read_inputs(a):
@@ -118,7 +118,7 @@ class CommandUsageError(Exception):
 
 
 def usage():
-    print("Usage: pegpy <command> options inputs")
+    print("Usage: pegtree <command> options inputs")
     print("  -g | --grammar <file>      specify a grammar file")
     print("  -s | --start <NAME>        specify a starting rule")
     print("  -o | --output <file>       specify an output file")
@@ -126,16 +126,16 @@ def usage():
     print()
 
     print("Example:")
-    print("  pegpy parse -g math.tpeg <inputs>")
-    print("  pegpy example -g math.tpeg <inputs>")
-    print("  pegpy function -g math.tpeg parser.ts")
+    print("  pegtree parse -g math.tpeg <inputs>")
+    print("  pegtree example -g math.tpeg <inputs>")
+    print("  pegtree pasm -g math.tpeg")
     print()
 
     print("The most commonly used nez commands are:")
     print(" parse      run an interactive parser")
-    print(" function   generate a parser combinator function")
+    print(" pasm       generate a parser combinator function")
     print(" example    test all examples")
-    print(" update     update pegpy (via pip)")
+    print(" update     update pegtree (via pip)")
 
 
 def load_grammar(options, default=None):
@@ -145,15 +145,15 @@ def load_grammar(options, default=None):
     if file == 'stdin.tpeg':
         data = sys.stdin.read()
         options['basepath'] = file
-        return pegpy.grammar(data, **options)
-    return pegpy.grammar(file, **options)
+        return pegtree.grammar(data, **options)
+    return pegtree.grammar(file, **options)
 
 
 def generator(options):
     if 'parser' in options:
         m = importlib.import_module(options['parser'])
         return m.generate
-    return pegpy.generate
+    return pegtree.generate
 
 
 # parse command
@@ -252,7 +252,7 @@ def update(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(
-            ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegtree.git'])
+            ['pip3', 'install', '-U', 'pegtree'])
     except:
         pass
 
@@ -272,6 +272,10 @@ def main(argv=sys.argv):
         if len(argv) > 1:
             cmd = argv[1]
             options = parse_options(argv[2:])
+            cs = cmd.split('.')
+            if len(cs) == 2:
+                cmd = cs[0]
+                options['ext'] = cs[1]
             if cmd in names:
                 names[cmd](options)
                 return
