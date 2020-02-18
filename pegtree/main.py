@@ -131,7 +131,7 @@ def usage():
     print("  pegtree pasm -g math.tpeg")
     print()
 
-    print("The most commonly used nez commands are:")
+    print("The most commonly used pegtree commands are:")
     print(" parse      run an interactive parser")
     print(" pasm       generate a parser combinator function")
     print(" example    test all examples")

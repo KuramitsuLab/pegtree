@@ -932,7 +932,7 @@ class Generator(object):
                     continue
 
             return False
-        return match_bitset
+        return match_manybitset
 
     def AndRange(self, pe, step):
         bitset = unique_range(pe.chars, pe.ranges)  # >> offset
@@ -943,7 +943,7 @@ class Generator(object):
                 if shift >= 0 and (bitset & (1 << shift)) != 0:
                     return True
             return False
-        return match_bitset
+        return match_andbitset
 
     def NotRange(self, pe, step):
         bitset = unique_range(pe.chars, pe.ranges)  # >> offset
@@ -1561,7 +1561,7 @@ class TPEGLoader(object):
         return pOre(*tuple(map(lambda p: self.conv(p, step), t)))
 
     def Alt(self, t, step):
-        return pAlt(*tuple(map(lambda p: self.conv(p, step), t)))
+        return pOre(*tuple(map(lambda p: self.conv(p, step), t)))
 
     def Node(self, t, step):
         tag = str(t.tag) if hasattr(t, 'tag') else ''
