@@ -240,12 +240,10 @@ def peg(options):
     print(peg)
 
 
-def parsec(options):
+def pasm(options):
     from pegtree.parsec import parsec
-    inputs = options['inputs']
-    file = 'pegtree.json' if len(inputs) == 0 else f[0]
     peg = load_grammar(options)
-    parsec(inputs[0], peg, **options)
+    parsec(peg, **options)
 
 
 def update(options):

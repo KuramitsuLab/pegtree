@@ -11,6 +11,7 @@
 /coverage
 
 # production
+/pegtree.egg-info
 /build
 
 # misc

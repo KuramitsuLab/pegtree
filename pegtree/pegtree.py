@@ -466,7 +466,7 @@ def pOre2(e: PExpr, e2: PExpr): return POre.new(e, e2)
 def pOre3(e: PExpr, e2: PExpr, e3: PExpr): return POre.new(e, e2, e3)
 
 
-def pRef(peg: Grammar, name: str): return PRef(peg, name)
+def pRef(peg, name: str): return PRef(peg, name)
 
 
 def pNode(e, tag, shift): return PNode(e, tag)
@@ -500,7 +500,7 @@ GrammarId = 0
 
 
 class Grammar(dict):
-    def __init__(self):
+    def __init__(self, source=None):
         global GrammarId
         self.ns = str(GrammarId)
         self.N = []
@@ -810,15 +810,20 @@ class Generator(object):
 
         for ref in ps:
             assert isinstance(ref, PRef)
-            uname = ref.uname()
-            self.generating_nonterminal = uname
-            A = self.emit(ref.deref(), 0)
+            self.generating_nonterminal = ref.uname()
+            self.emitRule(ref)
             self.generating_nonterminal = ''
-            idx = memos.index(ref.name)
-            # if idx != -1 and ref.peg == peg:
-            #     A = self.memoize(idx, len(memos), A)
-            self.generated[uname] = A
 
+        return self.emitParser(start)
+
+    def emitRule(self, ref):
+        A = self.emit(ref.deref(), 0)
+        # idx = memos.index(ref.name)
+        # if idx != -1 and ref.peg == peg:
+        #     A = self.memoize(idx, len(memos), A)
+        self.generated[ref.uname()] = A
+
+    def emitParser(self, start):
         pf = self.generated[start.uname()]
 
         def parse(inputs, urn='(unknown source)', pos=0, epos=None, conv=PTree2ParseTree):
@@ -840,7 +845,7 @@ class Generator(object):
             f = getattr(self, cname)
             return f(pe, step)
         print('@TODO(Generator)', cname, pe)
-        return match_empty
+        return self.PChar(EMPTY)
 
     def memoize(self, mp, msize, A):
         def match_memo(px):
@@ -1296,7 +1301,7 @@ class Generator(object):
 generator = Generator()
 
 
-def generate(peg: Grammar, **options):
+def generate(peg, **options):
     return generator.generate(peg, **options)
 
 # ParseTree
@@ -1702,5 +1707,3 @@ grammar = grammar_factory()
 
 if __name__ == '__main__':
     peg = grammar('es.tpeg')
-    #peg = grammar('test.tpeg')
-    # print(peg)
