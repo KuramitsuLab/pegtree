@@ -42,7 +42,7 @@ class Parsec(Generator):
             try:
                 return self.apply.format(name, self.delim.join(args))
             except:
-                print('@', name, args)
+                print('@FIXME', name, args)
                 return 'FIXME'
 
     def quote(self, s):
@@ -129,9 +129,9 @@ class Parsec(Generator):
     # Ore
     def POre(self, pe, step):
         if pe.isDict():
-            ss = [self.quote(s) for s in pe.istDict()]
-            ss = self.dictlist.format(self.delim.join(ss))
-            return self.emitApply('Dict', len(ss), *ss)
+            ss = [self.quote(s) for s in pe.listDict()]
+            lst = self.dictlist.format(self.delim.join(ss))
+            return self.emitApply('Dict', str(len(ss)), lst)
         fs = [self.emit(e, step) for e in pe]
         if len(fs) == 2:
             return self.emitApply('Ore2', *fs)

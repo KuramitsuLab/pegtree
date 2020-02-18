@@ -265,21 +265,18 @@ def beta(options):
 
 
 def main(argv=sys.argv):
-    try:
-        names = globals()
-        if len(argv) > 1:
-            cmd = argv[1]
-            options = parse_options(argv[2:])
-            cs = cmd.split('.')
-            if len(cs) == 2:
-                cmd = cs[0]
-                options['ext'] = cs[1]
-            if cmd in names:
-                names[cmd](options)
-                return
-        raise CommandUsageError()
-    except CommandUsageError:
-        usage()
+    names = globals()
+    if len(argv) > 1:
+        cmd = argv[1]
+        options = parse_options(argv[2:])
+        cs = cmd.split('.')
+        if len(cs) == 2:
+            cmd = cs[0]
+            options['ext'] = cs[1]
+        if cmd in names:
+            names[cmd](options)
+        else:
+            usage()
 
 
 if __name__ == "__main__":
