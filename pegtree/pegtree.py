@@ -1411,6 +1411,10 @@ class ParseTree(list):
         sb.append("]")
 
 
+def logger(type, pos, msg):
+    print(pos.showing(msg))
+
+
 class TPEGLoader(object):
     def __init__(self, peg):
         self.names = {}
@@ -1529,8 +1533,8 @@ class TPEGLoader(object):
         if name in self.names:
             return self.peg.newRef(name)
         if name[0].isupper() or name[0].islower() or name.startswith('_'):
-            default_logger('warning', t, f'undefined nonterminal {name}')
-            self.peg.add(name, EMPTY)
+            logger('warning', t, f'undefined nonterminal {name}')
+            self.peg[name] = EMPTY
             return self.peg.newRef(name)
         return pChar(name[1:-1]) if name.startswith('"') else char1(name)
 
@@ -1642,11 +1646,8 @@ class TPEGLoader(object):
 
 def grammar_factory():
 
-    def default_logger(type, pos, msg):
-        print(pos.showing(msg))
-
     def load_grammar(g, file, **options):
-        logger = options.get('logger', default_logger)
+        #logger = options.get('logger', logger)
         pegparser = generate(options.get('peg', TPEGGrammar))
         if isinstance(file, Path):
             f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
