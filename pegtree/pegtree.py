@@ -1425,7 +1425,7 @@ class TPEGLoader(object):
             if stmt == 'Rule':
                 name = str(stmt.name)
                 if name in self.names:
-                    pos4 = stmt['name'].getpos4()
+                    #pos4 = stmt['name'].getpos4()
                     logger('error', stmt.name, f'redefined name {name}')
                     continue
                 self.names[name] = stmt.e

@@ -1,0 +1,537 @@
+/* CJ Controlled Japanese 文法 */
+
+/*
+トップの規則
+入力をClauseの繰り返しとみる
+*/
+
+Sentence = {
+    (Chunk / Error)* EOS
+    #S
+}
+
+Chunk =
+    / Conjunction TEN // 接続詞 TEN付きの優先度をあげる
+    / Adverb       // 副詞
+    / Measure      // 助数詞
+    / Adnominal    // 連体詞は先, 「多くの人」が形容詞にマッチする
+    / NounChunk0   // 優先名詞チャンク　「組み合わせ」を先にする
+    / AdjectiveChunk  // 形容詞節
+    / VerbChunk    // 動詞節
+    / NounChunk    // 名詞節, 形容動詞節
+    / Conjunction  // 接続詞 優先度を下げる
+
+VChunk =
+    / Adverb
+    / AdjectiveChunk
+    / VerbChunk
+
+// 接辞
+
+xNoun = // もの
+    / BE xBe / xMay
+    / ^{ {'から' / 'より'} #From } xNounOf?
+    / ^{ {'まで'} #Until } xNounOf?
+    / ^{ {'へ'} #To } xNounOf?        // Aへの, Aへは
+    / ^{ 'に' (Against / About / xLet / By / Despite / xNounOf)? #Adverb }     // Aにの~ , Aには~
+    / ^{ {'と' 'か'?} #Object } (xLet / xNounOf)?    // Aとの~ , Aとは~
+    / ^{ {'で'} #Object } (xExist/xNounOf)?    // Aでの~,
+    / ^{ {'かぎり' / '限り'} #AsLong } xNoun? // その場かぎり
+    / ^{ {'か' ('どうか'/'否か')} #Whether } xNoun? // 可能かどうか
+    / ^{ {'か'} #OrElse } xNoun? // 可能か不可能か
+    / ^{ {'のみ'/'だけ'/'ばかり'/'さえ'} #Only } xNoun?   // 彼のみを
+    / ^{ {'らし'} #Likely } xAdj   // 単語らしい
+    / ^{ {'ごと'} #Each } xNoun?   // 単語ごと+で
+    / ^{ {'など'} #Etc } xNoun?   // 単語など+で
+    / ^{ {'なし'} #No } xNoun?   // 単語なし+の
+    / ^{ {'そう'}  #Seem } xNoun?   // 正確そう
+    / ^{ {'さ' !'れ'} #Noun } xNoun? // 正確さ
+    / ^{ {'なら' 'ば'?} #If }  // 正確ならば
+    / ^{ {'な'} #Adjective }  // 正確な
+    / ^{ {'を'} #Object }
+    / ^{ {'や'} #AndOr }
+    / ^{ {'または'} #Or }
+    / xNounOf
+
+xNounOf = 
+    / ^{ {('こそ' / [はがも])} #Subject }
+    / ^{ {'の'} #That } xNoun // Aのは Aの(もの)に
+    / ^{ {'の'} !'み' #Of } xLike?  // 
+
+xLike = ^{ 'よう' #Like } xNoun?
+
+xLet = // と +
+    / ^{ 'する' #Let } xBase?
+    / ^{ 'して' #Let } xNounOf?
+    / ^{ 'した' #Let } xPast?
+    / ^{ 'し' #Let } xTen
+
+xBase = // する+ した+
+    / xMay / xShould
+    / ^{ 'らし' #Sound } xAdj   // するらしい
+    / ^{ {'のみ'/ 'だけ'} #OnlyThat } xNoun?
+    / ^{ {'ため' / '為'} #Because } xNoun?
+    / ^{ {'ので' / 'から'} #Because } 
+    / ^{ {'かぎり' / '限り'} #AsLong } xNoun?
+    / ^{ {'の'? 'か' ('どうか'/'否か')? }  #Whether } xNoun?
+    / ^{ {'とき' / 'と' TEN / '時' / '場合' / '際' / 'ところ'}  #If } xNoun?
+    / ^{ {'のなら' 'ば'?} #If }
+    / ^{ {'とおり' / 'よう'} #As } xNoun?
+    / ^{ {'と' 'か'?} #That } xNoun?
+    / ^{ {'まで'} #Until } xNoun?
+    / ^{ {'まま'} #AsIs } xNoun?
+    / ^{ {'には'} #That }
+    / ^{ {'の'} #That } xNoun?
+
+xPast = // した
+    / ^{ {'り'} #AndThen }
+    / ^{ {'な'? 'ら' 'ば'?} #If } 
+    / xBase
+
+
+Against = // に + 
+    { '対する' / '対し' ('て' xNounOf? / 'た' xPast? )? #Against }
+
+About = // に + 
+    { 'ついて' xNounOf? / '関し' ('て' xNounOf? / 'た' xPast? )? #About }
+
+By = // に + 
+    { 'よる' / 'よっ' ('て' xNounOf? / 'た' )? / 'より' #About }
+
+Despite = // に + 
+    { ('かか'/'関') 'わらず' / '関係なく' #Despite }
+
+xMay =
+    ^{ 'かも' [知し] 'れ' ('ない' / 'ません' / xMood) #May }
+
+xShould = 
+    ^{ ('べき' / 'べし' / 'はず' ) #Should } xNoun?
+
+BE = &[でだ]
+xBe = // すべき
+    / ^{ {'で' ('すら' / 'さえ')} #Though }     // 首相ですら 
+    / ^{ {'でな'} #IsNot} xAdj 
+    / ^{ {('でしょう' / 'だろう')} #WouldBe } xBase?
+    / ^{ {('でした' / 'だった')}  #Was } xPast?
+    / ^{ {('です' / 'である' / 'だ' !'け')} #Is } xBase?
+
+Exist = { 'あ' xMoodA #Exist }
+xExist = ^{ 'あ' xMoodA #Exist }
+
+
+// CJルール 接続詞
+// 優先度
+Conjunction = { // e.g., こうして
+    @choice('cjdic/CONJ.txt')
+    #Conjunction 
+}
+
+// CJルール 副詞
+// ADVERB.txt 副詞辞書
+// ADVERB_NOUM.txt 
+// 副詞名詞辞書 漢字、もしくはカタカナで終わる副詞
+// 例. 過去に戻る 過去、言った
+
+Adverb = {   // e.g., 順次
+    (@choice('cjdic/ADVERB.txt') // 次に
+    / @choice('cjdic/ADVERB_NOUN.txt'))   // 順次、
+    #Adverb 
+} (VChunk / xNoun )?
+
+// 助数詞
+// Code に数量を表す語が続く
+
+Measure = {
+    UnitPrefix?
+    (Code / NumericNoun ) 
+    !NONUNIT Unit
+    UnitPostfix?
+    #Measure
+} xNoun?
+
+
+UnitPrefix = 
+    / { '約' / 'およそ' #Aprox }
+    / { 'もう' / 'さらに' / '更に' #More }
+    / { '高々'/ 'たかだか' / '多くとも' / '最大' #AtMost }
+    / { '少なくとも' / '最小' #AtLeast }
+
+NumericNoun = {
+    '複数' / [一二三毎数先今次]  // 複数回 毎回 今回
+    #Noun
+}
+
+// 単位
+// カタカナ (例. ドル、メートル)
+// もしくは、cjdic/UNIT 単位辞書に登録する
+
+Unit = {
+    @choice('cjdic/UNIT.txt') / KATA+
+    #Unit
+}
+
+NONUNIT = @choice('cjdic/NONUNIT.txt')
+
+UnitPostfix = 
+    / { '程' / 'ほど' #Aprox }
+    / { 'ごと' / '毎' #Each }
+    / { '以上' #Gte }
+    / { '以下' #Lte }
+    / { '未満' #Lt }
+
+// 連体詞
+// 名詞があとに続くが、単独では名詞でも形容動詞でも解釈できない
+// 「こ」の 連体詞　「一部」の　名詞＋「の」
+// 辞書 ADNOUN.txt
+// 「~たる」は除外　微々たる, 切々たる 
+// 「~しき」は除外　奇しき, 悪しき 
+
+Adnominal = { 
+    @choice('cjdic/ADNOUN.txt') 
+    #Adjective 
+} xNoun?   // '同じ' のように名詞化するものもある
+
+
+/*
+名詞 NounChunk 名詞らしいもので始まる
+優先度 0
+*/
+
+NounChunk0 = 
+    / VerbalNoun (xNoun / TEN / EOF)
+    / DictNoun xNoun?
+
+// 動詞から派生した複合名詞 
+// 呼び + 出し のようにふたつ組み合わせて名詞になる動詞
+
+VerbalNoun = {
+    XVERB XVERB 
+    #Noun
+}
+
+// XVERB 「~ ます」に続く
+
+XVERB = @choice('cjdic/XVERB.txt') 
+
+DictNoun = {
+    @choice('cjdic/NOUN.txt') / @choice('cjdic/NOUNADJ.txt')
+    #Noun
+}
+
+example Sentence ハワイについて
+example Sentence ハワイに着いて
+
+/*
+名詞 Noun
+*/
+
+// CJルール 名詞
+// 平仮名が含まれない字句は外来語（名詞）とする
+//   ForeignNoun  例. クラス・メソッド
+// 平仮名が含まれる名詞は
+//  あらかじめ辞書に登録する  DictNone 
+//  「奥の細道」のようにカッコで書く  NewNoun
+
+NounChunk =
+    / Code xNoun?
+    / NewNoun (xNounVerb / xNoun)?
+    / PatNoun (xNounVerb / xNoun)?
+
+NewNoun =
+    / '「' { (!'」' .)* #Phrase } '」'
+    / '『' { (!'』' .)* #Phrase } '』'
+    / '【' { (!'】' .)* #Phrase } '】'
+    / '〔' { (!'〕' .)* #Phrase } '〕'
+
+// CJルール 名詞
+// 辞書に含まれていない名詞
+// 漢字、もしくはカタカタで始まる
+// ひらがなは xNoun が接尾に含まれる
+
+PatNoun = {
+    XVERB ( XVERB / NONHIRA+ / &[はもにをがと] / EOF )
+    / NONHIRA (XVERB / NONHIRA)* 
+    #PNoun
+}
+
+// XVERB 以外の名詞の接尾詞　FIXME
+//xNoun = !'らしい' @choice('cjdic/xNoun.txt')
+
+/*
+動詞の未然形活用
+未然形はほぼ確実に助動詞が繋がるため先読みで誤マッチを抑制している
+これで「止まる」の先頭文字列「止ま」が「止む」の未然形「止ま」にマッチしない
+*/
+
+VerbChunk = 
+    / Exist / Do / Come
+    / VerbKA5 xVerbKA5
+    / VerbSA5 xVerbSA5
+    / VerbTA5 xVerbTA5
+    / VerbNA5 xVerbNA5
+    / VerbMA5 xVerbMA5
+    / VerbRA5 xVerbRA5
+    / VerbWA5 xVerbWA5
+    / VerbGA5 xVerbGA5
+    / VerbBA5 xVerbBA5
+    / Verb1 xVerb1
+
+VerbKA5 = { @choice('cjdic/VERB5KA.txt') &[か-こい] #VerbKA5 }
+VerbSA5 = { @choice('cjdic/VERB5SA.txt') &[さ-そ] #VerbSA5 }
+VerbTA5 = { @choice('cjdic/VERB5TA.txt') &[た-とっ] #VerbTA5 }
+VerbNA5 = { @choice('cjdic/VERB5NA.txt') &[な-のん] #VerbNA5 }
+VerbMA5 = { @choice('cjdic/VERB5MA.txt') &[ま-もん] #VerbMA5 }
+VerbRA5 = { @choice('cjdic/VERB5RA.txt') &[ら-ろっ] #VerbRA5 }
+VerbWA5 = { @choice('cjdic/VERB5WA.txt') &[わいうえおっ] #VerbWA5 }
+VerbGA5 = { @choice('cjdic/VERB5GA.txt') &[が-ごい] #VerbGA5 }
+VerbBA5 = { @choice('cjdic/VERB5BA.txt') &[ば-ぼん] #VerbBA5 }
+Verb1 = { !'それ' @choice('cjdic/VERB1.txt') #Verb1 }
+
+xAdj = //な
+    / ^{ {'ければ'} #If }
+    / ^{ {'くな'} #Not } xAdj
+    / ^{ {'くても'} #EvenIf }
+    / ^{ {'く' 'て'?} #And }
+    / ^{ {'い'} #Base } xBase?
+    / ^{ {'かった'}  #Past } xPast?
+    / ^{ {'さ'} #Noun } xNoun?
+
+xPolite =
+    / ^{ {('ます' / 'ましょう')} #Base } xBase?
+    / ^{ {'ません' 'でした'?} #Not } xBase?
+    / ^{ {'ましたら'} #If }
+    / ^{ {'ました'} #Past } xPast?
+    / ^{ {'ましても'} #EvenIf }
+    / ^{ {'まして'} #And }
+
+xMood = // でき+　　られ+
+    / &'ま' xPolite
+    / ^{ {'な'} #Not } xAdj
+    / ^{ {'る'} #Base } xBase?
+    / ^{ {'た'} #Past } xPast?
+    / ^{ {'れば'} #If }
+    / ^{ {'てから'} #After }
+    / ^{ {'ても'} #EvenIf }
+    / ^{ {'て'?}  #And } xTry?
+
+MOOD1 = [まなるたれて]
+
+xMoodA = // あ+る
+    / 'り' &'ま' xPolite
+    / ^{ 'る' #Base } xBase?
+    / ^{ 'った' #Past } xPast?
+    / ^{ 'れば' #If }
+    / ^{ 'ってから' #After }
+    / ^{ 'っても' #EvenIf }
+    / ^{ 'って' #And }
+
+// 補助動詞
+xTry = // て
+    / { 'み' xMood #TryTo }  // 笑ってみる
+    / { 'い' xMood #Now }    // 笑っている
+    / Exist                 // 笑ってある 
+    / Come                  // 笑ってくる
+
+
+xVerbA = // 書か+ない   探さ+ない
+    / ^{ {'な'} #Not } xAdj
+    / ^{ {'ず'} #Not } xNounOf?
+    / ^{ {'さ'? 'せ' 'られ'?} #Make } xMood
+    / ^{ {'れ'} &MOOD1 #xBeen } xMood // これる vs. これは
+
+xVerbIX = // 書い+て   探し+て　
+    / ^{ {'た'} #Past } xPast?
+    / ^{ {'てから'} #After }
+    / ^{ {'ても'} #EvenIf }
+    / ^{ {'て'} #And } xTry?
+
+xVerbIXD = // 遊んだ   遊んで
+    / ^{ {'だ'} #Past } xPast?
+    / ^{ {'でから'} #After }
+    / ^{ {'でも'} #EvenIf }
+    / ^{ {'で'}  #And } xTry?
+
+xVerbI = // 書き+つつ  探し+つつ　
+    / &'ま' xPolite
+    / ^{ {'た'} #WantTo } xAdj   // 書きたい
+    / ^{ {('やす' / 'よ' )} #EasyTo } xAdj  // 書きやすい
+    / ^{ {('にく' / 'がた' / 'づら')} #HardTo } xAdj //書きがたい
+    / ^{ {'がち'}  #xLikely } xNoun? //休みがちだ
+    / ^{ {('つつ' / 'ながら')} #While }
+    / (xNoun / TEN / EOF) ^{ #Noun }   // 書出し
+    / ^{ !MOOD1 #And }
+
+xVerbU = // 書く　探す
+    / xBase?
+
+xVerbE = // 書け+ば  探せ+ば
+    / ^{ 'ば' #If }
+
+xVerbO = // 書こ+う　探そ+う
+    / ^{ 'う' xBase? #Will }
+
+// カ行変格活用動詞
+Come = 
+    / { 'こ' #Come } xVerbA
+    / { 'き'  #Come } xVerbIX
+    / { 'くる' #Come } xBase?
+    / { 'くれ' #Come } ^{ 'ば' #If}
+
+Do = // 例. 参考に+する
+    / { 'する' #Do } xVerbU 
+    / { 'す' #Do } ('れ' xVerbE) / xShould 
+    / { 'し' #Do } (xVerbA / 'よ' xVerbO / xVerbIX / xVerbI ) 
+    / { 'され' #Been } xMood 
+    / { 'でき' #Can } xMood
+
+xNounVerb = // 例. 行動する 論じる
+    / ^{ {[すず] 'る'} #Do } xVerbU
+    / ^{ {[すず]} #Do } ('れ' xVerbE / xShould) 
+    / ^{ {[しじ]} #Do } (xVerbA / 'よ' xVerbO / xVerbIX / xVerbI )
+    / ^{ {'され'} #Been } xMood
+    / ^{ {'でき'} #Can } xMood
+
+
+xVerbKA5 = // 書
+    / ^{ {'か'} #Verb } xVerbA
+    / ^{ {'き'} #Verb } xVerbI
+    / ^{ {'い'} #Verb } xVerbIX
+    / ^{ {'く'} #Verb } xVerbU
+    / ^{ {'け'} #Verb } xVerbE
+    / ^{ {'こ'} #Verb } xVerbO
+
+xVerbSA5 = // 探 出
+    / ^{ {'さ'} #Verb } xVerbA  // ない
+    / ^{ {'し'} #Verb } xVerbIX // て
+    / ^{ {'し'} #Verb } xVerbI  // ながら
+    / ^{ {'す'} #Verb } xVerbU  // 
+    / ^{ {'せ'} #Verb } xVerbE  // ば
+    / ^{ {'そ'} #Verb } xVerbO  // う
+
+
+xVerbTA5 = // 勝
+    / ^{ {'た'} #Verb } xVerbA  // ない
+    / ^{ {'ち'} #Verb } xVerbI  // ながら
+    / ^{ {'っ'} #Verb } xVerbIX // て
+    / ^{ {'つ'} #Verb } xVerbU  // 
+    / ^{ {'て'} #Verb } xVerbE  // ば
+    / ^{ {'と'} #Verb } xVerbO  // う
+
+xVerbNA5 = // 死
+    / ^{ {'な'} #Verb } xVerbA  // ない
+    / ^{ {'に'} #Verb } xVerbI  // ながら
+    / ^{ {'ん'} #Verb } xVerbIXD // て
+    / ^{ {'ぬ'} #Verb } xVerbU  // 
+    / ^{ {'ね'} #Verb } xVerbE  // ば
+    / ^{ {'の'} #Verb } xVerbO  // う
+
+xVerbMA5 = // 読
+    / ^{ {'ま'} #Verb } xVerbA  // ない
+    / ^{ {'み'} #Verb } xVerbI  // ながら
+    / ^{ {'ん'} #Verb } xVerbIXD // て
+    / ^{ {'む'} #Verb } xVerbU  // 
+    / ^{ {'め'} #Verb } xVerbE  // ば
+    / ^{ {'も'} #Verb } xVerbO  // う
+
+xVerbRA5 = // 切
+    / ^{ {'ら'} #Verb } xVerbA  // ない
+    / ^{ {'り'} #Verb } xVerbI  // ながら
+    / ^{ {'っ'} #Verb } xVerbIX // て
+    / ^{ {'る'} #Verb } xVerbU  // 
+    / ^{ {'れ'} #Verb } xVerbE  // ば
+    / ^{ {'ろ'} #Verb } xVerbO  // う
+
+xVerbWA5 = // 笑
+    / ^{ {'わ'} #Verb } xVerbA  // ない
+    / ^{ {'い'} #Verb } xVerbI  // ながら
+    / ^{ {'っ'} #Verb } xVerbIX // て
+    / ^{ {'う'} #Verb } xVerbU  // 
+    / ^{ {'え'} #Verb } xVerbE  // ば
+    / ^{ {'お'} #Verb } xVerbO  // う
+
+xVerbGA5 = // 防
+    / ^{ {'が'} #Verb } xVerbA  // ない
+    / ^{ {'ぎ'} #Verb } xVerbI  // ながら
+    / ^{ {'い'} #Verb } xVerbIXD // て
+    / ^{ {'ぐ'} #Verb } xVerbU  // 
+    / ^{ {'げ'} #Verb } xVerbE  // ば
+    / ^{ {'ご'} #Verb } xVerbO  // う
+
+xVerbBA5 = // 遊
+    / ^{ {'ば'} #Verb } xVerbA  // ない
+    / ^{ {'び'} #Verb } xVerbI  // ながら
+    / ^{ {'ん'} #Verb } xVerbIXD // て
+    / ^{ {'ぶ'} #Verb } xVerbU  // 
+    / ^{ {'べ'} #Verb } xVerbE  // ば
+    / ^{ {'ぼ'} #Verb } xVerbO  // う
+
+// 「それる」は除外
+
+xVerb1 = // 着る 述べ
+    / ^{ {'る'} #Verb } xVerbU  // 
+    / ^{ {'れ'} #Verb } xVerbE  // ば
+    / ^{ {'られ'} #Been } xMood  // 述べられています
+    / ^{ {'よ'} #Verb } xVerbO  // う
+    / xVerbA  // ない
+    / xVerbIX // て
+    / &HIRA xVerbI  // 視野が視るにマッチするのを防ぐ
+
+/* 形容詞 */
+
+AdjectiveChunk = 
+    Adjective xAdjective
+
+// 形容詞: 美し
+
+Adjective = { 
+    @choice('cjdic/ADJ.txt') &ADJ_CHECK 
+    #Adjective 
+}
+
+ADJ = @choice('cjdic/ADJ.txt') &ADJ_CHECK
+ADJ_CHECK = 'そう' / [さかくけい]
+
+xAdjective = 
+    / xAdj 
+    / ^{ {'さ' !'れ'} #Noun } xNoun?
+    / ^{ {'そう'} #Like } (^{ {'ならば'} #If } / xNoun)?
+
+
+/* コードは名詞扱い */
+
+Code = {
+    [A-Za-z0-9.(){}, +\-*/%\\]+
+    #Code
+}
+
+// CJ.TPEG マッチしない名詞はエラーとしてスキップする
+
+Error = {
+    HIRA+
+    #err
+}
+
+/* 文字コード */
+
+Ten = { TEN #Ten }
+xTen = ^{ TEN? #Ten }
+
+SPC = [ ]
+EOF = !.
+EOS = [。．.\n]? EOF
+TEN = [、，,\n]
+KANJI = [㐀-䶵一-龠々〇〻ーご]
+KATA = [ァ-ヶー・]
+HIRA = [ぁ-ん]
+NONHIRA = (!HIRA !TEN .)
+ALPHA = [a-zA-Zａ-ｚＡ-Ｚ]
+NUM = [\.,0-9０-９一二三四五六七八九十百千万億兆京垓秭穰溝澗正載極]
+SYMBOL = [^＾~〜\-ー_＿!！?？#＃$＄&＆=＝@＠*＊+＋/・]
+
+
+// 多少異なっている
+// 以下のような記述形式をとります
+// 記述では
+// 山田孝雄は、係助詞が陳述に影響を及ぼすとしている
+// 一分野か　一分、野球する
+// 自動車産業、宇宙産業などで参考にしている
