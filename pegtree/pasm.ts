@@ -425,7 +425,7 @@ export const pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
   }
 }
 
-export const pDict = (...ss: string[]) => {
+export const pDict = (size: number, ss: string[]) => {
   return (px: PContext) => {
     const pos = px.pos
     for (const s of ss) {

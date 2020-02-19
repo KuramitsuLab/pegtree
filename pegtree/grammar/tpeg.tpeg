@@ -1,0 +1,157 @@
+// Tree PEG 
+// 
+
+File = __ Source EOF
+
+__ = ([ \t\r\n] / COMMENT)*
+_ = ([ \t] / COMMENT)*
+COMMENT = '/*' (!'*/' .)* '*/' / '//' (!EOL .)*
+EOL = '\n' / '\r\n' / EOF
+EOF = !.
+S = [ \t]
+
+Source = { Statement* #Source }
+
+EOS = 
+  / _ (';' _)+ 
+  // _ EOL ((S / COMMENT) _ EOL)*
+  / (_ EOL)+ 
+
+Statement = Import / Example / Rule
+
+//
+Import = {
+  'from' S _ name: (Identifier / Char) 
+  (_ 'import' S _ names: Names )?
+  #Import
+} EOS
+
+Example = {
+  'example' S _
+  names: Names
+  doc: Doc
+  #Example
+} EOS
+
+Names = {
+  Identifier _
+  (',' _ Identifier _)* 
+}
+
+Doc = Doc1 / Doc2 / Doc0
+
+Doc0 = { (!EOL .)* #Doc }
+Doc1 = DELIM1 S* EOL { (!(DELIM1 EOL) .)* #Doc } DELIM1
+DELIM1 = '\'\'\''
+Doc2 = DELIM2 S* EOL { (!(DELIM2 EOL) .)* #Doc } DELIM2
+DELIM2 = '```'
+
+Rule = { 
+  name: (Identifier / QName)
+  __ ('=' / '<-') __ ([/|] __)? 
+  e: Expression
+  #Rule 
+} EOS
+
+Identifier = {
+  NAME
+  #Name
+}
+
+NAME = [A-Za-z_] [A-Za-z0-9_.]*
+
+example Expression a b / c
+example Expression a b || c
+
+Expression = Choice ( ^{ ( __ '|' !'|' _ Choice)+ #Alt })?
+Choice = Sequence ( ^{ ( __ ('/' / '||') _ Sequence)+ #Ore })?
+Sequence = Predicate ( ^{ ( SS Predicate)+ #Seq })?
+SS = S _ !EOL / (_ EOL)+ S _
+
+Predicate = Not / And / Suffix
+Not = '!' { e: Predicate #Not }
+And = '&' { e: Predicate #And }
+Suffix = Term (
+  e: ^{ '*' #Many } 
+  / e: ^{ '+' #Many1 }
+  / e: ^{ '?' #Option } )?
+
+Term = Group / Char / Class / Any / Node / Fold / EdgeFold / Edge / Func / Ref
+Empty = { #Empty }
+
+Group = '(' __ (Expression / Empty) __ ')'
+
+Any = { '.' #Any }
+Char = ['] { ('\\' . / !['] .)* #Char } [']
+Class = '[' { ('\\' . / !']' .)* #Class } ']'
+
+//StringChoice = String (^{ (__ '/' _ String)+ #Dict })
+
+
+Node = {
+  '{' __
+  (tag: Tag __ )?
+  e: (Expression __ / Empty)
+  (tag: Tag __ )?
+  __ '}'
+  #Node
+}
+
+Tag = '#' { (![ \t\r\n}] .)+ #Tag }
+
+Fold = {
+  '^' _ '{' __
+  (tag: Tag __ )?
+  e: (Expression __ / Empty)
+  (tag: Tag __ )?
+  __ '}'
+  #Fold
+}
+
+Edge = {
+  edge: Identifier ':' _ !'^'
+  e: Term
+  #Edge
+}
+
+EdgeFold = {
+  edge: Identifier ':' _ '^' _ '{' __
+  (tag: Tag __ )?
+  e: (Expression __ / Empty)
+  (tag: Tag __ )?
+  __ '}'
+  #Fold
+}
+
+Func = {
+  '@' Identifier
+  '(' __
+    (Expression _ / Empty) (_ ',' __ Expression _)*
+  __ ')'
+  #Func
+}
+
+example Func,Expression   @test()
+example Func,Expression   @test(A)
+example Func,Expression   @test(A,B)
+
+Ref = Identifier / QName
+
+QName =  { '"' ('\\' . / !'"' .)* '"' #Name } 
+
+// Ref = Identifier / {
+//   (![ \t\r\n(){}[\]/|?*+@:#] .)
+//   #Ref
+// }
+
+example Source '''
+Expression = Product (^ { [+\-] Product #Infix })*
+Product = Value (left:^ { op: [*%/] right: Value #Infix })*
+Value = Int / '(' Expression ')'
+Int = { [0-9]+ #Int }
+
+example Expression 1*2+3
+example Expression 1+2*3
+example Int 123
+
+'''
