@@ -5,7 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
     name='pegtree',
-    version='0.9.1',
+    version='0.9.2',
     url='https://github.com/KuramitsuLab/pegtree.git',
     license='MIT',
     author='Kimio Kuramitsu',
@@ -13,7 +13,7 @@ setup(
     install_requires=['setuptools'],
         packages=['pegtree'],
         package_data={'pegtree': ['grammar/*.tpeg',
-                                  'grammar/*.peg']},
+                                  'grammar/*/*.txt']},
     entry_points={
         'console_scripts': [
             'pegtree = pegtree.main:main'
