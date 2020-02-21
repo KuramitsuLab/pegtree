@@ -6,7 +6,7 @@
 */
 
 Sentence = {
-    (Chunk / Error)* EOS
+    (Chunk / Ten / Error)* EOS
     #Sentence
 }
 
@@ -104,7 +104,7 @@ xNoun = // もの
     / ^{ {'から' / 'より'} #From } xNounOf?
     / ^{ {'まで'} #Until } xNounOf?
     / ^{ {'へ'} #To } xNounOf?        // Aへの, Aへは
-    / ^{ 'に' (Against / About / xLet / By / Despite / xNounOf)? #Adverb }     // Aにの~ , Aには~
+    / ^{ {'に'} (Against / About / xLet / By / Despite / xNounOf)? #Object }     // Aにの~ , Aには~
     / ^{ {'と' 'か'?} #Object } (xLet / xNounOf)?    // Aとの~ , Aとは~
     / ^{ {'で'} #Object } (xExist/xNounOf)?    // Aでの~,
     / ^{ {'かぎり' / '限り'} #AsLong } xNoun? // その場かぎり
@@ -246,7 +246,7 @@ example Sentence ハワイに着いて
 NounChunk =
     / Code xNoun?
     / NewNoun (xNounVerb / xNoun)?
-    / PatNoun (xNounVerb / xVerb1 / xNoun)?
+    / PatNoun (xNounVerb / xVerbRA5 / xNoun)?
 
 NewNoun =
     / '「' { (!'」' .)* #Phrase } '」'
@@ -261,7 +261,7 @@ NewNoun =
 
 PatNoun = {
     (XVERB / NONHIRA) (XVERB / NONHIRA)*
-    #PNoun
+    #Noun
 }
 
 // XVERB 以外の名詞の接尾詞　FIXME
@@ -376,6 +376,7 @@ xVerbU = // 書く　探す
 
 xVerbE = // 書け+ば  探せ+ば
     / ^{ 'ば' #If }
+    / ^{ #AbleTo} xVerb1
 
 xVerbO = // 書こ+う　探そ+う
     / ^{ 'う' xBase? #Will }
@@ -486,6 +487,7 @@ xVerb1 = // 着る 述べ
     / xVerbIX // て
     / &HIRA xVerbI  // 視野が視るにマッチするのを防ぐ
     / ^{ #And} VerbChunk
+
 
 /* 形容詞 */
 
