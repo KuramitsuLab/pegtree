@@ -3,6 +3,8 @@ tsconfig.json
 tslint.json
 OLDpegpy/
 pegtree/
-tests/
+test/
 src/
 setup.py
+pegtree.egg-info/
+grammar/
