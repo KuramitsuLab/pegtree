@@ -8,3 +8,4 @@ src/
 setup.py
 pegtree.egg-info/
 grammar/
+build/
