@@ -13,7 +13,6 @@ class Parsec(Generator):
         super().__init__()
         self.domains = []
         self.apply = '{}({})'
-        self.dictlist = '[{}]'
         self.delim = ','
         self.prefix = 'p'
 
@@ -130,8 +129,7 @@ class Parsec(Generator):
     def POre(self, pe, step):
         if pe.isDict():
             ss = [self.quote(s) for s in pe.listDict()]
-            lst = self.dictlist.format(self.delim.join(ss))
-            return self.emitApply('Dict', str(len(ss)), lst)
+            return self.emitApply('Dict', self.quote(' '.join(ss)))
         fs = [self.emit(e, step) for e in pe]
         if len(fs) == 2:
             return self.emitApply('Ore2', *fs)

@@ -1,10 +1,10 @@
+# -*- coding: utf-8 -*-
 import sys
 import os
 import errno
 import inspect
-from collections import namedtuple
-from enum import Enum
 from pathlib import Path
+from pegtree.pasm import *
 
 
 def DEBUG(*x):
@@ -97,34 +97,6 @@ def mergeRange(e, e2):
     return PRange(chars, ranges)
 
 
-def unique_range(chars, ranges, memo=None):
-    cs = 0
-    for c in chars:
-        cs |= 1 << ord(c)
-    r = ranges
-    while len(r) > 1:
-        for c in range(ord(r[0]), ord(r[1])+1):
-            cs |= 1 << c
-        r = r[2:]
-    if memo is not None:
-        if cs in memo:
-            return memo[cs]
-        memo[cs] = cs
-    return cs
-
-
-def minimum_range(chars, ranges):
-    cs = 0xffff
-    for c in chars:
-        cs = min(cs, ord(c))
-    r = ranges
-    while len(r) > 1:
-        cs = min(cs, ord(r[0]))
-        cs = min(cs, ord(r[1]))
-        r = r[2:]
-    return cs
-
-
 class PRef(PExpr):
     def __init__(self, peg, name):
         self.peg = peg
@@ -186,24 +158,6 @@ class PSeq(PTuple):
         if not hasattr(self, 'minlen'):
             self.minlen = sum(map(lambda e: e.minLen(), self.es))
         return self.minlen
-
-
-def splitFixed(remains):
-    fixed = []
-    size = 0
-    for e in remains:
-        if isinstance(e, PChar):
-            size += len(e.text)
-            fixed.append(e)
-        elif isinstance(e, PRange) or isinstance(e, PAny):
-            size += 1
-            fixed.append(e)
-        elif isinstance(e, PAnd) or isinstance(e, PNot):
-            size += 0
-            fixed.append(e)
-        else:
-            break
-    remains = remains[len(fixed):]
 
 
 class PAlt(PTuple):
@@ -353,11 +307,12 @@ class POption(PUnary):
 
 
 class PNode(PUnary):
-    __slot__ = ['e', 'tag']
+    __slot__ = ['e', 'tag', 'shift']
 
-    def __init__(self, e, tag=''):
+    def __init__(self, e, tag='', shift=0):
         self.e = e
         self.tag = tag
+        self.shift = shift
 
     def __repr__(self):
         return '{' + repr(self.e) + ' #' + self.tag + '}'
@@ -375,12 +330,13 @@ class PEdge(PUnary):
 
 
 class PFold(PUnary):
-    __slot__ = ['e', 'edge', 'tag']
+    __slot__ = ['e', 'edge', 'tag', 'shift']
 
-    def __init__(self, edge, e, tag=''):
+    def __init__(self, edge, e, tag='', shift=0):
         self.e = e
         self.edge = edge
         self.tag = tag
+        self.shift = shift
 
     def __repr__(self):
         if self.edge == '':
@@ -538,82 +494,87 @@ class Grammar(dict):
         return self.N[0]
 
 
+def pRule(peg, name, pf):
+    peg[name] = pf
+
+
 def TPEG(peg):
-    peg['Start'] = pSeq3(pRef(peg, '__'), pRef(
-        peg, 'Source'), pRef(peg, 'EOF'))
-    peg['__'] = pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT')))
-    peg['_'] = pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT')))
-    peg['COMMENT'] = pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
-                                 pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny()))))
-    peg['EOL'] = pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF'))
-    peg['EOF'] = pNot(pAny())
-    peg['S'] = pRange(' \t', [])
-    peg['Source'] = pNode(
-        pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0)
-    peg['EOS'] = pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
-        peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))))
-    peg['Statement'] = pOre(pRef(peg, 'Import'), pRef(
-        peg, 'Example'), pRef(peg, 'Rule'))
-    peg['Import'] = pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(
-        pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS'))
-    peg['Example'] = pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge(
-        'names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS'))
-    peg['Names'] = pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(
-        pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0)
-    peg['Doc'] = pOre(pRef(peg, 'Doc1'), pRef(peg, 'Doc2'), pRef(peg, 'Doc0'))
-    peg['Doc0'] = pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0)
-    peg['Doc1'] = pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1'))
-    peg['DELIM1'] = pChar("'''")
-    peg['Doc2'] = pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2'))
-    peg['DELIM2'] = pChar('```')
-    peg['Rule'] = pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
-        '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS'))
-    peg['Identifier'] = pNode(pRef(peg, 'NAME'), 'Name', 0)
-    peg['NAME'] = pSeq2(pRange('_', ['AZ', 'az']),
-                        pMany(pRange('_.', ['AZ', 'az', '09'])))
-    peg['Expression'] = pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
-        '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0)))
-    peg['Choice'] = pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
-        pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0)))
-    peg['Sequence'] = pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(
-        pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0)))
-    peg['SS'] = pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(
-        pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_')))
-    peg['Predicate'] = pOre(pRef(peg, 'Not'), pRef(
-        peg, 'And'), pRef(peg, 'Suffix'))
-    peg['Not'] = pSeq2(pChar('!'), pNode(
-        pEdge('e', pRef(peg, 'Predicate')), 'Not', 0))
-    peg['And'] = pSeq2(pChar('&'), pNode(
-        pEdge('e', pRef(peg, 'Predicate')), 'And', 0))
-    peg['Suffix'] = pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar(
-        '*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0))))
-    peg['Term'] = pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(
-        peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref'))
-    peg['Empty'] = pNode(pEmpty(), 'Empty', 0)
-    peg['Group'] = pSeq(pChar('('), pRef(peg, '__'), pOre2(
-        pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')'))
-    peg['Any'] = pNode(pChar('.'), 'Any', 0)
-    peg['Char'] = pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'"))
-    peg['Class'] = pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']'))
-    peg['Node'] = pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
-        peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0)
-    peg['Tag'] = pSeq2(pChar('#'), pNode(
-        pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0))
-    peg['Fold'] = pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
-        pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0)
-    peg['Edge'] = pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(
-        peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0)
-    peg['EdgeFold'] = pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(
-        peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0)
-    peg['Func'] = pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge(
-        '', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0)
-    peg['Ref'] = pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))
-    peg['QName'] = pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0)
+    pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(
+        peg, 'Source'), pRef(peg, 'EOF')))
+    pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT'))))
+    pRule(peg, '_', pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT'))))
+    pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
+                                      pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
+    pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
+    pRule(peg, 'EOF', pNot(pAny()))
+    pRule(peg, 'S', pRange(' \t', []))
+    pRule(peg, 'Source', pNode(
+        pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
+    pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
+        peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
+    pRule(peg, 'Statement', pOre(pRef(peg, 'Import'), pRef(
+        peg, 'Example'), pRef(peg, 'Rule')))
+    pRule(peg, 'Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(
+        pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge(
+        'names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(
+        pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
+    pRule(peg, 'Doc', pOre(pRef(peg, 'Doc1'),
+                           pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
+    pRule(peg, 'Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
+    pRule(peg, 'Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
+        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
+    pRule(peg, 'DELIM1', pChar("'''"))
+    pRule(peg, 'Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
+        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
+    pRule(peg, 'DELIM2', pChar('```'))
+    pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
+        '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
+    pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
+    pRule(peg, 'NAME', pSeq2(pRange('_', ['AZ', 'az']),
+                             pMany(pRange('_.', ['AZ', 'az', '09']))))
+    pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
+        '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
+    pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
+        pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
+    pRule(peg, 'Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(
+        pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
+    pRule(peg, 'SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(
+        pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
+    pRule(peg, 'Predicate', pOre(pRef(peg, 'Not'), pRef(
+        peg, 'And'), pRef(peg, 'Suffix')))
+    pRule(peg, 'Not', pSeq2(pChar('!'), pNode(
+        pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
+    pRule(peg, 'And', pSeq2(pChar('&'), pNode(
+        pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
+    pRule(peg, 'Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar(
+        '*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
+    pRule(peg, 'Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(
+        peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
+    pRule(peg, 'Empty', pNode(pEmpty(), 'Empty', 0))
+    pRule(peg, 'Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(
+        pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
+    pRule(peg, 'Any', pNode(pChar('.'), 'Any', 0))
+    pRule(peg, 'Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(
+        pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
+    pRule(peg, 'Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(
+        pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
+    pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
+        peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
+    pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(
+        pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0)))
+    pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
+        pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+    pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(
+        peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
+    pRule(peg, 'EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(
+        peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+    pRule(peg, 'Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge(
+        '', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
+    pRule(peg, 'Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
+    pRule(peg, 'QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(
+        pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
     return peg
 
 
@@ -772,6 +733,35 @@ def match_trie(px, d):
             px.pos += len(s)
             return True
     return False
+
+
+class Optimizer(object):
+    def splitFixed(self, remains):
+        size = 0
+        for i, e in enumerate(remains):
+            if isinstance(e, PChar):
+                size += len(e.text)
+            elif isinstance(e, PRange) or isinstance(e, PAny):
+                size += 1
+            elif isinstance(e, PAnd) or isinstance(e, PNot):
+                size += 0
+            else:
+                return size, i-1
+        return size, len(remains)
+
+    def ood(self, pe):
+        es = pe.e.es if isinstance(pe.e, PSeq) else [pe.e]
+        size, idx = self.fixed(es)
+        if idx == -1:
+            return pe
+        head = es[:idx]
+        tail = es[idx:]
+        if isinstance(pe, PNode):
+            pe = PNode(PSeq.new(*tail), pe.tag, -size)
+        else:
+            pe = PFold(pe.edge, PSeq.new(*tail), pe.tag, -size)
+        head.append(pe)
+        return PSeq.new(*head)
 
 
 class Generator(object):
@@ -1061,7 +1051,6 @@ class Generator(object):
         # pe = pe2
         if pe.isDict():
             dic = pe.trieDict()
-            DEBUG('DIC', dic)
             return lambda px: match_trie(px, dic)
 
         pfs = tuple(map(lambda e: self.emit(e, step), pe))
@@ -1089,6 +1078,9 @@ class Generator(object):
     # Tree Construction
 
     def PNode(self, pe, step):
+        pe2 = self.ood(pe)
+        if pe != pe2:
+            return self.emit(pe2, step)
         pf = self.emit(pe.e, step)
         node = pe.tag
 
@@ -1582,17 +1574,6 @@ class TPEGLoader(object):
         tag = str(t.tag) if hasattr(t, 'tag') else ''
         e = self.conv(t.e, step)
         return pFold(edge, e, tag, 0)
-
-    # def Append(self, t, logger):
-    #     name = ''
-    #     tsub = t['inner']
-    #     if tsub == 'Func':
-    #         a = tsub.asArray()
-    #         name = str(a[0])
-    #         inner = self.conv(a[1], logger)
-    #     else:
-    #         inner = self.conv(tsub, logger)
-    #     return Edge(inner, name)
 
     FIRST = {'lazy', 'scope', 'symbol',
              'match', 'equals', 'contains', 'cat'}

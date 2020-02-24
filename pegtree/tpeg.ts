@@ -1,14 +1,33 @@
-import {
-  pRule, pSeq3, pRef, pMany,
-  pOre2, pRange, pChar, pSeq2, pNot, pAny,
-  pOre, pNode, pEdge, pMany1, pSeq, pOption,
-  pFold, pEmpty, example
-} from './pasm';
+import { PAsm } from './pasm';
+
+const pRule = PAsm.pRule;
+const pRef = PAsm.pRef;
+const pEmpty = PAsm.pEmpty;
+const pChar = PAsm.pChar;
+const pRange = PAsm.pRange;
+const pAny = PAsm.pAny;
+//const pAnd = PAsm.pAnd;
+const pNot = PAsm.pNot;
+const pMany = PAsm.pMany;
+const pMany1 = PAsm.pMany1;
+const pOption = PAsm.pOption;
+const pSeq = PAsm.pSeq;
+const pSeq2 = PAsm.pSeq2;
+const pSeq3 = PAsm.pSeq3;
+//const pSeq4 = PAsm.pSeq4;
+const pOre = PAsm.pOre;
+const pOre2 = PAsm.pOre2;
+//const pOre3 = PAsm.pOre3;
+//const pOre4 = PAsm.pOre4;
+const pNode = PAsm.pNode;
+const pEdge = PAsm.pEdge;
+const pFold = PAsm.pFold;
 
 export const TPEG = (peg?: any) => {
   if (peg === undefined) {
     peg = {}
   }
+
   pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(peg, 'Source'), pRef(peg, 'EOF')));
   pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n'), pRef(peg, 'COMMENT'))))
   pRule(peg, '_', pMany(pOre2(pRange(' \t'), pRef(peg, 'COMMENT'))))
@@ -58,4 +77,4 @@ export const TPEG = (peg?: any) => {
 
 // const G = TPEG({})
 // console.log(G)
-// example(G, 'Expression', 'A A A')
+// PAsm.example(G, 'Expression', 'A A A')

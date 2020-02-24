@@ -1,10 +1,7 @@
 // Utilities from Python3 Porting
 import {
-    quote, generate as generate_pasm, ParseTree, PFunc,
-    pChar, pSeq, pEmpty, pAny, pRange, pAnd,
-    pOption, pRef, pNode, pEdge, pFold, pAbs,
-    pSkip, pSymbol, pScope, pExists, keyRange,
-    pNot, pMany, pMany1, pOre, pMatch, Parser,
+    PAsm, ParseTree, PFunc, Parser,
+    quote, keyRange
 } from './pasm';
 import { TPEG } from './tpeg';
 
@@ -569,7 +566,7 @@ class Generator {
             //     A = this.memoize(idx, len(memos), A)
             this.generated[uname] = A
         }
-        return generate_pasm(this.generated, start.uname());
+        return PAsm.generate(this.generated, start.uname());
     }
 
     emit(pe: PExpr, step: number): PFunc {
@@ -579,7 +576,7 @@ class Generator {
             return (this as any)[cname](pe, step);
         }
         console.log('@TODO(Generator)', cname, pe)
-        return pEmpty();
+        return PAsm.pEmpty();
     }
 
     //     def memoize(self, mp, msize, A):
@@ -600,50 +597,50 @@ class Generator {
     // return match_memo
 
     PAny(pe: PAny, step: number) {
-        return pAny();
+        return PAsm.pAny();
     }
 
     PChar(pe: PChar, step: number) {
-        return pChar(pe.text);
+        return PAsm.pChar(pe.text);
     }
 
     PRange(pe: PRange, step: number) {
-        return pRange(pe.chars, pe.ranges);
+        return PAsm.pRange(pe.chars, pe.ranges);
     }
 
     PAnd(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return pAnd(pf);
+        return PAsm.pAnd(pf);
     }
 
     PNot(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return pNot(pf);
+        return PAsm.pNot(pf);
     }
 
     PMany(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return pMany(pf);
+        return PAsm.pMany(pf);
     }
 
     PMany1(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return pMany1(pf);
+        return PAsm.pMany1(pf);
     }
 
     POption(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return pOption(pf);
+        return PAsm.pOption(pf);
     }
 
     PSeq(pe: PTuple, step: number) {
         const pfs = pe.es.map(e => this.emit(e, step))
-        return pSeq(...pfs);
+        return PAsm.pSeq(...pfs);
     }
 
     POre(pe: PTuple, step: number) {
         const pfs = pe.es.map(e => this.emit(e, step))
-        return pOre(...pfs);
+        return PAsm.pOre(...pfs);
     }
 
     PAlt(pe: PTuple, step: number) {
@@ -653,55 +650,55 @@ class Generator {
     PRef(pe: PRef, step: number) {
         const uname = pe.uname();
         const generated = this.generated;
-        return pRef(generated, uname);
+        return PAsm.pRef(generated, uname);
     }
 
     PNode(pe: PNode, step: number) {
         const pf = this.emit(pe.e, step);
         const tag = pe.tag;
-        return pNode(pf, pe.tag, pe.shift);
+        return PAsm.pNode(pf, pe.tag, pe.shift);
     }
 
     PEdge(pe: PEdge, step: number) {
         const pf = this.emit(pe.e, step);
-        return pEdge(pe.edge, pf);
+        return PAsm.pEdge(pe.edge, pf);
     }
 
     PFold(pe: PFold, step: number) {
         const pf = this.emit(pe.e, step);
         const tag = pe.tag;
         const edge = pe.edge;
-        return pFold(pe.edge, pf, pe.tag, pe.shift);
+        return PAsm.pFold(pe.edge, pf, pe.tag, pe.shift);
     }
 
     PAbs(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
-        return pAbs(pf);
+        return PAsm.pAbs(pf);
     }
 
     Skip(pe: PAction, step: number) { // @skip()
-        return pSkip();
+        return PAsm.pSkip();
     }
 
     Symbol(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
         const sid = this.getsid(pe.params[0]);
-        return pSymbol(pf, sid);
+        return PAsm.pSymbol(pf, sid);
     }
 
     Scope(pe: PAction, step: number) {
         const pf = this.emit(pe.e, step);
-        return pScope(pf);
+        return PAsm.pScope(pf);
     }
 
     Exists(pe: PAction, step: number) {
         const sid = this.getsid(pe.params[0]);
-        return pExists(sid);
+        return PAsm.pExists(sid);
     }
 
     Match(pe: PAction, step: number) {
         const sid = this.getsid(pe.params[0]);
-        return pMatch(sid);
+        return PAsm.pMatch(sid);
     }
 
 }
@@ -715,13 +712,6 @@ const generate = (peg: Grammar, options: any = {}) => {
 // ParseTree
 
 const UNKNOWN_URN = '(unknown source)'
-
-
-// type TPEGExpr = {
-//     e: ParseTree
-//     name: ParseTree
-//     names: ParseTree
-// }
 
 const str = (t: any) => t ? t.toString() : ''
 
@@ -943,7 +933,7 @@ const logger = (type: string, pos: ParseTree, msg: string) => {
 }
 
 const TPEGGrammar = TPEG();
-const pegparser = generate_pasm(TPEGGrammar, 'Start');
+const pegparser = PAsm.generate(TPEGGrammar, 'Start');
 
 const load_grammar = (peg: Grammar, source: string, options: any = {}) => {
     const t = pegparser(source);
