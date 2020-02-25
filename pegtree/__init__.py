@@ -1,1 +1,2 @@
-from pegtree.pegtree import grammar, generate, Generator, ParseTree
+from pegtree.pasm import ParseTree
+from pegtree.pegtree import grammar, generate

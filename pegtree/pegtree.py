@@ -780,8 +780,6 @@ def generate(peg, **options):
     return generator.generate(peg, **options)
 
 
-UNKNOWN_URN = '(unknown source)'
-
 # ParseTree
 
 
@@ -794,7 +792,7 @@ class TPEGLoader(object):
         self.names = {}
         self.peg = peg
 
-    def load(self, t: ParseTree):
+    def load(self, t):
         for stmt in t:
             if stmt == 'Rule':
                 name = str(stmt.name)
@@ -828,7 +826,7 @@ class TPEGLoader(object):
     def example(self, name, doc):
         self.peg['@@example'].append((name, doc))
 
-    def conv(self, t: ParseTree, step):
+    def conv(self, t, step):
         tag = t.gettag()
         if hasattr(self, tag):
             f = getattr(self, tag)
@@ -885,14 +883,14 @@ class TPEGLoader(object):
             c, s = TPEGLoader.unquote(s)
             if s.startswith('-') and len(s) > 1:
                 c2, s = TPEGLoader.unquote(s[1:])
-                ranges.append((c, c2))
+                ranges.append(c + c2)
             else:
                 chars.append(c)
         if len(chars) == 0 and len(ranges) == 0:
             return EMPTY
         if len(chars) == 1 and len(ranges) == 0:
             return PChar(chars[0])
-        return PRange(''.join(chars), ranges)
+        return PRange(''.join(chars), ''.join(ranges))
 
     def Ref(self, t, step):
         name = str(t)
@@ -1013,7 +1011,8 @@ def grammar_factory():
 
     def load_grammar(g, file, **options):
         # logger = options.get('logger', logger)
-        pegparser = pasm.generate(options.get('peg', TPEGGrammar))
+        #pegparser = pasm.generate(options.get('peg', TPEGGrammar))
+        pegparser = pasm.generate(TPEGGrammar['Start'])
         if isinstance(file, Path):
             f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
             data = f.read()

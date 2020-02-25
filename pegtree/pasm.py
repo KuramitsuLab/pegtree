@@ -648,8 +648,11 @@ def rowcol(urn, inputs, spos):
 def nop(s): return s
 
 
+UNKNOWN_SOURCE = '(unknown source)'
+
+
 class ParseTree(list):
-    def __init__(self, tag, inputs, spos=0, epos=None, urn=UNKNOWN_URN):
+    def __init__(self, tag, inputs, spos=0, epos=None, urn=UNKNOWN_SOURCE):
         self.tag_ = tag
         self.inputs_ = inputs
         self.spos_ = spos
@@ -687,7 +690,7 @@ class ParseTree(list):
             else:
                 mark.append(' ' if ord(c) < 256 else '  ')
         mark = ''.join(mark)
-        return (self.urn_, spos, linenum, column, bytestr(line), mark)
+        return (self.urn_, spos, linenum, column, line, mark)
 
     def showing(self, msg='Syntax Error'):
         urn, pos, linenum, cols, line, mark = self.decode()
@@ -712,10 +715,11 @@ class ParseTree(list):
 
     def dump(self, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
         if self.isSyntaxError():
-            return self.showing('Syntax Error')
-        sb = []
-        self.strOut(sb)
-        print("".join(sb))
+            print(self.showing('Syntax Error'))
+        else:
+            sb = []
+            self.strOut(sb)
+            print("".join(sb))
 
     def strOut(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
         sb.append("[" + tag(f'#{self.tag_}'))

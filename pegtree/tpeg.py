@@ -4,13 +4,13 @@ from pegtree.pasm import *
 def TPEG(peg):
     pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(
         peg, 'Source'), pRef(peg, 'EOF')))
-    pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT'))))
-    pRule(peg, '_', pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT'))))
+    pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', ''), pRef(peg, 'COMMENT'))))
+    pRule(peg, '_', pMany(pOre2(pRange(' \t', ''), pRef(peg, 'COMMENT'))))
     pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
                                       pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
     pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
     pRule(peg, 'EOF', pNot(pAny()))
-    pRule(peg, 'S', pRange(' \t', []))
+    pRule(peg, 'S', pRange(' \t', ''))
     pRule(peg, 'Source', pNode(
         pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
     pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
@@ -33,10 +33,10 @@ def TPEG(peg):
         pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
     pRule(peg, 'DELIM2', pChar('```'))
     pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
-        '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
+        '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', ''), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
     pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
-    pRule(peg, 'NAME', pSeq2(pRange('_', ['AZ', 'az']),
-                             pMany(pRange('_.', ['AZ', 'az', '09']))))
+    pRule(peg, 'NAME', pSeq2(pRange('_', 'AZaz'),
+                             pMany(pRange('_.', 'AZaz09'))))
     pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
         '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
     pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
@@ -66,7 +66,7 @@ def TPEG(peg):
     pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
         peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
     pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(
-        pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0)))
+        pMany1(pSeq2(pNot(pRange(' \t\r\n}', '')), pAny())), 'Tag', 0)))
     pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
         pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
     pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(

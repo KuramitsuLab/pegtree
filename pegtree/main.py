@@ -7,9 +7,7 @@ import time
 import sys
 import os
 import importlib
-# m = importlib.import_module('foo.some')  # -> 'module'
 import pegtree
-
 
 istty = True
 
@@ -207,10 +205,11 @@ def example(options):
         if not name in parsers:
             parsers[name] = generator(options)(peg, start=name)
         res = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
-        print(bold(f'parsing {name}'))
+        # print()
         ok = doc.inputs_[doc.spos_:res.epos_]
         fail = doc.inputs_[res.epos_:doc.epos_]
-        print(color('Green', f'{ok}')+color('Red', f'{fail}'), bold('=>'))
+        print(bold(f'parsing {name}'), color(
+            'Green', f'{ok}')+color('Red', f'{fail}'), bold('=> '), end='')
         res.dump()
 
 
@@ -275,8 +274,8 @@ def main(argv=sys.argv):
             options['ext'] = cs[1]
         if cmd in names:
             names[cmd](options)
-        else:
-            usage()
+            return
+    usage()
 
 
 if __name__ == "__main__":
