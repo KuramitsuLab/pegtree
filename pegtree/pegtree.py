@@ -4,7 +4,8 @@ import os
 import errno
 import inspect
 from pathlib import Path
-from pegtree.pasm import *
+import pegtree.pasm as pasm
+from pegtree.tpeg import TPEGGrammar
 
 
 def DEBUG(*x):
@@ -42,13 +43,13 @@ class PChar(PExpr):
     def minLen(self): return len(self.text)
 
 
-def newranges(ranges):
-    if not isinstance(ranges, str):
-        sb = []
-        for r in ranges:
-            sb.append(r[0]+r[1])
-        return ''.join(sb)
-    return ranges
+# def newranges(ranges):
+#     if not isinstance(ranges, str):
+#         sb = []
+#         for r in ranges:
+#             sb.append(r[0]+r[1])
+#         return ''.join(sb)
+#     return ranges
 
 
 class PRange(PExpr):
@@ -59,7 +60,7 @@ class PRange(PExpr):
 
     def __init__(self, chars, ranges):
         self.chars = chars
-        self.ranges = newranges(ranges)
+        self.ranges = ranges  # newranges(ranges)
 
     def __repr__(self):
         sb = []
@@ -196,24 +197,6 @@ class POre(PTuple):
             dic2.append(s)
         return dic2
 
-    def trieDict(self, dic=None):
-        if dic is None:
-            dic = self.listDict()
-        if '' in dic or len(dic) < 10:
-            return dic
-        d = {}
-        for s in dic:
-            s0, s = s[0], s[1:]
-            if s0 in d:
-                ss = d[s0]
-                if not s in ss:
-                    ss.append(s)
-            else:
-                d[s0] = [s]
-        for key in d:
-            d[key] = self.trieDict(d[key])
-        return d
-
 
 def appendChoice(choices, pe):
     if isinstance(pe, POre):
@@ -228,17 +211,6 @@ def appendChoice(choices, pe):
         choices.append(pe)
     else:
         DEBUG('IGNORED', pe)
-
-
-def inline(pe):
-    start = pe
-    while isinstance(pe, PRef):
-        pe = pe.deref()
-    if isinstance(pe, PChar) or isinstance(pe, PRange):
-        if(pe != start):
-            DEBUG('INLINE', start, '=>', pe)
-        return pe
-    return start
 
 
 def optimizedChoice(choices, pe):
@@ -376,7 +348,7 @@ EMPTY = PChar('')
 ANY = PAny()
 FAIL = PNot(EMPTY)
 
-
+'''
 def pEmpty(): return EMPTY
 
 
@@ -432,6 +404,7 @@ def pEdge(label, e): return PEdge(label, e) if label != '' else e
 
 
 def pFold(label, e, tag, shift): return PFold(label, e, tag)
+'''
 
 # repr
 
@@ -494,248 +467,112 @@ class Grammar(dict):
         return self.N[0]
 
 
-def pRule(peg, name, pf):
-    peg[name] = pf
+# def pRule(peg, name, pf):
+#     peg[name] = pf
 
 
-def TPEG(peg):
-    pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(
-        peg, 'Source'), pRef(peg, 'EOF')))
-    pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT'))))
-    pRule(peg, '_', pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT'))))
-    pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
-                                      pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
-    pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
-    pRule(peg, 'EOF', pNot(pAny()))
-    pRule(peg, 'S', pRange(' \t', []))
-    pRule(peg, 'Source', pNode(
-        pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
-    pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
-        peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
-    pRule(peg, 'Statement', pOre(pRef(peg, 'Import'), pRef(
-        peg, 'Example'), pRef(peg, 'Rule')))
-    pRule(peg, 'Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(
-        pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
-    pRule(peg, 'Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge(
-        'names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
-    pRule(peg, 'Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(
-        pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
-    pRule(peg, 'Doc', pOre(pRef(peg, 'Doc1'),
-                           pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
-    pRule(peg, 'Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
-    pRule(peg, 'Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
-    pRule(peg, 'DELIM1', pChar("'''"))
-    pRule(peg, 'Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-        pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
-    pRule(peg, 'DELIM2', pChar('```'))
-    pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
-        '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
-    pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
-    pRule(peg, 'NAME', pSeq2(pRange('_', ['AZ', 'az']),
-                             pMany(pRange('_.', ['AZ', 'az', '09']))))
-    pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
-        '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
-    pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
-        pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
-    pRule(peg, 'Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(
-        pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
-    pRule(peg, 'SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(
-        pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
-    pRule(peg, 'Predicate', pOre(pRef(peg, 'Not'), pRef(
-        peg, 'And'), pRef(peg, 'Suffix')))
-    pRule(peg, 'Not', pSeq2(pChar('!'), pNode(
-        pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
-    pRule(peg, 'And', pSeq2(pChar('&'), pNode(
-        pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
-    pRule(peg, 'Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar(
-        '*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
-    pRule(peg, 'Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(
-        peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
-    pRule(peg, 'Empty', pNode(pEmpty(), 'Empty', 0))
-    pRule(peg, 'Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(
-        pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
-    pRule(peg, 'Any', pNode(pChar('.'), 'Any', 0))
-    pRule(peg, 'Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
-    pRule(peg, 'Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
-    pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
-        peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
-    pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(
-        pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0)))
-    pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
-        pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-    pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(
-        peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
-    pRule(peg, 'EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(
-        peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-    pRule(peg, 'Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge(
-        '', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
-    pRule(peg, 'Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
-    pRule(peg, 'QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(
-        pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
-    return peg
+# def TPEG(peg):
+#     pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(
+#         peg, 'Source'), pRef(peg, 'EOF')))
+#     pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT'))))
+#     pRule(peg, '_', pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT'))))
+#     pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
+#                                       pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
+#     pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
+#     pRule(peg, 'EOF', pNot(pAny()))
+#     pRule(peg, 'S', pRange(' \t', []))
+#     pRule(peg, 'Source', pNode(
+#         pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
+#     pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
+#         peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
+#     pRule(peg, 'Statement', pOre(pRef(peg, 'Import'), pRef(
+#         peg, 'Example'), pRef(peg, 'Rule')))
+#     pRule(peg, 'Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(
+#         pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
+#     pRule(peg, 'Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge(
+#         'names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
+#     pRule(peg, 'Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(
+#         pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
+#     pRule(peg, 'Doc', pOre(pRef(peg, 'Doc1'),
+#                            pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
+#     pRule(peg, 'Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
+#     pRule(peg, 'Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
+#         pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
+#     pRule(peg, 'DELIM1', pChar("'''"))
+#     pRule(peg, 'Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
+#         pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
+#     pRule(peg, 'DELIM2', pChar('```'))
+#     pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
+#         '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
+#     pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
+#     pRule(peg, 'NAME', pSeq2(pRange('_', ['AZ', 'az']),
+#                              pMany(pRange('_.', ['AZ', 'az', '09']))))
+#     pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
+#         '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
+#     pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
+#         pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
+#     pRule(peg, 'Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(
+#         pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
+#     pRule(peg, 'SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(
+#         pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
+#     pRule(peg, 'Predicate', pOre(pRef(peg, 'Not'), pRef(
+#         peg, 'And'), pRef(peg, 'Suffix')))
+#     pRule(peg, 'Not', pSeq2(pChar('!'), pNode(
+#         pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
+#     pRule(peg, 'And', pSeq2(pChar('&'), pNode(
+#         pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
+#     pRule(peg, 'Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar(
+#         '*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
+#     pRule(peg, 'Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(
+#         peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
+#     pRule(peg, 'Empty', pNode(pEmpty(), 'Empty', 0))
+#     pRule(peg, 'Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(
+#         pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
+#     pRule(peg, 'Any', pNode(pChar('.'), 'Any', 0))
+#     pRule(peg, 'Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(
+#         pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
+#     pRule(peg, 'Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(
+#         pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
+#     pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
+#         peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
+#     pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(
+#         pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0)))
+#     pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
+#         pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+#     pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(
+#         peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
+#     pRule(peg, 'EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(
+#         peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
+#     pRule(peg, 'Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge(
+#         '', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
+#     pRule(peg, 'Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
+#     pRule(peg, 'QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(
+#         pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
+#     return peg
 
 
-TPEGGrammar = TPEG(Grammar())
+# TPEGGrammar = TPEG(Grammar())
 # print(TPEGGrammar)
 
 ######################################################################
 # ast.env
 
-
-def bytestr(b):
-    return b.decode('utf-8') if isinstance(b, bytes) else b
-
-#####################################
-
-
-class PTree(object):
-    __slots__ = ['prev', 'tag', 'spos', 'epos', 'child']
-
-    def __init__(self, prev, tag, spos, epos, child):
-        self.prev = prev
-        self.tag = tag
-        self.spos = spos
-        self.epos = epos
-        self.child = child
-
-    def isEdge(self):
-        return self.epos < 0
-
-    def dump(self, inputs):
-        sb = []
-        if self.prev is not None:
-            sb.append(self.prev.dump(inputs))
-            sb.append(',')
-        sb.append(f'{{#{self.tag} ')
-        if self.child is None:
-            sb.append(repr(inputs[self.spos:self.epos]))
-        else:
-            sb.append(self.child.dump(inputs))
-        sb.append('}')
-        return ''.join(sb)
-
-
-def splitPTree(pt):
-    if pt is None:
-        return None, None
-    if pt.prev is None:
-        return None, pt
-    return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child)
-
-
-def makePTree(pt: PTree, inputs: str):
-    ns = []
-    while pt != None:
-        if pt.child == None:
-            child = repr(inputs[pt.spos:pt.epos])
-        else:
-            child = makePTree(pt.child)
-        child = (pt.tag, child)
-        ns.append(child)
-        pt = pt.prev
-    if len(ns) == 1:
-        return ns[0]
-    return list(reversed(ns))
-
-
-def PTree2ParseTree(pt: PTree, urn, inputs):
-    if pt.prev != None:
-        return PTree2ParseTreeImpl('', urn, inputs, pt.spos, pt.epos, pt)
-    else:
-        return PTree2ParseTreeImpl(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
-
-
-def PTree2ParseTreeImpl(tag, urn, inputs, spos, epos, subnode):
-    t = ParseTree(tag, inputs, spos, epos, urn)
-    while subnode != None:
-        if subnode.isEdge():
-            if subnode.child == None:
-                tt = PTree2ParseTreeImpl(
-                    '', urn, inputs, subnode.spos, abs(subnode.epos), None)
-            else:
-                tt = PTree2ParseTree(subnode.child, urn, inputs)
-            if subnode.tag == '':
-                t.append(tt)
-            else:
-                setattr(t, subnode.tag, tt)
-        else:
-            t.append(PTree2ParseTreeImpl(subnode.tag, urn, inputs,
-                                         subnode.spos, abs(subnode.epos), subnode.child))
-        subnode = subnode.prev
-    for i in range(len(t)//2):
-        t[i], t[-(1+i)] = t[-(1+i)], t[i]
-    return t
-
-
-# ParserContext
-State = namedtuple('State', 'sid val prev')
-
-
-class Memo(object):
-    __slots__ = ['key', 'pos', 'ast', 'result']
-
-    def __init__(self):
-        self.key = -1
-        self.pos = 0
-        self.ast = None
-        self.result = False
-
-
-class ParserContext:
-    __slots__ = ['inputs', 'pos', 'epos',
-                 'headpos', 'ast', 'state', 'memo']
-
-    def __init__(self, inputs, spos, epos):
-        self.inputs = inputs
-        self.pos = spos
-        self.epos = epos
-        self.headpos = spos
-        self.ast = None
-        self.state = None
-        self.memo = [Memo() for x in range(1789)]
-
-    def getstate(self, state, sid):
-        while state is not None:
-            if state.sid == sid:
-                return state
-            state = state.prev
-        return None
-
-# Generator
-
-
-def match_empty(px): return True
-
-
-def match_any(px):
-    if px.pos < px.epos:
-        px.pos += 1
-        return True
-    return False
-
-
-def match_trie(px, d):
-    if px.pos >= px.epos:
-        return False
-    if isinstance(d, dict):
-        c = px.inputs[px.pos]
-        if c in d:
-            px.pos += 1
-            return match_trie(px, d[c])
-        return False
-    pos = px.pos
-    inputs = px.inputs
-    for s in d:
-        if inputs.startswith(s, pos):
-            px.pos += len(s)
-            return True
-    return False
+# def bytestr(b):
+#     return b.decode('utf-8') if isinstance(b, bytes) else b
 
 
 class Optimizer(object):
+
+    def inline(self, pe: PExpr):
+        start = pe
+        while isinstance(pe, PRef):
+            pe = pe.deref()
+        if isinstance(pe, PChar) or isinstance(pe, PRange):
+            if(pe != start):
+                DEBUG('INLINE', start, '=>', pe)
+            return pe
+        return start
+
     def splitFixed(self, remains):
         size = 0
         for i, e in enumerate(remains):
@@ -764,12 +601,11 @@ class Optimizer(object):
         return PSeq.new(*head)
 
 
-class Generator(object):
+class Generator(Optimizer):
     def __init__(self):
         self.peg = None
         self.generated = {}
         self.generating_nonterminal = ''
-        self.cache = {'': match_empty}
         self.sids = {}
 
     def getsid(self, name):
@@ -814,22 +650,10 @@ class Generator(object):
         self.generated[ref.uname()] = A
 
     def emitParser(self, start):
-        pf = self.generated[start.uname()]
-
-        def parse(inputs, urn='(unknown source)', pos=0, epos=None, conv=PTree2ParseTree):
-            if epos is None:
-                epos = len(inputs)
-            px = ParserContext(inputs, pos, epos)
-            if not pf(px):
-                result = PTree(None, "err", px.headpos, px.headpos, None)
-            else:
-                result = px.ast if px.ast is not None else PTree(None,
-                                                                 "", pos, px.pos, None)
-            return conv(result, urn, inputs)
-        return parse
+        return pasm.generate(self.generated[start.uname()])
 
     def emit(self, pe: PExpr, step: int):
-        pe = inline(pe)
+        pe = self.inline(pe)
         cname = pe.cname()
         if hasattr(self, cname):
             f = getattr(self, cname)
@@ -855,439 +679,98 @@ class Generator(object):
         return match_memo
 
     def PAny(self, pe, step):
-        return match_any
+        return pasm.pAny()
 
     def PChar(self, pe, step):
-        if pe.text in self.cache:
-            #DEBUG('CHACHE', pe)
-            return self.cache[pe.text]
-        chars = pe.text
-        clen = len(pe.text)
-        #
-
-        def match_char(px):
-            if px.inputs.startswith(chars, px.pos):
-                px.pos += clen
-                return True
-            return False
-        self.cache[pe.text] = match_char
-        return match_char
-
-    def ManyChar(self, pe, step):
-        chars = pe.text
-        clen = len(pe.text)
-        #
-
-        def match_manychar(px):
-            while px.inputs.startswith(chars, px.pos):
-                px.pos += clen
-            return True
-        return match_manychar
-
-    def AndChar(self, pe, step):
-        chars = pe.text
-
-        def match_andchar(px):
-            return px.inputs.startswith(chars, px.pos)
-        return match_andchar
-
-    def NotChar(self, pe, step):
-        chars = pe.text
-
-        def match_notchar(px):
-            return not px.inputs.startswith(chars, px.pos)
-        return match_notchar
+        return pasm.pChar(pe.text)
 
     def PRange(self, pe, step):
-        offset = minimum_range(pe.chars, pe.ranges)
-        bitset = unique_range(pe.chars, pe.ranges) >> offset
-
-        def match_bitset(px):
-            if px.pos < px.epos:
-                shift = ord(px.inputs[px.pos]) - offset
-                if shift >= 0 and (bitset & (1 << shift)) != 0:
-                    px.pos += 1
-                    return True
-            return False
-        return match_bitset
-
-    def ManyRange(self, pe, step):
-        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
-
-        def match_manybitset(px):
-            while px.pos < px.epos:
-                shift = ord(px.inputs[px.pos])  # - offset
-                if shift >= 0 and (bitset & (1 << shift)) != 0:
-                    px.pos += 1
-                    continue
-
-            return False
-        return match_manybitset
-
-    def AndRange(self, pe, step):
-        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
-
-        def match_andbitset(px):
-            if px.pos < px.epos:
-                shift = ord(px.inputs[px.pos])  # - offset
-                if shift >= 0 and (bitset & (1 << shift)) != 0:
-                    return True
-            return False
-        return match_andbitset
-
-    def NotRange(self, pe, step):
-        bitset = unique_range(pe.chars, pe.ranges)  # >> offset
-
-        def match_notbitset(px):
-            if px.pos < px.epos:
-                shift = ord(px.inputs[px.pos])  # - offset
-                if shift >= 0 and (bitset & (1 << shift)) != 0:
-                    return False
-            return True
-        return match_notbitset
+        return pasm.pRange(pe.chars, pe.ranges)
 
     def PAnd(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_and(px):
-            pos = px.pos
-            if pf(px):
-                # backtracking
-                px.headpos = max(px.pos, px.headpos)
-                px.pos = pos
-                return True
-            return False
-
-        return match_and
+        e = self.inline(pe.e)
+        return pasm.pAnd(self.emit(e, step))
 
     def PNot(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_not(px):
-            pos = px.pos
-            ast = px.ast
-            if not pf(px):
-                # backtracking
-                px.headpos = max(px.pos, px.headpos)
-                px.pos = pos
-                px.ast = ast
-                return True
-            return False
-
-        return match_not
+        e = self.inline(pe.e)
+        return pasm.pNot(self.emit(e, step))
 
     def PMany(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_many(px):
-            pos = px.pos
-            ast = px.ast
-            while pf(px) and pos < px.pos:
-                pos = px.pos
-                ast = px.ast
-            px.headpos = max(px.pos, px.headpos)
-            px.pos = pos
-            px.ast = ast
-            return True
-
-        return match_many
+        e = self.inline(pe.e)
+        return pasm.pMany(self.emit(e, step))
 
     def PMany1(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_many1(px):
-            if pf(px):
-                pos = px.pos
-                ast = px.ast
-                while pf(px) and pos < px.pos:
-                    pos = px.pos
-                    ast = px.ast
-                px.headpos = max(px.pos, px.headpos)
-                px.pos = pos
-                px.ast = ast
-                return True
-            return False
-
-        return match_many1
+        e = self.inline(pe.e)
+        return pasm.pMany1(self.emit(e, step))
 
     def POption(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_option(px):
-            pos = px.pos
-            ast = px.ast
-            if not pf(px):
-                px.headpos = max(px.pos, px.headpos)
-                px.pos = pos
-                px.ast = ast
-            return True
-        return match_option
-    # Seq
+        e = self.inline(pe.e)
+        return pasm.pOption(self.emit(e, step))
 
     def PSeq(self, pe, step):
-        # if len(pe) == 2:
-        #    return self.Seq2(pe)
-        # if len(pe) == 3:
-        #    return self.Seq3(pe)
-        #
         pfs = []
         for e in pe:
             pfs.append(self.emit(e, step))
             step += e.minLen()
         pfs = tuple(pfs)
-
-        def match_seq(px):
-            for pf in pfs:
-                if not pf(px):
-                    return False
-            return True
-        return match_seq
+        if len(pfs) == 2:
+            return pasm.pSeq2(pfs[0], pfs[1])
+        if len(pe) == 3:
+            return pasm.pSeq3(pfs[0], pfs[1], pfs[2])
+        if len(pe) == 4:
+            return pasm.pSeq4(pfs[0], pfs[1], pfs[2], pfs[3])
+        return pasm.pSeq(*pfs)
 
     # Ore
     def POre(self, pe: POre, step):
-        # pe2 = Ore.expand(pe)
-        # if not isinstance(pe2, Ore):
-        #     return self.emit(pe2)
-        # pe = pe2
         if pe.isDict():
-            dic = pe.trieDict()
-            return lambda px: match_trie(px, dic)
-
+            return pasm.pDict(pe.listDict())
         pfs = tuple(map(lambda e: self.emit(e, step), pe))
-
-        def match_ore(px):
-            pos = px.pos
-            ast = px.ast
-            for pf in pfs:
-                if pf(px):
-                    return True
-                px.headpos = max(px.pos, px.headpos)
-                px.pos = pos
-                px.ast = ast
-            return False
-
-        return match_ore
+        if len(pfs) == 2:
+            return pasm.pOre2(pfs[0], pfs[1])
+        if len(pe) == 3:
+            return pasm.pOre3(pfs[0], pfs[1], pfs[2])
+        if len(pe) == 4:
+            return pasm.pOre4(pfs[0], pfs[1], pfs[2], pfs[3])
+        return pasm.pOre(*pfs)
 
     def PRef(self, pe, step):
-        uname = pe.uname()
-        generated = self.generated
-        if uname not in generated:
-            generated[uname] = lambda px: generated[uname](px)
-        return generated[uname]
+        return pasm.pRef(self.generated, pe.uname())
 
     # Tree Construction
 
     def PNode(self, pe, step):
-        pe2 = self.ood(pe)
-        if pe != pe2:
-            return self.emit(pe2, step)
-        pf = self.emit(pe.e, step)
-        node = pe.tag
-
-        def make_tree(px):
-            pos = px.pos
-            prev = px.ast
-            px.ast = None
-            if pf(px):
-                px.ast = PTree(prev, node, pos, px.pos, px.ast)
-                return True
-            #px.ast = prev
-            return False
-
-        return make_tree
+        return pasm.pNode(self.emit(pe.e, step), pe.tag, pe.shift)
 
     def PEdge(self, pe, step):
-        pf = self.emit(pe.e, step)
-        edge = pe.edge
-        # if edge == '': return pf
-
-        def match_edge(px):
-            pos = px.pos
-            prev = px.ast
-            px.ast = None
-            if pf(px):
-                px.ast = PTree(prev, edge, pos, -px.pos, px.ast)
-                return True
-            #px.ast = prev
-            return False
-        return match_edge
+        return pasm.pEdge(pe.edge, self.emit(pe.e, step))
 
     def PFold(self, pe, step):
-        pf = self.emit(pe.e, step)
-        node = pe.tag
-        edge = pe.edge
-
-        def match_fold(px):
-            pos = px.pos
-            #pprev = px.ast
-            prev, pt = splitPTree(px.ast)
-            px.ast = pt if edge == '' else PTree(None, edge, 0, -pos, pt)
-            if pf(px):
-                px.ast = PTree(prev, node, pos, px.pos, px.ast)
-                return True
-            #px.ast = pprev
-            return False
-        return match_fold
+        return pasm.pFold(pe.edge, self.emit(pe.e, step), pe.tag, pe.shift)
 
     def PAbs(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def match_abs(px):
-            ast = px.ast
-            if pf(px):
-                px.ast = ast
-                return True
-            return False
-        return match_abs
-
-    # StateTable
-
-    # def adddict(px, s):
-    #     if len(s) == 0:
-    #         return
-    #     key = s[0]
-    #     if key in px.memo:
-    #         l = px.memo[key]
-    #         slen = len(s)
-    #         for i in range(len(l)):
-    #             if slen > len(l[i]):
-    #                 l.insert(i, s)
-    #                 return
-    #         l.append(s)
-    #     else:
-    #         px.memo[key] = [s]
-    # def Lazy(self, pe, step):  # @lazy(A)
-    #     name = pe.e.name
-    #     peg = self.peg
-    #     return peg.newRef(name).gen(**option) if name in peg else pe.e.gen(**option)
+        return pasm.pAbs(self.emit(pe.e, step))
 
     def Skip(self, pe, step):  # @skip()
-        def skip(px):
-            px.pos = min(px.headpos, px.epos)
-            return True
-        return skip
+        return pasm.pSkip()
 
     def Symbol(self, pe, step):  # @symbol(A)
         params = pe.params
         sid = self.getsid(str(params[0]))
-        pf = self.emit(pe.e, step)
-
-        def match_symbol(px):
-            pos = px.pos
-            if pf(px):
-                px.state = State(sid, px.inputs[pos:px.pos], px.state)
-                return True
-            return False
-        return match_symbol
+        return pasm.pSymbol(self.emit(pe.e, step), sid)
 
     def Scope(self, pe, step):
-        pf = self.emit(pe.e, step)
-
-        def scope(px):
-            state = px.state
-            res = pf(px)
-            px.state = state
-            return res
-        return scope
+        return pasm.pScope(self.emit(pe.e, step))
 
     def Exists(self, pe, step):  # @Match(A)
         params = pe.params
         sid = self.getsid(str(params[0]))
-        return lambda px: px.getstate(px.state, sid) != None
+        return pasm.pExists(sid)
 
     def Match(self, pe, step):  # @Match(A)
         params = pe.params
         sid = self.getsid(str(params[0]))
-        #pf = self.emit(pe.e)
-
-        def match(px):
-            state = px.getstate(px.state, sid)
-            if state is not None and px.inputs.startswith(state.val, px.pos):
-                px.pos += len(state.val)
-                return True
-            return False
-        return match
-
-    def Def(self, pe, step):
-        params = pe.params
-        name = str(params[0])
-        pf = self.emit(pe.e, step)
-
-        def define_dict(px):
-            pos = px.pos
-            if pf(px):
-                s = px.inputs[pos:px.pos]
-                if len(s) == 0:
-                    return True
-                if name in px.memo:
-                    d = px.memo[name]
-                else:
-                    d = {}
-                    px.memo[name] = d
-                key = s[0]
-                if not key in d:
-                    d[key] = [s]
-                    return True
-                l = d[key]
-                slen = len(s)
-                for i in range(len(l)):
-                    if slen > len(l[i]):
-                        l.insert(i, s)
-                        break
-                return True
-            return False
-        return define_dict
-
-    def In(self, pe, step):  # @in(NAME)
-        params = pe.params
-        name = str(params[0])
-
-        def refdict(px):
-            if name in px.memo and px.pos < px.epos:
-                d = px.memo[name]
-                key = px.inputs[px.pos]
-                if key in d:
-                    for s in d[key]:
-                        if px.inputs.startswith(s, px.pos):
-                            px.pos += len(s)
-                            return True
-            return False
-        return refdict
-
-    '''
-            if fname == 'on':  # @on(!A, e)
-            name = str(params[0])
-            pf = pe.e.gen(**option)
-            if name.startswith('!'):
-                sid = getsid(name[1:])
-
-                def off(px):
-                    state = px.state
-                    px.state = State(sid, False, px.state)
-                    res = pf(px)
-                    px.state = state
-                    return res
-                return off
-
-            else:
-                sid = getsid(name[1:])
-
-                def on(px):
-                    state = px.state
-                    px.state = State(sid, False, px.state)
-                    res = pf(px)
-                    px.state = state
-                    return res
-                return on
-
-        if fname == 'if':  # @if(A)
-            sid = getsid(str(params[0]))
-
-            def cond(px):
-                state = getstate(px.state, sid)
-                return state != None and state.val
-            return cond
-    '''
+        return pasm.pMatch(sid)
 
 
 generator = Generator()
@@ -1296,111 +779,10 @@ generator = Generator()
 def generate(peg, **options):
     return generator.generate(peg, **options)
 
-# ParseTree
-
 
 UNKNOWN_URN = '(unknown source)'
 
-
-def rowcol(urn, inputs, spos):
-    inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
-    rows = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
-    return urn, spos, len(rows), len(rows[-1])-1
-
-
-def nop(s): return s
-
-
-class ParseTree(list):
-    def __init__(self, tag, inputs, spos=0, epos=None, urn=UNKNOWN_URN):
-        self.tag_ = tag
-        self.inputs_ = inputs
-        self.spos_ = spos
-        self.epos_ = epos if epos is not None else len(inputs)
-        self.urn_ = urn
-
-    def gettag(self):
-        return self.tag_
-
-    def start(self):
-        return rowcol(self.urn_, self.inputs_, self.spos_)
-
-    def end(self):
-        return rowcol(self.urn_, self.inputs_, self.epos_)
-
-    def decode(self):
-        inputs, spos, epos = self.inputs_, self.spos_, self.epos_
-        LF = b'\n' if isinstance(inputs, bytes) else '\n'
-        rows = inputs[:spos + (1 if len(inputs) > spos else 0)]
-        rows = rows.split(LF)
-        linenum, column = len(rows), len(rows[-1])-1
-        begin = inputs.rfind(LF, 0, spos) + 1
-        #print('@', spos, begin, inputs)
-        end = inputs.find(LF, spos)
-        #print('@', spos, begin, inputs)
-        if end == -1:
-            end = len(inputs)
-        #print('@[', begin, spos, end, ']', epos)
-        line = inputs[begin:end]  # .replace('\t', '   ')
-        mark = []
-        endcolumn = column + (epos - spos)
-        for i, c in enumerate(line):
-            if column <= i and i <= endcolumn:
-                mark.append('^' if ord(c) < 256 else '^^')
-            else:
-                mark.append(' ' if ord(c) < 256 else '  ')
-        mark = ''.join(mark)
-        return (self.urn_, spos, linenum, column, bytestr(line), mark)
-
-    def showing(self, msg='Syntax Error'):
-        urn, pos, linenum, cols, line, mark = self.decode()
-        return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
-
-    def __eq__(self, tag):
-        return self.tag_ == tag
-
-    def isSyntaxError(self):
-        return self.tag_ == 'err'
-
-    def __str__(self):
-        s = self.inputs_[self.spos_:self.epos_]
-        return s.decode('utf-8') if isinstance(s, bytes) else s
-
-    def __repr__(self):
-        if self.isSyntaxError():
-            return self.showing('Syntax Error')
-        sb = []
-        self.strOut(sb)
-        return "".join(sb)
-
-    def dump(self, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
-        if self.isSyntaxError():
-            return self.showing('Syntax Error')
-        sb = []
-        self.strOut(sb)
-        print("".join(sb))
-
-    def strOut(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
-        sb.append("[" + tag(f'#{self.tag_}'))
-        hasContent = False
-        next_indent = indent + tab
-        for child in self:
-            hasContent = True
-            sb.append(indent)
-            if hasattr(child, 'strOut'):
-                child.strOut(sb, next_indent, tab, tag, edge, token)
-            else:
-                sb.append(repr(child))
-        for key in self.__dict__:
-            v = self.__dict__[key]
-            if isinstance(v, ParseTree):
-                hasContent = True
-                sb.append(indent)
-                sb.append(edge(key) + ': ')
-                v.strOut(sb, next_indent, tab, tag, edge, token)
-        if not hasContent:
-            sb.append(' ' + token(repr(str(self))))
-        sb.append("]")
+# ParseTree
 
 
 def logger(type, pos, msg):
@@ -1417,7 +799,7 @@ class TPEGLoader(object):
             if stmt == 'Rule':
                 name = str(stmt.name)
                 if name in self.names:
-                    #pos4 = stmt['name'].getpos4()
+                    # pos4 = stmt['name'].getpos4()
                     logger('error', stmt.name, f'redefined name {name}')
                     continue
                 self.names[name] = stmt.e
@@ -1493,7 +875,7 @@ class TPEGLoader(object):
         while len(s) > 0:
             c, s = TPEGLoader.unquote(s)
             sb.append(c)
-        return pChar(''.join(sb))
+        return PChar(''.join(sb))
 
     def Class(self, t, step):
         s = str(t)
@@ -1506,8 +888,10 @@ class TPEGLoader(object):
                 ranges.append((c, c2))
             else:
                 chars.append(c)
+        if len(chars) == 0 and len(ranges) == 0:
+            return EMPTY
         if len(chars) == 1 and len(ranges) == 0:
-            return pChar(chars[0])
+            return PChar(chars[0])
         return PRange(''.join(chars), ranges)
 
     def Ref(self, t, step):
@@ -1518,7 +902,7 @@ class TPEGLoader(object):
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg.add(name, EMPTY)
             return self.peg.newRef(name)
-        return pChar(name[1:-1]) if name.startswith('"') else char1(name)
+        return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
 
     def Name(self, t, step):
         name = str(t)
@@ -1528,7 +912,7 @@ class TPEGLoader(object):
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
-        return pChar(name[1:-1]) if name.startswith('"') else char1(name)
+        return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
 
     def Many(self, t, step):
         return PMany(self.conv(t.e, step))
@@ -1549,31 +933,31 @@ class TPEGLoader(object):
         es = []
         for p in t:
             e = self.conv(p, step)
-            #step += e.minLen()
+            # step += e.minLen()
             es.append(e)
-        return pSeq(*es)
+        return PSeq.new(*es)
 
     def Ore(self, t, step):
-        return pOre(*tuple(map(lambda p: self.conv(p, step), t)))
+        return POre.new(*tuple(map(lambda p: self.conv(p, step), t)))
 
     def Alt(self, t, step):
-        return pOre(*tuple(map(lambda p: self.conv(p, step), t)))
+        return POre.new(*tuple(map(lambda p: self.conv(p, step), t)))
 
     def Node(self, t, step):
         tag = str(t.tag) if hasattr(t, 'tag') else ''
         e = self.conv(t.e, step)
-        return pNode(e, tag, 0)
+        return PNode(e, tag, 0)
 
     def Edge(self, t, step):
         edge = str(t.edge) if hasattr(t, 'edge') else ''
         e = self.conv(t.e, step)
-        return pEdge(edge, e)
+        return PEdge(edge, e)
 
     def Fold(self, t, step):
         edge = str(t.edge) if hasattr(t, 'edge') else ''
         tag = str(t.tag) if hasattr(t, 'tag') else ''
         e = self.conv(t.e, step)
-        return pFold(edge, e, tag, 0)
+        return PFold(edge, e, tag, 0)
 
     FIRST = {'lazy', 'scope', 'symbol',
              'match', 'equals', 'contains', 'cat'}
@@ -1628,8 +1012,8 @@ class TPEGLoader(object):
 def grammar_factory():
 
     def load_grammar(g, file, **options):
-        #logger = options.get('logger', logger)
-        pegparser = generate(options.get('peg', TPEGGrammar))
+        # logger = options.get('logger', logger)
+        pegparser = pasm.generate(options.get('peg', TPEGGrammar))
         if isinstance(file, Path):
             f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
             data = f.read()

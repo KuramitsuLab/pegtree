@@ -82,4 +82,4 @@ def TPEG(peg):
 
 
 TPEGGrammar = TPEG({})
-print(TPEGGrammar)
+# print(TPEGGrammar)

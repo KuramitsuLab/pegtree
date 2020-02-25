@@ -188,7 +188,7 @@ def pSeq4(pf, pf2, pf3, pf4):
     return match_seq4
 
 
-def pSeq(pfs):
+def pSeq(*pfs):
     def match_seq(px):
         for pf in pfs:
             if not pf(px):
@@ -201,23 +201,59 @@ def pSeq(pfs):
 
 def pOre2(pf, pf2):
     def match_ore2(px):
-        return pf(px) and pf2(px)
+        pos = px.pos
+        ast = px.ast
+        if pf(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        return pf2(px)
     return match_ore2
 
 
 def pOre3(pf, pf2, pf3):
     def match_ore3(px):
-        return pf(px) and pf2(px) and pf3(px)
+        pos = px.pos
+        ast = px.ast
+        if pf(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        if pf2(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        return pf3(px)
     return match_ore3
 
 
 def pOre4(pf, pf2, pf3, pf4):
     def match_ore4(px):
-        return pf(px) and pf2(px) and pf3(px) and pf4(px)
+        pos = px.pos
+        ast = px.ast
+        if pf(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        if pf2(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        if pf3(px):
+            return True
+        px.headpos = max(px.pos, px.headpos)
+        px.pos = pos
+        px.ast = ast
+        return pf4(px)
     return match_ore4
 
 
-def pOre(pfs):
+def pOre(*pfs):
     def match_ore(px):
         pos = px.pos
         ast = px.ast
@@ -229,6 +265,23 @@ def pOre(pfs):
             px.ast = ast
         return False
     return match_ore
+
+
+def make_trie(dic):
+    if '' in dic or len(dic) < 10:
+        return dic
+    d = {}
+    for s in dic:
+        s0, s = s[0], s[1:]
+        if s0 in d:
+            ss = d[s0]
+            if not s in ss:
+                ss.append(s)
+        else:
+            d[s0] = [s]
+    for key in d:
+        d[key] = make_trie(d[key])
+    return d
 
 
 def match_trie(px, d):
@@ -250,7 +303,10 @@ def match_trie(px, d):
 
 
 def pDict(words):
-    pass
+    if isinstance(words, str):
+        words = words.split(' ')
+    dic = make_trie(words)
+    return lambda px: match_trie(px, dic)
 
 
 def pRef(generated, uname):
@@ -564,6 +620,126 @@ def pNotRange(chars, ranges):
 # generate
 
 
+# PContext
+
+
+class PContext:
+    __slots__ = ['inputs', 'pos', 'epos',
+                 'headpos', 'ast', 'state', 'memo']
+
+    def __init__(self, inputs, spos, epos):
+        self.inputs = inputs
+        self.pos = spos
+        self.epos = epos
+        self.headpos = spos
+        self.ast = None
+        self.state = None
+        self.memo = [PMemo() for x in range(1789)]
+
+# ParseTree
+
+
+def rowcol(urn, inputs, spos):
+    inputs = inputs[:spos + (1 if len(inputs) > spos else 0)]
+    rows = inputs.split(b'\n' if isinstance(inputs, bytes) else '\n')
+    return urn, spos, len(rows), len(rows[-1])-1
+
+
+def nop(s): return s
+
+
+class ParseTree(list):
+    def __init__(self, tag, inputs, spos=0, epos=None, urn=UNKNOWN_URN):
+        self.tag_ = tag
+        self.inputs_ = inputs
+        self.spos_ = spos
+        self.epos_ = epos if epos is not None else len(inputs)
+        self.urn_ = urn
+
+    def gettag(self):
+        return self.tag_
+
+    def start(self):
+        return rowcol(self.urn_, self.inputs_, self.spos_)
+
+    def end(self):
+        return rowcol(self.urn_, self.inputs_, self.epos_)
+
+    def decode(self):
+        inputs, spos, epos = self.inputs_, self.spos_, self.epos_
+        LF = b'\n' if isinstance(inputs, bytes) else '\n'
+        rows = inputs[:spos + (1 if len(inputs) > spos else 0)]
+        rows = rows.split(LF)
+        linenum, column = len(rows), len(rows[-1])-1
+        begin = inputs.rfind(LF, 0, spos) + 1
+        # print('@', spos, begin, inputs)
+        end = inputs.find(LF, spos)
+        # print('@', spos, begin, inputs)
+        if end == -1:
+            end = len(inputs)
+        # print('@[', begin, spos, end, ']', epos)
+        line = inputs[begin:end]  # .replace('\t', '   ')
+        mark = []
+        endcolumn = column + (epos - spos)
+        for i, c in enumerate(line):
+            if column <= i and i <= endcolumn:
+                mark.append('^' if ord(c) < 256 else '^^')
+            else:
+                mark.append(' ' if ord(c) < 256 else '  ')
+        mark = ''.join(mark)
+        return (self.urn_, spos, linenum, column, bytestr(line), mark)
+
+    def showing(self, msg='Syntax Error'):
+        urn, pos, linenum, cols, line, mark = self.decode()
+        return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
+
+    def __eq__(self, tag):
+        return self.tag_ == tag
+
+    def isSyntaxError(self):
+        return self.tag_ == 'err'
+
+    def __str__(self):
+        s = self.inputs_[self.spos_:self.epos_]
+        return s.decode('utf-8') if isinstance(s, bytes) else s
+
+    def __repr__(self):
+        if self.isSyntaxError():
+            return self.showing('Syntax Error')
+        sb = []
+        self.strOut(sb)
+        return "".join(sb)
+
+    def dump(self, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
+        if self.isSyntaxError():
+            return self.showing('Syntax Error')
+        sb = []
+        self.strOut(sb)
+        print("".join(sb))
+
+    def strOut(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
+        sb.append("[" + tag(f'#{self.tag_}'))
+        hasContent = False
+        next_indent = indent + tab
+        for child in self:
+            hasContent = True
+            sb.append(indent)
+            if hasattr(child, 'strOut'):
+                child.strOut(sb, next_indent, tab, tag, edge, token)
+            else:
+                sb.append(repr(child))
+        for key in self.__dict__:
+            v = self.__dict__[key]
+            if isinstance(v, ParseTree):
+                hasContent = True
+                sb.append(indent)
+                sb.append(edge(key) + ': ')
+                v.strOut(sb, next_indent, tab, tag, edge, token)
+        if not hasContent:
+            sb.append(' ' + token(repr(str(self))))
+        sb.append("]")
+
+
 def PTree2ParseTree(pt: PTree, urn, inputs):
     if pt.prev != None:
         return PTree2ParseTreeImpl('', urn, inputs, pt.spos, pt.epos, pt)
@@ -591,23 +767,6 @@ def PTree2ParseTreeImpl(tag, urn, inputs, spos, epos, subnode):
     for i in range(len(t)//2):
         t[i], t[-(1+i)] = t[-(1+i)], t[i]
     return t
-
-
-# PContext
-
-
-class PContext:
-    __slots__ = ['inputs', 'pos', 'epos',
-                 'headpos', 'ast', 'state', 'memo']
-
-    def __init__(self, inputs, spos, epos):
-        self.inputs = inputs
-        self.pos = spos
-        self.epos = epos
-        self.headpos = spos
-        self.ast = None
-        self.state = None
-        self.memo = [PMemo() for x in range(1789)]
 
 
 def generate(pf):
