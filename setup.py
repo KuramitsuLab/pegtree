@@ -5,7 +5,7 @@ sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
     name='pegtree',
-    version='0.9.2',
+    version='0.9.3',
     url='https://github.com/KuramitsuLab/pegtree.git',
     license='MIT',
     author='Kimio Kuramitsu',

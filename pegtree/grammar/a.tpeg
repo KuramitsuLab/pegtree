@@ -1,0 +1,35 @@
+
+Char = 'a'
+
+example Char a
+example Char aa
+
+Ref = Char
+
+example Ref a
+
+Range = [0-9]
+Range2 = [Aa]
+
+example Range 9
+example Range2 a
+
+
+Seq2 = 'a' 'b'
+Seq3 = 'a' 'b' 'c'
+Seq4 = 'a' 'b' 'c' 'd'
+Seq  = 'a' 'b' 'c' 'd' 'e'
+
+example Seq2 ab
+example Seq3 abc
+example Seq4 abcd
+example Seq  abcde
+
+Node = { 'a' }
+NodeTag = { 'a' #A }
+NodeFold = NodeTag ^{ 'b' #B }
+
+example Node a
+example NodeTag a
+example NodeFold ab
+
