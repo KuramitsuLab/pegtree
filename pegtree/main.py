@@ -213,30 +213,47 @@ def example(options):
         res.dump()
 
 
+def dumpError(lines, line, s):
+    errs = 0
+    for t in s:
+        cur = str(t)
+        if t.isSyntaxError():
+            errs = 1
+            s = max(0, t.spos_ - 10)
+            prev = t.inputs_[s:t.spos_]
+            # print(line)
+            print(lines, color('Green', f'{prev}') + color('Red', f'{cur}'))
+    return errs
+
+
 def test(options):
     peg = load_grammar(options)
-    parsers = {}
-    test = 0
-    ok = 0
-    for testcase in peg['@@example']:
-        name, pos4 = testcase
-        if not name in peg:
-            continue
-        if not name in parsers:
-            parsers[name] = generator(options)(peg, start=name)
-        res = parsers[name](pos4.inputs, pos4.urn, pos4.spos, pos4.epos)
-        if res == 'err':
-            log('error', res, name)
-        else:
-            print(color('Green', f'OK {name}'), f' => {repr(res)}')
-    if test > 0:
-        print(color('Green', f'OK {ok}'), color(
-            'Red', f'FAIL {test - ok}'), ok / test * 100.0, '%')
+    parser = generator(options)(peg, **options)
+    inputs = options['inputs']
+    st = time.time()
+    lines = 0
+    fail = 0
+    for file in options['inputs']:
+        with open(file) as f:
+            for line in f:
+                lines += 1
+                t = parser(line)
+                fail += dumpError(lines, line, t)
+    et = time.time()
+    if lines > 0:
+        print(f'{fail}/{lines} {fail/lines} {(et - st) * 1000.0} ms')
 
 
 def peg(options):
     peg = load_grammar(options)
     print(peg)
+
+
+def pasm0(options):
+    from pegtree.parsec import parsec
+    peg = load_grammar(options)
+    options['optimized'] = 0
+    parsec(peg, **options)
 
 
 def pasm(options):
@@ -254,7 +271,7 @@ def update(options):
         pass
 
 
-def beta(options):
+def update_beta(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
         subprocess.check_call(

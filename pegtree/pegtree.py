@@ -6,6 +6,7 @@ import inspect
 from pathlib import Path
 import pegtree.pasm as pasm
 from pegtree.tpeg import TPEGGrammar
+sys.setrecursionlimit(5000)
 
 
 def DEBUG(*x):
@@ -142,6 +143,8 @@ class PTuple(PExpr):
 class PSeq(PTuple):
     @classmethod
     def new(cls, *es):
+        if len(es) == 0:
+            return EMPTY
         ls = [es[0]]
         for e in es[1:]:
             if e == EMPTY:
@@ -287,7 +290,8 @@ class PNode(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        return '{' + repr(self.e) + ' #' + self.tag + '}'
+        s = '' if self.shift == 0 else f'/*{self.shift}*/'
+        return '{' + s + repr(self.e) + ' #' + self.tag + '}'
 
 
 class PEdge(PUnary):
@@ -311,9 +315,10 @@ class PFold(PUnary):
         self.shift = shift
 
     def __repr__(self):
+        s = '' if self.shift == 0 else f'/*{self.shift}*/'
         if self.edge == '':
-            return '^ {' + repr(self.e) + ' #' + self.tag + '}'
-        return self.edge + ': ^ {' + repr(self.e) + ' #' + self.tag + '}'
+            return '^ {' + s + repr(self.e) + ' #' + self.tag + '}'
+        return self.edge + ': ^ {' + s + repr(self.e) + ' #' + self.tag + '}'
 
 
 class PAbs(PUnary):
@@ -573,32 +578,51 @@ class Optimizer(object):
             return pe
         return start
 
-    def splitFixed(self, remains):
-        size = 0
-        for i, e in enumerate(remains):
-            if isinstance(e, PChar):
-                size += len(e.text)
-            elif isinstance(e, PRange) or isinstance(e, PAny):
-                size += 1
-            elif isinstance(e, PAnd) or isinstance(e, PNot):
-                size += 0
-            else:
-                return size, i-1
-        return size, len(remains)
+    def join(self, *es):
+        return PSeq.new(*es)
 
-    def ood(self, pe):
-        es = pe.e.es if isinstance(pe.e, PSeq) else [pe.e]
-        size, idx = self.fixed(es)
-        if idx == -1:
-            return pe
-        head = es[:idx]
-        tail = es[idx:]
-        if isinstance(pe, PNode):
-            pe = PNode(PSeq.new(*tail), pe.tag, -size)
-        else:
-            pe = PFold(pe.edge, PSeq.new(*tail), pe.tag, -size)
-        head.append(pe)
-        return PSeq.new(*head)
+    def fixedExpr(self, e):
+        es = [e]
+        fixed = []
+        size = 0
+        while len(es) > 0:
+            #print(es, '->')
+            lsize, e, es = self.fixedEach(size, es)
+            #print('->', lsize, e, es)
+            if e is None:
+                break
+            fixed.append(e)
+            size += lsize
+        return size, fixed, es
+
+    def fixedEach(self, size, es):
+        e = self.inline(es[0])
+        if isinstance(e, PChar) and len(e.text) > 0:
+            return len(e.text)+size, e, es[1:]
+        elif isinstance(e, PRange) or isinstance(e, PAny):
+            return 1+size, e, es[1:]
+        elif isinstance(e, PAnd) or isinstance(e, PNot):
+            return size, e, es[1:]
+        elif isinstance(e, PSeq):
+            return self.fixedEach(size, e.es+es[1:])
+        elif isinstance(e, PMany1):
+            lsize, lfixed, les = self.fixedExpr(e.e)
+            #print('PMany1', e, '=>', lsize, lfixed, les)
+            if len(les) != 0:
+                return size, None, es
+            return size+lsize, e.e, [PMany(e.e)] + es[1:]
+        elif isinstance(e, PNode) and e.shift == 0:
+            lsize, lfixed, les = self.fixedExpr(e.e)
+            #print('PNode', e, '=>', lsize, lfixed, les)
+            if len(lfixed) == 0:
+                return size, None, es
+            return size+lsize, PSeq.new(*lfixed), [PNode(PSeq.new(*les), e.tag, -lsize)]+es[1:]
+        elif isinstance(e, PFold) and e.shift == 0:
+            lsize, lfixed, les = self.fixedExpr(e.e)
+            if len(lfixed) == 0:
+                return size, None, es
+            return size+lsize, PSeq.new(*lfixed), [PFold(e.edge, PSeq.new(*les), e.tag, -lsize)]+es[1:]
+        return size, None, es
 
 
 class Generator(Optimizer):
@@ -607,6 +631,8 @@ class Generator(Optimizer):
         self.generated = {}
         self.generating_nonterminal = ''
         self.sids = {}
+        self.memos = []
+        self.Olex = True
 
     def getsid(self, name):
         if not name in self.sids:
@@ -631,7 +657,13 @@ class Generator(Optimizer):
         name = option.get('start', peg.start())
         start = peg.newRef(name)
         # if 'memos' in option and not isinstance(option['memos'], list):
-        memos = option.get('memos', peg.N)
+        if 'packrat' in peg:
+            memos = peg['packrat']
+            if isinstance(memos, POre):
+                self.memos = memos.listDict()
+            else:
+                self.memos = peg.N
+            print(self.memos)
         ps = self.makelist(start, {}, [])
 
         for ref in ps:
@@ -644,9 +676,10 @@ class Generator(Optimizer):
 
     def emitRule(self, ref):
         A = self.emit(ref.deref(), 0)
-        # idx = memos.index(ref.name)
-        # if idx != -1 and ref.peg == peg:
-        #     A = self.memoize(idx, len(memos), A)
+        if ref.peg == self.peg and ref.name in self.memos:
+            idx = self.memos.index(ref.name)
+            if idx != -1:
+                A = pasm.pMemoDebug(ref.name, A, idx, self.memos)
         self.generated[ref.uname()] = A
 
     def emitParser(self, start):
@@ -661,23 +694,6 @@ class Generator(Optimizer):
         print('@TODO(Generator)', cname, pe)
         return self.PChar(EMPTY)
 
-    def memoize(self, mp, msize, A):
-        def match_memo(px):
-            key = (msize * px.pos) + mp
-            m = px.memo[key % 1789]
-            if m.key == key:
-                px.pos = m.pos
-                if m.ast != False:
-                    px.ast = m.ast
-                return m.result
-            prev = px.ast
-            m.result = A(px)
-            m.pos = px.pos
-            m.ast = px.ast if prev != px.ast else False
-            m.key = key
-            return m.result
-        return match_memo
-
     def PAny(self, pe, step):
         return pasm.pAny()
 
@@ -689,6 +705,10 @@ class Generator(Optimizer):
 
     def PAnd(self, pe, step):
         e = self.inline(pe.e)
+        # if(self.Olex and isinstance(e, PChar)):
+        #     return pasm.pAndChar(e.text)
+        # if(self.Olex and isinstance(e, PRange)):
+        #     return pasm.pAndRange(e.chars, e.ranges)
         return pasm.pAnd(self.emit(e, step))
 
     def PNot(self, pe, step):
@@ -740,13 +760,28 @@ class Generator(Optimizer):
     # Tree Construction
 
     def PNode(self, pe, step):
-        return pasm.pNode(self.emit(pe.e, step), pe.tag, pe.shift)
+        _, fixed, es = self.fixedEach(0, [pe])
+        #print(_, fixed, es)
+        if fixed is None:
+            fs = self.emit(pe.e, step)
+            return pasm.pNode(fs, pe.tag, pe.shift)
+        else:
+            #print('//OOD', self.join(fixed, *es))
+            return self.emit(self.join(fixed, *es), step)
 
     def PEdge(self, pe, step):
         return pasm.pEdge(pe.edge, self.emit(pe.e, step))
 
     def PFold(self, pe, step):
-        return pasm.pFold(pe.edge, self.emit(pe.e, step), pe.tag, pe.shift)
+        _, fixed, es = self.fixedEach(0, [pe])
+        #print(_, fixed, es)
+        #fixed = None
+        if fixed is None:
+            fs = self.emit(pe.e, step)
+            return pasm.pFold(pe.edge, fs, pe.tag, pe.shift)
+        else:
+            #print('//OOD', self.join(fixed, *es))
+            return self.emit(self.join(fixed, *es), step)
 
     def PAbs(self, pe, step):
         return pasm.pAbs(self.emit(pe.e, step))

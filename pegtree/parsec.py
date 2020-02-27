@@ -1,7 +1,17 @@
+import os
 from pegtree.pegtree import Generator, grammar, Grammar
-#from pegtree import Generator, grammar
+# from pegtree import Generator, grammar
 
-PASM1 = set(['Seq3', 'Seq4', 'Ore3', 'Ore4', 'Option', 'Many1'])
+PASMS = [
+    [],
+    [
+        'Option', 'Many1',
+        'Seq', 'Ore', 'Seq3', 'Seq4', 'Ore3', 'Ore4',
+        'AndChar', 'NotChar', 'ManyChar', 'Many1Char', 'OptionChar',
+        'AndRange', 'NotRange', 'ManyRange', 'Many1Range', 'OptionRange',
+        'Many2'
+    ]
+]
 
 
 class Parsec(Generator):
@@ -9,12 +19,13 @@ class Parsec(Generator):
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
          '\\': '\\\\', "'": "\\'", '"': "\\\""})
 
-    def __init__(self):
+    def __init__(self, **options):
         super().__init__()
         self.domains = []
         self.apply = '{}({})'
         self.delim = ','
-        self.prefix = 'p'
+        self.prefix = os.environ['PREFIX'] if 'PREFIX' in os.environ else 'p'
+        self.PASM = set(PASMS[options.get('optimized', 1)])
 
     def emitRule(self, ref):
         name = self.getref(ref.uname(self.peg))
@@ -29,7 +40,7 @@ class Parsec(Generator):
         return self.quote(name)
 
     def has(self, func):
-        return func in PASM1
+        return func in self.PASM
 
     def emitApply(self, name, *args):
         name = f'{self.prefix}{name}'
@@ -54,9 +65,9 @@ class Parsec(Generator):
         return '"' + s.translate(Parsec.ESCTBL) + '"'
 
     def param(self, pe):
-        if isinstance(pe, PChar):
+        if hasattr(pe, 'text'):
             return (self.quote(pe.text),)
-        if isinstance(pe, PRange):
+        if hasattr(pe, 'ranges'):
             return (self.quote(pe.chars), self.quote(pe.ranges))
 
     def PEmpty(self, pe, step):
@@ -77,38 +88,43 @@ class Parsec(Generator):
         return self.emitApply('Range', self.quote(pe.chars), self.quote(pe.ranges))
 
     def PAnd(self, pe, step):
-        cname = pe.e.cname()
+        e = self.inline(pe.e)
+        cname = e.cname()[1:]
         if self.has(f'And{cname}'):
-            return self.emitApply(f'And{cname}', *self.param(pe.e))
-        return self.emitApply('And', self.emit(pe.e, step))
+            return self.emitApply(f'And{cname}', *self.param(e))
+        return self.emitApply('And', self.emit(e, step))
 
     def PNot(self, pe, step):
-        cname = pe.e.cname()
+        e = self.inline(pe.e)
+        cname = e.cname()[1:]
         if self.has(f'Not{cname}'):
-            return self.emitApply(f'Not{cname}', *self.param(pe.e))
-        return self.emitApply('Not', self.emit(pe.e, step))
+            return self.emitApply(f'Not{cname}', *self.param(e))
+        return self.emitApply('Not', self.emit(e, step))
 
     def PMany(self, pe, step):
-        cname = pe.e.cname()
+        e = self.inline(pe.e)
+        cname = e.cname()[1:]
         if self.has(f'Many{cname}'):
-            return self.emitApply(f'Many{cname}', *self.param(pe.e))
-        return self.emitApply('Many', self.emit(pe.e, step))
+            return self.emitApply(f'Many{cname}', *self.param(e))
+        return self.emitApply('Many', self.emit(e, step))
 
     def PMany1(self, pe, step):
+        e = self.inline(pe.e)
         if self.has('Many1'):
-            cname = pe.e.cname()
+            cname = e.cname()[1:]
             if self.has(f'Many1{cname}'):
-                return self.emitApply(f'Many1{cname}', *self.param(pe.e))
-            return self.emitApply('Many1', self.emit(pe.e, step))
-        return self.emitApply('Seq2', self.emit(pe.e, step), self.PMany(pe, pe.minLen()))
+                return self.emitApply(f'Many1{cname}', *self.param(e))
+            return self.emitApply('Many1', self.emit(e, step))
+        return self.emitApply('Seq2', self.emit(e, step), self.PMany(pe, pe.minLen()))
 
     def POption(self, pe, step):
+        e = self.inline(pe.e)
         if self.has('Option'):
-            cname = pe.e.cname()
+            cname = e.cname()[1:]
             if self.has(f'Option{cname}'):
-                return self.emitApply(f'Option{cname}', *self.param(pe.e))
-            return self.emitApply('Option', self.emit(pe.e, step))
-        return self.emitApply('Ore2', pe, self.emitApply('Empty'))
+                return self.emitApply(f'Option{cname}', *self.param(e))
+            return self.emitApply('Option', self.emit(e, step))
+        return self.emitApply('Ore2', e, self.emitApply('Empty'))
 
     def PSeq(self, pe, step):
         fs = []
@@ -128,7 +144,7 @@ class Parsec(Generator):
     # Ore
     def POre(self, pe, step):
         if pe.isDict():
-            ss = [self.quote(s) for s in pe.listDict()]
+            ss = [s for s in pe.listDict()]
             return self.emitApply('Dict', self.quote(' '.join(ss)))
         fs = [self.emit(e, step) for e in pe]
         if len(fs) == 2:
@@ -162,16 +178,28 @@ class Parsec(Generator):
     # Tree Construction
 
     def PNode(self, pe, step):
-        e = self.emit(pe.e, step)
-        return self.emitApply('Node', e, self.quote(pe.tag), '0')
+        _, fixed, es = self.fixedEach(0, [pe])
+        #print(_, fixed, es)
+        if fixed is None:
+            e = self.emit(pe.e, step)
+            return self.emitApply('Node', e, self.quote(pe.tag), f'{pe.shift}')
+        else:
+            print('//OOD', self.join(fixed, *es))
+            return self.emit(self.join(fixed, *es), step)
 
     def PEdge(self, pe, step):
         e = self.emit(pe.e, step)
         return self.emitApply('Edge', self.quote(pe.edge), e)
 
     def PFold(self, pe, step):
-        e = self.emit(pe.e, step)
-        return self.emitApply('Fold', self.quote(pe.edge), e, self.quote(pe.tag), '0')
+        _, fixed, es = self.fixedEach(0, [pe])
+        #print(_, fixed, es)
+        if fixed is None:
+            e = self.emit(pe.e, step)
+            return self.emitApply('Fold', self.quote(pe.edge), e, self.quote(pe.tag), f'{pe.shift}')
+        else:
+            print('//OOD', self.join(fixed, *es))
+            return self.emit(self.join(fixed, *es), step)
 
     def PAbs(self, pe, step):
         e = self.emit(pe.e, step)
@@ -199,7 +227,7 @@ class Parsec(Generator):
 
 
 def parsec(peg, **options):
-    generator = Parsec()
+    generator = Parsec(**options)
     return generator.generate(peg, **options)
 
 

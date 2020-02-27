@@ -311,34 +311,114 @@ def pDict(words):
 
 def pRef(generated, uname):
     if uname not in generated:
+        fs = None
+
+        def match_deref(px):
+            nonlocal fs
+            if fs is None:
+                fs = generated[uname]
+            return fs(px)
+        generated[uname] = match_deref
+    return generated[uname]
+
+
+def pRef(generated, uname):
+    if uname not in generated:
         generated[uname] = lambda px: generated[uname](px)
     return generated[uname]
 
 
 class PMemo(object):
-    __slots__ = ['key', 'pos', 'ast', 'result']
+    __slots__ = ['key', 'pos', 'treeState', 'ast', 'prev', 'result']
 
     def __init__(self):
         self.key = -1
         self.pos = 0
+        self.treeState = False
         self.ast = None
+        self.prev = None
         self.result = False
 
 
-def pMemo(pf, mp, msize):
+def pMemo(fs, mp, mpsize):
+    disabled = False
+    hit = 0
+    miss = 0
+
     def match_memo(px):
-        key = (msize * px.pos) + mp
+        nonlocal disabled, hit, miss
+        if disabled:
+            return fs(px)
+        key = (mpsize * px.pos) + mp
         m = px.memo[key % 1789]
         if m.key == key:
-            px.pos = m.pos
-            if m.ast != False:
-                px.ast = m.ast
-            return m.result
+            if m.treeState:
+                if m.prev == px.ast:
+                    px.pos = m.pos
+                    px.ast = m.ast
+                    hit += 1
+                    return m.result
+            else:
+                px.pos = m.pos
+                hit += 1
+                return m.result
         prev = px.ast
-        m.result = pf(px)
+        m.result = fs(px)
         m.pos = px.pos
-        m.ast = px.ast if prev != px.ast else False
         m.key = key
+        if m.result and prev != px.ast:
+            m.treeState = True
+            m.prev = prev
+            m.ast = px.ast
+        else:
+            m.treeState = False
+        miss += 1
+        if miss % 100 == 0:
+            if hit / miss < 5:
+                disabled = True
+        return m.result
+    return match_memo
+
+
+def pMemoDebug(name, fs, mp, mps):
+    disabled = False
+    hit = 0
+    miss = 0
+    mpsize = len(mps)
+
+    def match_memo(px):
+        nonlocal disabled, hit, miss
+        if disabled:
+            return fs(px)
+        key = (mpsize * px.pos) + mp
+        m = px.memo[key % 1789]
+        if m.key == key:
+            if m.treeState:
+                if m.prev == px.ast:
+                    px.pos = m.pos
+                    px.ast = m.ast
+                    hit += 1
+                    return m.result
+            else:
+                px.pos = m.pos
+                hit += 1
+                return m.result
+        prev = px.ast
+        m.result = fs(px)
+        m.pos = px.pos
+        m.key = key
+        if m.result and prev != px.ast:
+            m.treeState = True
+            m.prev = prev
+            m.ast = px.ast
+        else:
+            m.treeState = False
+        miss += 1
+        if miss % 100 == 0:
+            if hit / miss < 5:
+                mps.remove(name)
+                print('enabled', mps)
+                disabled = True
         return m.result
     return match_memo
 
@@ -558,6 +638,12 @@ def In(self, pe, step):  # @in(NAME)
 # Optimized
 
 
+def pAndChar(text):
+    def match_andchar(px):
+        return px.inputs.startswith(text, px.pos)
+    return match_andchar
+
+
 def pManyChar(text):
     clen = len(text)
 
@@ -568,16 +654,22 @@ def pManyChar(text):
     return match_manychar
 
 
-def pAndChar(text):
-    def match_andchar(px):
-        return px.inputs.startswith(text, px.pos)
-    return match_andchar
-
-
 def pNotChar(text):
     def match_notchar(px):
         return not px.inputs.startswith(text, px.pos)
     return match_notchar
+
+
+def pAndRange(chars, ranges):
+    bitset, offset = bitmap(chars, ranges)  # >> offset
+
+    def match_andbitset(px):
+        if px.pos < px.epos:
+            shift = ord(px.inputs[px.pos])  # - offset
+            if shift >= 0 and (bitset & (1 << shift)) != 0:
+                return True
+        return False
+    return match_andbitset
 
 
 def pManyRange(chars, ranges):

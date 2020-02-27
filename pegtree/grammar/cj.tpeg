@@ -260,9 +260,12 @@ NewNoun =
 // ひらがなは xNoun が接尾に含まれる
 
 PatNoun = {
-    (XVERB / NONHIRA) (XVERB / NONHIRA)*
-    #Noun
+    XVERB NONHIRA+ / NONHIRA (XVERB2 / NONHIRA+)
+    //(XVERB / NONHIRA) (XVERB / NONHIRA)*
+    #PNoun
 }
+
+XVERB2 = XVERB / NONHIRA XVERB2
 
 // XVERB 以外の名詞の接尾詞　FIXME
 //xNoun = !'らしい' @choice('cjdic/xNoun.txt')
@@ -400,6 +403,7 @@ xNounVerb = // 例. 行動する 論じる
     / ^{ {[すず]} #Do } ('れ' xVerbE / xShould) 
     / ^{ {[しじ]} #Do } (xVerbA / 'よ' xVerbO / xVerbIX / xVerbI )
     / ^{ {'され'} #Been } xMood
+    / ^{ {'せず'} #DoNot }
     / ^{ {'でき'} #Can } xMood
 
 
