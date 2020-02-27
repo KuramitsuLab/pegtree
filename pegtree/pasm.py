@@ -78,15 +78,17 @@ def minimum_range(chars, ranges):
     return cs
 
 
-BitmapCache = {
-
-}
+BitmapCache = {}
 
 
 def bitmap(chars, ranges):
+    key = (chars, ranges)
+    if key in BitmapCache:
+        return BitmapCache[key]
     offset = minimum_range(chars, ranges)
     bitset = unique_range(chars, ranges) >> offset
-    return (bitset, offset)
+    BitmapCache[key] = (bitset, offset)
+    return BitmapCache[key]
 
 
 def pRange(chars, ranges):
@@ -644,6 +646,12 @@ def pAndChar(text):
     return match_andchar
 
 
+def pNotChar(text):
+    def match_notchar(px):
+        return not px.inputs.startswith(text, px.pos)
+    return match_notchar
+
+
 def pManyChar(text):
     clen = len(text)
 
@@ -654,10 +662,27 @@ def pManyChar(text):
     return match_manychar
 
 
-def pNotChar(text):
-    def match_notchar(px):
-        return not px.inputs.startswith(text, px.pos)
-    return match_notchar
+def pMany1Char(text):
+    clen = len(text)
+
+    def match_many1char(px):
+        if px.inputs.startswith(text, px.pos):
+            px.pos += clen
+            while px.inputs.startswith(text, px.pos):
+                px.pos += clen
+            return True
+        return False
+    return match_many1char
+
+
+def pOptionChar(text):
+    clen = len(text)
+
+    def match_optionchar(px):
+        if px.inputs.startswith(text, px.pos):
+            px.pos += clen
+        return True
+    return match_optionchar
 
 
 def pAndRange(chars, ranges):
@@ -672,26 +697,12 @@ def pAndRange(chars, ranges):
     return match_andbitset
 
 
-def pManyRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
-
-    def match_manybitset(px):
-        while px.pos < px.epos:
-            shift = ord(px.inputs[px.pos])  # - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                px.pos += 1
-                continue
-
-        return False
-    return match_manybitset
-
-
 def pAndRange(chars, ranges):
     bitset, offset = bitmap(chars, ranges)  # >> offset
 
     def match_andbitset(px):
         if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos])  # - offset
+            shift = ord(px.inputs[px.pos]) - offset
             if shift >= 0 and (bitset & (1 << shift)) != 0:
                 return True
         return False
@@ -703,11 +714,41 @@ def pNotRange(chars, ranges):
 
     def match_notbitset(px):
         if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos])  # - offset
+            shift = ord(px.inputs[px.pos]) - offset
             if shift >= 0 and (bitset & (1 << shift)) != 0:
                 return False
         return True
     return match_notbitset
+
+
+def pManyRange(chars, ranges):
+    bitset, offset = bitmap(chars, ranges)  # >> offset
+
+    def match_manybitset(px):
+        while px.pos < px.epos:
+            shift = ord(px.inputs[px.pos]) - offset
+            if shift >= 0 and (bitset & (1 << shift)) != 0:
+                px.pos += 1
+            else:
+                break
+        return True
+    return match_manybitset
+
+
+def pMany1Range(chars, ranges):
+    return pSeq2(pRange(chars, ranges), pManyRange(chars, ranges))
+
+
+def pOptionRange(chars, ranges):
+    bitset, offset = bitmap(chars, ranges)  # >> offset
+
+    def match_optionbitset(px):
+        if px.pos < px.epos:
+            shift = ord(px.inputs[px.pos]) - offset
+            if shift >= 0 and (bitset & (1 << shift)) != 0:
+                px.pos += 1
+        return True
+    return match_optionbitset
 
 # generate
 

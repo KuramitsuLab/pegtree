@@ -6,7 +6,7 @@ import inspect
 from pathlib import Path
 import pegtree.pasm as pasm
 from pegtree.tpeg import TPEGGrammar
-sys.setrecursionlimit(5000)
+# sys.setrecursionlimit(5000)
 
 
 def DEBUG(*x):
@@ -562,10 +562,6 @@ class Grammar(dict):
 ######################################################################
 # ast.env
 
-# def bytestr(b):
-#     return b.decode('utf-8') if isinstance(b, bytes) else b
-
-
 class Optimizer(object):
 
     def inline(self, pe: PExpr):
@@ -586,9 +582,9 @@ class Optimizer(object):
         fixed = []
         size = 0
         while len(es) > 0:
-            #print(es, '->')
+            # print(es, '->')
             lsize, e, es = self.fixedEach(size, es)
-            #print('->', lsize, e, es)
+            # print('->', lsize, e, es)
             if e is None:
                 break
             fixed.append(e)
@@ -607,13 +603,13 @@ class Optimizer(object):
             return self.fixedEach(size, e.es+es[1:])
         elif isinstance(e, PMany1):
             lsize, lfixed, les = self.fixedExpr(e.e)
-            #print('PMany1', e, '=>', lsize, lfixed, les)
+            # print('PMany1', e, '=>', lsize, lfixed, les)
             if len(les) != 0:
                 return size, None, es
             return size+lsize, e.e, [PMany(e.e)] + es[1:]
         elif isinstance(e, PNode) and e.shift == 0:
             lsize, lfixed, les = self.fixedExpr(e.e)
-            #print('PNode', e, '=>', lsize, lfixed, les)
+            # print('PNode', e, '=>', lsize, lfixed, les)
             if len(lfixed) == 0:
                 return size, None, es
             return size+lsize, PSeq.new(*lfixed), [PNode(PSeq.new(*les), e.tag, -lsize)]+es[1:]
@@ -624,6 +620,64 @@ class Optimizer(object):
             return size+lsize, PSeq.new(*lfixed), [PFold(e.edge, PSeq.new(*les), e.tag, -lsize)]+es[1:]
         return size, None, es
 
+    def sort(self, refs):
+        newrefs = []
+        unsolved = []
+        for ref in refs:
+            names = set([])
+            self.makerefs(ref.deref(), names)
+            if len(names) == 0:
+                newrefs.append(ref)
+            else:
+                unsolved.append((ref, set(names)))
+        return self.solve(newrefs, unsolved)
+
+    def makerefs(self, e, names):
+        if isinstance(e, PTuple):
+            for e2 in e:
+                self.makerefs(e2, names)
+        elif hasattr(e, 'e'):
+            self.makerefs(e.e, names)
+        elif isinstance(e, PRef):
+            names.add(e.uname())
+
+    def removeSolvedName(self, unsolved, uname):
+        removed = False
+        for _, names in unsolved:
+            if uname in names:
+                removed = True
+                names.remove(uname)
+        return removed
+
+    def solve(self, refs, unsolved):
+        removed = False
+        # print(refs)
+        for ref in refs:
+            removed |= self.removeSolvedName(unsolved, ref.uname())
+        max = 0
+        while max < 10:
+            removed = True
+            while removed:
+                removed = False
+                newrefs = []
+                stillUnsolved = []
+                for ref, names in unsolved:
+                    if len(names) <= max:
+                        refs.append(ref)
+                        newrefs.append(ref)
+                    else:
+                        stillUnsolved.append((ref, names))
+                unsolved = stillUnsolved
+                #print(max, newrefs)
+                for ref in newrefs:
+                    removed |= self.removeSolvedName(unsolved, ref.uname())
+                if removed:
+                    max = 0
+            max += 1
+        for ref, _ in unsolved:
+            refs.append(ref)
+        return refs
+
 
 class Generator(Optimizer):
     def __init__(self):
@@ -632,6 +686,7 @@ class Generator(Optimizer):
         self.generating_nonterminal = ''
         self.sids = {}
         self.memos = []
+        self.Ooox = True
         self.Olex = True
 
     def getsid(self, name):
@@ -663,9 +718,9 @@ class Generator(Optimizer):
                 self.memos = memos.listDict()
             else:
                 self.memos = peg.N
-            print(self.memos)
+            # print(self.memos)
         ps = self.makelist(start, {}, [])
-
+        ps = self.sort(ps)
         for ref in ps:
             assert isinstance(ref, PRef)
             self.generating_nonterminal = ref.uname()
@@ -679,7 +734,8 @@ class Generator(Optimizer):
         if ref.peg == self.peg and ref.name in self.memos:
             idx = self.memos.index(ref.name)
             if idx != -1:
-                A = pasm.pMemoDebug(ref.name, A, idx, self.memos)
+                A = pasm.pMemo(A, idx, len(self.memos))
+                # A = pasm.pMemoDebug(ref.name, A, idx, self.memos)
         self.generated[ref.uname()] = A
 
     def emitParser(self, start):
@@ -705,26 +761,42 @@ class Generator(Optimizer):
 
     def PAnd(self, pe, step):
         e = self.inline(pe.e)
-        # if(self.Olex and isinstance(e, PChar)):
-        #     return pasm.pAndChar(e.text)
-        # if(self.Olex and isinstance(e, PRange)):
-        #     return pasm.pAndRange(e.chars, e.ranges)
+        if(self.Olex and isinstance(e, PChar)):
+            return pasm.pAndChar(e.text)
+        if(self.Olex and isinstance(e, PRange)):
+            return pasm.pAndRange(e.chars, e.ranges)
         return pasm.pAnd(self.emit(e, step))
 
     def PNot(self, pe, step):
         e = self.inline(pe.e)
+        if(self.Olex and isinstance(e, PChar)):
+            return pasm.pNotChar(e.text)
+        if(self.Olex and isinstance(e, PRange)):
+            return pasm.pNotRange(e.chars, e.ranges)
         return pasm.pNot(self.emit(e, step))
 
     def PMany(self, pe, step):
         e = self.inline(pe.e)
+        if(self.Olex and isinstance(e, PChar)):
+            return pasm.pManyChar(e.text)
+        if(self.Olex and isinstance(e, PRange)):
+            return pasm.pManyRange(e.chars, e.ranges)
         return pasm.pMany(self.emit(e, step))
 
     def PMany1(self, pe, step):
         e = self.inline(pe.e)
+        if(self.Olex and isinstance(e, PChar)):
+            return pasm.pMany1Char(e.text)
+        if(self.Olex and isinstance(e, PRange)):
+            return pasm.pMany1Range(e.chars, e.ranges)
         return pasm.pMany1(self.emit(e, step))
 
     def POption(self, pe, step):
         e = self.inline(pe.e)
+        if(self.Olex and isinstance(e, PChar)):
+            return pasm.pOptionChar(e.text)
+        if(self.Olex and isinstance(e, PRange)):
+            return pasm.pOptionRange(e.chars, e.ranges)
         return pasm.pOption(self.emit(e, step))
 
     def PSeq(self, pe, step):
@@ -761,12 +833,12 @@ class Generator(Optimizer):
 
     def PNode(self, pe, step):
         _, fixed, es = self.fixedEach(0, [pe])
-        #print(_, fixed, es)
-        if fixed is None:
+        # print(_, fixed, es)
+        if fixed is None or not self.Ooox:
             fs = self.emit(pe.e, step)
             return pasm.pNode(fs, pe.tag, pe.shift)
         else:
-            #print('//OOD', self.join(fixed, *es))
+            # print('//OOD', self.join(fixed, *es))
             return self.emit(self.join(fixed, *es), step)
 
     def PEdge(self, pe, step):
@@ -774,13 +846,13 @@ class Generator(Optimizer):
 
     def PFold(self, pe, step):
         _, fixed, es = self.fixedEach(0, [pe])
-        #print(_, fixed, es)
-        #fixed = None
-        if fixed is None:
+        # print(_, fixed, es)
+        # fixed = None
+        if fixed is None or not self.Ooox:
             fs = self.emit(pe.e, step)
             return pasm.pFold(pe.edge, fs, pe.tag, pe.shift)
         else:
-            #print('//OOD', self.join(fixed, *es))
+            # print('//OOD', self.join(fixed, *es))
             return self.emit(self.join(fixed, *es), step)
 
     def PAbs(self, pe, step):
@@ -1046,7 +1118,7 @@ def grammar_factory():
 
     def load_grammar(g, file, **options):
         # logger = options.get('logger', logger)
-        #pegparser = pasm.generate(options.get('peg', TPEGGrammar))
+        # pegparser = pasm.generate(options.get('peg', TPEGGrammar))
         pegparser = pasm.generate(TPEGGrammar['Start'])
         if isinstance(file, Path):
             f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
