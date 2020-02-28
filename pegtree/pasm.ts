@@ -719,20 +719,20 @@ const pIn = (name: string) => {
 // Optimized
 
 const pAndChar = (text: string) => {
-  return () => (px: PContext) => {
+  return (px: PContext) => {
     return px.x.startsWith(text, px.pos);
   };
 }
 
 const pNotChar = (text: string) => {
-  return () => (px: PContext) => {
+  return (px: PContext) => {
     return !px.x.startsWith(text, px.pos);
   };
 }
 
 const pOptionChar = (text: string) => {
   const clen = text.length;
-  return () => (px: PContext) => {
+  return (px: PContext) => {
     if (px.x.startsWith(text, px.pos)) {
       px.pos += clen;
     }
@@ -742,7 +742,7 @@ const pOptionChar = (text: string) => {
 
 const pManyChar = (text: string) => {
   const clen = text.length;
-  return () => (px: PContext) => {
+  return (px: PContext) => {
     while (px.x.startsWith(text, px.pos)) {
       px.pos += clen;
     }
@@ -752,7 +752,7 @@ const pManyChar = (text: string) => {
 
 const pMany1Char = (text: string) => {
   const clen = text.length;
-  return () => (px: PContext) => {
+  return (px: PContext) => {
     if (!px.x.startsWith(text, px.pos)) {
       return false;
     }
@@ -811,7 +811,6 @@ const pMany1Range = (chars: string, ranges = '') => {
     return false;
   }
 }
-
 
 // ParseTree
 
@@ -1070,6 +1069,9 @@ export class PAsm {
   public static pOptionRange = pOptionRange;
   public static pManyRange = pManyRange;
   public static pMany1Range = pMany1Range;
+
+  public static pDef = pDef;
+  public static pIn = pIn;
 
   public static generate = (generated: { [key: string]: PFunc }, start: string): Parser => {
     const pf = generated[start];
