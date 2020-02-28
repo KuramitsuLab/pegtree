@@ -60,24 +60,20 @@ class PTree {
   }
 }
 
-class PMemo {
-  key: number;
-  pos: number;
-  ast: PTree | null;
-  result: boolean;
-  constructor() {
-    this.key = -1
-    this.pos = 0
-    this.ast = null
-    this.result = false
-  }
-}
 
 export type PFunc = (px: PContext) => boolean;
 
 const match_empty: PFunc = (px: PContext) => true
 
+const pEmpty = () => {
+  return match_empty;
+}
+
 const match_fail: PFunc = (px: PContext) => false
+
+const pFail = () => {
+  return match_fail;
+}
 
 const match_any: PFunc = (px: PContext) => {
   if (px.pos < px.epos) {
@@ -87,13 +83,314 @@ const match_any: PFunc = (px: PContext) => {
   return false;
 }
 
+const pAny = () => {
+  return match_any;
+}
+
 const match_skip: PFunc = (px: PContext) => {
   px.pos = Math.min(px.headpos, px.epos)
   return true
 }
 
-const spush = (dic: { [key: string]: string[] }, key: string, val: string) => {
+const pSkip = () => {
+  return match_skip;
 }
+
+/* Char */
+
+const CharCache: { [key: string]: PFunc } = {
+  '': match_empty
+}
+
+const store = (cache: { [key: string]: PFunc }, key: string, gen: () => PFunc) => {
+  if (!(key in cache)) {
+    cache[key] = gen();
+  }
+  return cache[key];
+}
+
+const pChar = (text: string) => {
+  const clen = text.length;
+  return store(CharCache, text, () => (px: PContext) => {
+    if (px.x.startsWith(text, px.pos)) {
+      px.pos += clen
+      return true
+    }
+    return false
+  });
+}
+
+// const range_min = (chars: string, ranges: string) => {
+//   const s = chars + ranges;
+//   var min = 0xffff;
+//   for (var i = 0; i < s.length; i++) {
+//     const c = s.charCodeAt(i)
+//     min = Math.min(min, c);
+//   }
+//   return min;
+// }
+
+/* Range */
+
+const range_max = (chars: string, ranges: string) => {
+  const s = chars + ranges;
+  var min = 0;
+  for (var i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    min = Math.max(min, c);
+  }
+  return min;
+}
+
+const range_bitmap = (chars: string, ranges: string) => {
+  const codemax = range_max(chars, ranges) + 1;
+  const bitmap = new Uint8Array(((codemax / 8) | 0) + 1);
+  bitmap[0] = 2;
+  for (var i = 0; i < chars.length; i += 1) {
+    const c = chars.charCodeAt(i);
+    const n = (c / 8) | 0;
+    const mask = 1 << ((c % 8) | 0);
+    bitmap[n] |= mask;
+  }
+  for (var i = 0; i < ranges.length; i += 2) {
+    for (var c = ranges.charCodeAt(i); c <= ranges.charCodeAt(i + 1); c += 1) {
+      const n = (c / 8) | 0;
+      const mask = 1 << ((c % 8) | 0);
+      bitmap[n] |= mask;
+    }
+  }
+  return bitmap;
+}
+
+const RANGETBL: { [key: string]: string } = {
+  '\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
+  '\\': '\\\\', ']': '\\]', '-': '\\-'
+}
+
+export const keyRange = (chars: string, ranges: string) => {
+  const sb = []
+  sb.push('[')
+  sb.push(translate(chars, RANGETBL))
+  const r = ranges
+  for (var i = 0; i < r.length; i += 2) {
+    sb.push(translate(r[i], RANGETBL))
+    sb.push('-')
+    sb.push(translate(r[i + 1], RANGETBL))
+  }
+  sb.push(']')
+  return sb.join('')
+}
+
+const Bitmaps: { [key: string]: Uint8Array } = {}
+
+const toBitmap = (chars: string, ranges: string) => {
+  const key = keyRange(chars, ranges);
+  if (!(key in Bitmaps)) {
+    Bitmaps[key] = range_bitmap(chars, ranges);
+  }
+  return Bitmaps[key];
+}
+
+const bitmatch = (c: number, bitmap: Uint8Array) => {
+  const n = (c / 8) | 0;
+  const mask = 1 << ((c % 8) | 0);
+  return (n < bitmap.length && (bitmap[n] & mask) === mask);
+}
+
+const pRange = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    if (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
+      px.pos += 1;
+      return true;
+    }
+    return false;
+  }
+}
+
+/* And */
+
+const pAnd = (pf: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    if (pf(px)) {
+      px.headpos = Math.max(px.pos, px.headpos)
+      px.pos = pos
+      return true
+    }
+    return false
+  }
+}
+
+const pNot = (pf: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    if (!pf(px)) {
+      px.headpos = Math.max(px.pos, px.headpos)
+      px.pos = pos
+      px.ast = ast
+      return true
+    }
+    return false
+  }
+}
+
+const pMany = (pf: PFunc) => {
+  return (px: PContext) => {
+    var pos = px.pos
+    var ast = px.ast
+    while (pf(px) && pos < px.pos) {
+      pos = px.pos
+      ast = px.ast
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    return true
+  }
+}
+
+const pMany1 = (pf: PFunc) => {
+  return (px: PContext) => {
+    if (!pf(px)) {
+      return false;
+    }
+    var pos = px.pos
+    var ast = px.ast
+    while (pf(px) && pos < px.pos) {
+      pos = px.pos
+      ast = px.ast
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    return true
+  }
+}
+
+const pOption = (pf: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    if (!pf(px)) {
+      px.headpos = Math.max(px.pos, px.headpos)
+      px.pos = pos
+      px.ast = ast
+    }
+    return true
+  }
+}
+
+
+const pSeq2 = (pf: PFunc, pf2: PFunc) => {
+  return (px: PContext) => {
+    return pf(px) && pf2(px)
+  }
+}
+
+const pSeq3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
+  return (px: PContext) => {
+    return pf(px) && pf2(px) && pf3(px);
+  }
+}
+
+const pSeq4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
+  return (px: PContext) => {
+    return pf(px) && pf2(px) && pf3(px) && pf4(px);
+  }
+}
+
+const pSeq = (...pfs: PFunc[]) => {
+  return (px: PContext) => {
+    for (const pf of pfs) {
+      if (!pf(px)) {
+        return false;
+      }
+    }
+    return true;
+  }
+}
+
+/* Ore */
+
+const pOre2 = (pf: PFunc, pf2: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    if (pf(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    return pf2(px);
+  }
+}
+
+const pOre3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    if (pf(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    if (pf2(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    return pf3(px);
+  }
+}
+
+const pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    if (pf(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    if (pf2(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    if (pf3(px)) {
+      return true;
+    }
+    px.headpos = Math.max(px.pos, px.headpos)
+    px.pos = pos
+    px.ast = ast
+    return pf4(px);
+  }
+}
+
+const pOre = (...pfs: PFunc[]) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const ast = px.ast
+    for (const pf of pfs) {
+      if (pf(px)) {
+        return true;
+      }
+      px.headpos = Math.max(px.pos, px.headpos)
+      px.pos = pos
+      px.ast = ast
+    }
+    return false;
+  }
+}
+
+/* Dict */
 
 const make_words = (ss: string[]) => {
   const dic: { [key: string]: string[] } = {}
@@ -161,382 +458,167 @@ export const match_trie = (px: PContext, d: trie): boolean => {
   return false
 }
 
-// export const pEmpty = () => {
-//   return match_empty;
-// }
-
-// export const pFail = () => {
-//   return match_fail;
-// }
-
-// export const pAny = () => {
-//   return match_any;
-// }
-
-// export const pSkip = () => {
-//   return match_skip;
-// }
-
-const CharCache: { [key: string]: PFunc } = {
-  '': match_empty
-}
-
-const store = (cache: { [key: string]: PFunc }, key: string, gen: () => PFunc) => {
-  if (!(key in cache)) {
-    cache[key] = gen();
-  }
-  return cache[key];
-}
-
-// export const pChar = (text: string) => {
-//   const clen = text.length;
-//   return store(CharCache, text, () => (px: PContext) => {
-//     if (px.x.startsWith(text, px.pos)) {
-//       px.pos += clen
-//       return true
-//     }
-//     return false
-//   });
-// }
-
-// const range_min = (chars: string, ranges: string) => {
-//   const s = chars + ranges;
-//   var min = 0xffff;
-//   for (var i = 0; i < s.length; i++) {
-//     const c = s.charCodeAt(i)
-//     min = Math.min(min, c);
-//   }
-//   return min;
-// }
-
-const range_max = (chars: string, ranges: string) => {
-  const s = chars + ranges;
-  var min = 0;
-  for (var i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i)
-    min = Math.max(min, c);
-  }
-  return min;
-}
-
-const range_bitmap = (chars: string, ranges: string) => {
-  const codemax = range_max(chars, ranges) + 1;
-  const bitmap = new Uint8Array(((codemax / 8) | 0) + 1);
-  bitmap[0] = 2;
-  for (var i = 0; i < chars.length; i += 1) {
-    const c = chars.charCodeAt(i);
-    const n = (c / 8) | 0;
-    const mask = 1 << ((c % 8) | 0);
-    bitmap[n] |= mask;
-  }
-  for (var i = 0; i < ranges.length; i += 2) {
-    for (var c = ranges.charCodeAt(i); c <= ranges.charCodeAt(i + 1); c += 1) {
-      const n = (c / 8) | 0;
-      const mask = 1 << ((c % 8) | 0);
-      bitmap[n] |= mask;
+const pDict = (words: string) => {
+  const trie = make_trie(words.split(' '));
+  if (Array.isArray(trie)) {
+    const ss: string[] = trie;
+    return (px: PContext) => {
+      const pos = px.pos
+      for (const s of ss) {
+        if (px.x.startsWith(s, pos)) {
+          px.pos += s.length;
+          return true;
+        }
+      }
+      return false;
     }
   }
-  return bitmap;
-}
-
-const RANGETBL: { [key: string]: string } = {
-  '\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
-  '\\': '\\\\', ']': '\\]', '-': '\\-'
-}
-
-export const keyRange = (chars: string, ranges: string) => {
-  const sb = []
-  sb.push('[')
-  sb.push(translate(chars, RANGETBL))
-  const r = ranges
-  for (var i = 0; i < r.length; i += 2) {
-    sb.push(translate(r[i], RANGETBL))
-    sb.push('-')
-    sb.push(translate(r[i + 1], RANGETBL))
+  else {
+    return (px: PContext) => match_trie(px, trie);
   }
-  sb.push(']')
-  return sb.join('')
 }
 
-const Bitmaps: { [key: string]: Uint8Array } = {}
+/* Ref */
 
-const toBitmap = (chars: string, ranges: string) => {
-  const key = keyRange(chars, ranges);
-  if (!(key in Bitmaps)) {
-    Bitmaps[key] = range_bitmap(chars, ranges);
+const pRef = (generated: any, uname: string) => {
+  if (!(uname in generated)) {
+    generated[uname] = (px: PContext) => generated[uname](px);
   }
-  return Bitmaps[key];
+  return generated[uname];
 }
 
-// export const pRange = (chars: string, ranges = '') => {
-//   const bitmap = toBitmap(chars, ranges);
-//   return (px: PContext) => {
-//     if (px.pos < px.epos) {
-//       const c = px.x.charCodeAt(px.pos);
-//       const n = (c / 8) | 0;
-//       const mask = 1 << ((c % 8) | 0);
-//       if (n < bitmap.length && (bitmap[n] & mask) === mask) {
-//         px.pos += 1;
-//         return true;
-//       }
-//     }
-//     return false;
-//   }
-// }
+class PMemo {
+  key: number;
+  pos: number;
+  treeState: boolean;
+  prev: PTree | null;
+  ast: PTree | null;
+  result: boolean;
+  constructor() {
+    this.key = -1
+    this.pos = 0
+    this.ast = null
+    this.prev = null
+    this.result = false
+    this.treeState = false
+  }
+}
 
-// export const pAnd = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     if (pf(px)) {
-//       px.headpos = Math.max(px.pos, px.headpos)
-//       px.pos = pos
-//       return true
-//     }
-//     return false
-//   }
-// }
+const pMemo = (pf: PFunc, mp: number, mpsize: number) => {
+  var disabled = false
+  var hit = 0
+  var miss = 0
+  return (px: PContext) => {
+    if (disabled) return pf(px)
+    const key = (mpsize * px.pos) + mp
+    const m = px.memos[(key % 1789) | 0]
+    if (m.key == key) {
+      if (m.treeState) {
+        if (m.prev === px.ast) {
+          px.pos = m.pos
+          px.ast = m.ast
+          hit += 1
+          return m.result
+        }
+      }
+      else {
+        px.pos = m.pos;
+        return m.result;
+      }
+    }
+    const prev = px.ast;
+    m.result = pf(px);
+    m.pos = px.pos
+    m.key = key
+    if (m.result && prev != px.ast) {
+      m.treeState = true
+      m.prev = prev
+      m.ast = px.ast
+    }
+    else {
+      m.treeState = false
+    }
+    miss += 1;
+    if (miss % 100 === 0 && (hit / miss) < 0.05) {
+      disabled = false
+    }
+    return m.result
+  }
+}
 
-// export const pNot = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     if (!pf(px)) {
-//       px.headpos = Math.max(px.pos, px.headpos)
-//       px.pos = pos
-//       px.ast = ast
-//       return true
-//     }
-//     return false
-//   }
-// }
+/* Tree Construction */
 
-// export const pMany = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     var pos = px.pos
-//     var ast = px.ast
-//     while (pf(px) && pos < px.pos) {
-//       pos = px.pos
-//       ast = px.ast
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     return true
-//   }
-// }
+const pNode = (pf: PFunc, tag: string, shift: number) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    const prev = px.ast
+    px.ast = null;
+    if (pf(px)) {
+      px.ast = new PTree(prev, tag, pos + shift, px.pos, px.ast);
+      return true;
+    }
+    return false;
+  }
+}
 
-// export const pMany1 = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     if (!pf(px)) {
-//       return false;
-//     }
-//     var pos = px.pos
-//     var ast = px.ast
-//     while (pf(px) && pos < px.pos) {
-//       pos = px.pos
-//       ast = px.ast
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     return true
-//   }
-// }
+const pEdge = (edge: string, pf: PFunc) => {
+  if (edge === '') {
+    return pf;
+  }
+  return (px: PContext) => {
+    const pos = px.pos
+    const prev = px.ast
+    px.ast = null;
+    if (pf(px)) {
+      px.ast = new PTree(prev, edge, pos, -px.pos, px.ast);
+      return true;
+    }
+    return false;
+  }
+}
 
-// export const pOption = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     if (!pf(px)) {
-//       px.headpos = Math.max(px.pos, px.headpos)
-//       px.pos = pos
-//       px.ast = ast
-//     }
-//     return true
-//   }
-// }
+const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
+  if (edge !== '') {
+    return (px: PContext) => {
+      const pos = px.pos
+      var pt = px.ast;
+      const prev = pt ? pt.prev : null;
+      pt = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
+      px.ast = new PTree(null, edge, pos, -pos, pt);
+      if (pf(px)) {
+        px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
+        return true;
+      }
+      return false;
+    }
+  }
+  else {
+    return (px: PContext) => {
+      const pos = px.pos
+      const pt = px.ast;
+      const prev = pt ? pt.prev : null;
+      px.ast = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
+      if (pf(px)) {
+        px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
+        return true;
+      }
+      return false;
+    }
+  }
+}
 
-// export const pSeq = (...pfs: PFunc[]) => {
-//   return (px: PContext) => {
-//     for (const pf of pfs) {
-//       if (!pf(px)) {
-//         return false;
-//       }
-//     }
-//     return true;
-//   }
-// }
+const pAbs = (pf: PFunc) => {
+  return (px: PContext) => {
+    const ast = px.ast
+    if (pf(px)) {
+      px.ast = ast;
+      return true;
+    }
+    return false;
+  }
+}
 
-// export const pOre = (...pfs: PFunc[]) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     for (const pf of pfs) {
-//       if (pf(px)) {
-//         return true;
-//       }
-//       px.headpos = Math.max(px.pos, px.headpos)
-//       px.pos = pos
-//       px.ast = ast
-//     }
-//     return false;
-//   }
-// }
-
-// export const pSeq2 = (pf: PFunc, pf2: PFunc) => {
-//   return (px: PContext) => {
-//     return pf(px) && pf2(px)
-//   }
-// }
-
-// export const pSeq3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
-//   return (px: PContext) => {
-//     return pf(px) && pf2(px) && pf3(px);
-//   }
-// }
-
-// export const pSeq4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
-//   return (px: PContext) => {
-//     return pf(px) && pf2(px) && pf3(px) && pf4(px);
-//   }
-// }
-
-// export const pOre2 = (pf: PFunc, pf2: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     if (pf(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     return pf2(px);
-//   }
-// }
-
-// export const pOre3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     if (pf(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     if (pf2(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     return pf3(px);
-//   }
-// }
-
-// export const pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const ast = px.ast
-//     if (pf(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     if (pf2(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     if (pf3(px)) {
-//       return true;
-//     }
-//     px.headpos = Math.max(px.pos, px.headpos)
-//     px.pos = pos
-//     px.ast = ast
-//     return pf4(px);
-//   }
-// }
-
-// export const pDict = (size: number, ss: string[]) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     for (const s of ss) {
-//       if (px.x.startsWith(s, pos)) {
-//         px.pos += s.length;
-//         return true;
-//       }
-//     }
-//     return false;
-//   }
-// }
-
-// export const pRef = (generated: any, uname: string) => {
-//   if (!(uname in generated)) {
-//     generated[uname] = (px: PContext) => generated[uname](px);
-//   }
-//   return generated[uname];
-// }
-
-// export const pNode = (pf: PFunc, tag: string, shift: number) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const prev = px.ast
-//     px.ast = null;
-//     if (pf(px)) {
-//       px.ast = new PTree(prev, tag, pos + shift, px.pos, px.ast);
-//       return true;
-//     }
-//     return false;
-//   }
-// }
-
-// export const pEdge = (edge: string, pf: PFunc) => {
-//   if (edge === '') {
-//     return pf;
-//   }
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     const prev = px.ast
-//     px.ast = null;
-//     if (pf(px)) {
-//       px.ast = new PTree(prev, edge, pos, -px.pos, px.ast);
-//       return true;
-//     }
-//     return false;
-//   }
-// }
-
-// export const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
-//   return (px: PContext) => {
-//     const pos = px.pos
-//     var pt = px.ast;
-//     const prev = pt ? pt.prev : null;
-//     pt = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
-//     px.ast = edge !== '' ? new PTree(null, edge, pos, -pos, pt) : pt;
-//     if (pf(px)) {
-//       px.ast = new PTree(prev, tag, pos, px.pos, px.ast);
-//       return true;
-//     }
-//     return false;
-//   }
-// }
-
-// export const pAbs = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     const ast = px.ast
-//     if (pf(px)) {
-//       px.ast = ast;
-//       return true;
-//     }
-//     return false;
-//   }
-// }
-
-// state parser
+// State 
 
 class PState {
   sid: number;
@@ -559,44 +641,176 @@ const getstate = (state: PState | null, sid: number) => {
   return state;
 }
 
-// export const pSymbol = (pf: PFunc, sid: number) => {
-//   return (px: PContext) => {
-//     const pos = px.pos;
-//     if (pf(px)) {
-//       px.state = new PState(sid, px.x.substring(pos, px.pos), px.state);
-//       return true;
-//     }
-//     return false;
-//   }
-// }
+const pSymbol = (pf: PFunc, sid: number) => {
+  return (px: PContext) => {
+    const pos = px.pos;
+    if (pf(px)) {
+      px.state = new PState(sid, px.x.substring(pos, px.pos), px.state);
+      return true;
+    }
+    return false;
+  }
+}
 
-// export const pScope = (pf: PFunc) => {
-//   return (px: PContext) => {
-//     const state = px.state;
-//     if (pf(px)) {
-//       px.state = state;
-//       return true;
-//     }
-//     return false;
-//   }
-// }
+const pScope = (pf: PFunc) => {
+  return (px: PContext) => {
+    const state = px.state;
+    if (pf(px)) {
+      px.state = state;
+      return true;
+    }
+    return false;
+  }
+}
 
-// export const pExists = (sid: number) => {
-//   return (px: PContext) => {
-//     return getstate(px.state, sid) !== null;
-//   }
-// }
+const pExists = (sid: number) => {
+  return (px: PContext) => {
+    return getstate(px.state, sid) !== null;
+  }
+}
 
-// export const pMatch = (sid: number) => {
-//   return (px: PContext) => {
-//     const state = getstate(px.state, sid);
-//     if (state !== null && px.x.startsWith(state.val, px.pos)) {
-//       px.pos += state.val.length;
-//       return true;
-//     }
-//     return false;
-//   }
-// }
+const pMatch = (sid: number) => {
+  return (px: PContext) => {
+    const state = getstate(px.state, sid);
+    if (state !== null && px.x.startsWith(state.val, px.pos)) {
+      px.pos += state.val.length;
+      return true;
+    }
+    return false;
+  }
+}
+
+const pDef = (name: string, pf: PFunc) => {
+  return (px: PContext) => {
+    const pos = px.pos
+    if (pf(px)) {
+      const s = px.x.substring(pos, px.pos);
+      if (s.length === 0) {
+        return true;
+      }
+      const ss: string[] = (px as any)[name] || [];
+      ss.push(s)
+      ss.sort((x, y) => x.length - y.length);
+      (px as any)[name] = ss;
+      console.log(ss);
+      return true;
+    }
+    return false;
+  }
+}
+
+const pIn = (name: string) => {
+  return (px: PContext) => {
+    const ss = (px as any)[name]
+    if (!ss) {
+      for (const s of ss) {
+        if (px.x.startsWith(s, px.pos)) {
+          px.pos += s.length;
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+}
+
+
+
+// Optimized
+
+const pAndChar = (text: string) => {
+  return () => (px: PContext) => {
+    return px.x.startsWith(text, px.pos);
+  };
+}
+
+const pNotChar = (text: string) => {
+  return () => (px: PContext) => {
+    return !px.x.startsWith(text, px.pos);
+  };
+}
+
+const pOptionChar = (text: string) => {
+  const clen = text.length;
+  return () => (px: PContext) => {
+    if (px.x.startsWith(text, px.pos)) {
+      px.pos += clen;
+    }
+    return true;
+  };
+}
+
+const pManyChar = (text: string) => {
+  const clen = text.length;
+  return () => (px: PContext) => {
+    while (px.x.startsWith(text, px.pos)) {
+      px.pos += clen;
+    }
+    return true;
+  };
+}
+
+const pMany1Char = (text: string) => {
+  const clen = text.length;
+  return () => (px: PContext) => {
+    if (!px.x.startsWith(text, px.pos)) {
+      return false;
+    }
+    px.pos += clen;
+    while (px.x.startsWith(text, px.pos)) {
+      px.pos += clen;
+    }
+    return true;
+  };
+}
+
+const pAndRange = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    return (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap));
+  }
+}
+
+const pNotRange = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    return !(px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap));
+  }
+}
+
+const pOptionRange = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    if (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
+      px.pos += 1;
+    }
+    return true;
+  }
+}
+
+const pManyRange = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    while (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
+      px.pos += 1;
+    }
+    return true;
+  }
+}
+
+const pMany1Range = (chars: string, ranges = '') => {
+  const bitmap = toBitmap(chars, ranges);
+  return (px: PContext) => {
+    if (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
+      px.pos += 1;
+      while (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
+        px.pos += 1;
+      }
+      return true;
+    }
+    return false;
+  }
+}
 
 
 // ParseTree
@@ -807,496 +1021,55 @@ export class PAsm {
     peg[name] = e;
   }
 
-  public static pEmpty(): PFunc {
-    return match_empty;
-  }
-  public static pFail(): PFunc {
-    return match_fail;
-  }
+  public static pEmpty = pEmpty;
+  public static pFail = pFail;
+  public static pAny = pAny;
+  public static pSkip = pSkip;
+  public static pChar = pChar;
+  public static pRange = pRange;
+  public static pRef = pRef;
 
-  public static pAny() {
-    return match_any;
-  }
+  public static pAnd = pAnd;
+  public static pNot = pNot;
+  public static pMany = pMany;
+  public static pMany1 = pMany1;
+  public static pOption = pOption;
 
-  public static pSkip() {
-    return match_skip;
-  }
+  public static pSeq = pSeq;
+  public static pSeq2 = pSeq2;
+  public static pSeq3 = pSeq3;
+  public static pSeq4 = pSeq4;
 
-  public static pChar = (text: string) => {
-    const clen = text.length;
-    return store(CharCache, text, () => (px: PContext) => {
-      if (px.x.startsWith(text, px.pos)) {
-        px.pos += clen
-        return true
-      }
-      return false
-    });
-  }
+  public static pOre = pOre;
+  public static pOre2 = pOre2;
+  public static pOre3 = pOre3;
+  public static pOre4 = pOre4;
+  public static pDict = pDict;
 
-  public static pRange = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      if (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (n < bitmap.length && (bitmap[n] & mask) === mask) {
-          px.pos += 1;
-          return true;
-        }
-      }
-      return false;
-    }
-  }
-
-  public static pAnd = (pf: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      if (pf(px)) {
-        px.headpos = Math.max(px.pos, px.headpos)
-        px.pos = pos
-        return true
-      }
-      return false
-    }
-  }
-
-  public static pNot = (pf: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      if (!pf(px)) {
-        px.headpos = Math.max(px.pos, px.headpos)
-        px.pos = pos
-        px.ast = ast
-        return true
-      }
-      return false
-    }
-  }
-
-  public static pMany = (pf: PFunc) => {
-    return (px: PContext) => {
-      var pos = px.pos
-      var ast = px.ast
-      while (pf(px) && pos < px.pos) {
-        pos = px.pos
-        ast = px.ast
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      return true
-    }
-  }
-
-  public static pMany1 = (pf: PFunc) => {
-    return (px: PContext) => {
-      if (!pf(px)) {
-        return false;
-      }
-      var pos = px.pos
-      var ast = px.ast
-      while (pf(px) && pos < px.pos) {
-        pos = px.pos
-        ast = px.ast
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      return true
-    }
-  }
-
-  public static pOption = (pf: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      if (!pf(px)) {
-        px.headpos = Math.max(px.pos, px.headpos)
-        px.pos = pos
-        px.ast = ast
-      }
-      return true
-    }
-  }
-
-  public static pSeq = (...pfs: PFunc[]) => {
-    return (px: PContext) => {
-      for (const pf of pfs) {
-        if (!pf(px)) {
-          return false;
-        }
-      }
-      return true;
-    }
-  }
-
-  public static pOre = (...pfs: PFunc[]) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      for (const pf of pfs) {
-        if (pf(px)) {
-          return true;
-        }
-        px.headpos = Math.max(px.pos, px.headpos)
-        px.pos = pos
-        px.ast = ast
-      }
-      return false;
-    }
-  }
-
-  public static pSeq2 = (pf: PFunc, pf2: PFunc) => {
-    return (px: PContext) => {
-      return pf(px) && pf2(px)
-    }
-  }
-
-  public static pSeq3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
-    return (px: PContext) => {
-      return pf(px) && pf2(px) && pf3(px);
-    }
-  }
-
-  public static pSeq4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
-    return (px: PContext) => {
-      return pf(px) && pf2(px) && pf3(px) && pf4(px);
-    }
-  }
-
-  public static pOre2 = (pf: PFunc, pf2: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      if (pf(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      return pf2(px);
-    }
-  }
-
-  public static pOre3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      if (pf(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      if (pf2(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      return pf3(px);
-    }
-  }
-
-  public static pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
-    return (px: PContext) => {
-      const pos = px.pos
-      const ast = px.ast
-      if (pf(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      if (pf2(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      if (pf3(px)) {
-        return true;
-      }
-      px.headpos = Math.max(px.pos, px.headpos)
-      px.pos = pos
-      px.ast = ast
-      return pf4(px);
-    }
-  }
-
-  public static pDict = (words: string) => {
-    const trie = make_trie(words.split(' '));
-    if (Array.isArray(trie)) {
-      const ss: string[] = trie;
-      return (px: PContext) => {
-        const pos = px.pos
-        for (const s of ss) {
-          if (px.x.startsWith(s, pos)) {
-            px.pos += s.length;
-            return true;
-          }
-        }
-        return false;
-      }
-    }
-    else {
-      return (px: PContext) => match_trie(px, trie);
-    }
-  }
-
-  public static pRef = (generated: any, uname: string) => {
-    if (!(uname in generated)) {
-      generated[uname] = (px: PContext) => generated[uname](px);
-    }
-    return generated[uname];
-  }
-
-  public static pNode(pf: PFunc, tag: string, shift: number) {
-    return (px: PContext) => {
-      const pos = px.pos
-      const prev = px.ast
-      px.ast = null;
-      if (pf(px)) {
-        px.ast = new PTree(prev, tag, pos + shift, px.pos, px.ast);
-        return true;
-      }
-      return false;
-    }
-  }
-
-  public static pEdge(edge: string, pf: PFunc) {
-    if (edge === '') {
-      return pf;
-    }
-    return (px: PContext) => {
-      const pos = px.pos
-      const prev = px.ast
-      px.ast = null;
-      if (pf(px)) {
-        px.ast = new PTree(prev, edge, pos, -px.pos, px.ast);
-        return true;
-      }
-      return false;
-    }
-  }
-
-  public static pFold(edge: string, pf: PFunc, tag: string, shift: number) {
-    if (edge !== '') {
-      return (px: PContext) => {
-        const pos = px.pos
-        var pt = px.ast;
-        const prev = pt ? pt.prev : null;
-        pt = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
-        px.ast = new PTree(null, edge, pos, -pos, pt);
-        if (pf(px)) {
-          px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
-          return true;
-        }
-        return false;
-      }
-    }
-    else {
-      return (px: PContext) => {
-        const pos = px.pos
-        const pt = px.ast;
-        const prev = pt ? pt.prev : null;
-        px.ast = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
-        if (pf(px)) {
-          px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
-          return true;
-        }
-        return false;
-      }
-    }
-  }
-
-  public static pAbs(pf: PFunc) {
-    return (px: PContext) => {
-      const ast = px.ast
-      if (pf(px)) {
-        px.ast = ast;
-        return true;
-      }
-      return false;
-    }
-  }
+  public static pNode = pNode;
+  public static pEdge = pEdge;
+  public static pFold = pFold;
+  public static pAbs = pAbs;
 
   /* Symbol */
-  public static pSymbol(pf: PFunc, sid: number) {
-    return (px: PContext) => {
-      const pos = px.pos;
-      if (pf(px)) {
-        px.state = new PState(sid, px.x.substring(pos, px.pos), px.state);
-        return true;
-      }
-      return false;
-    }
-  }
-
-  public static pScope(pf: PFunc) {
-    return (px: PContext) => {
-      const state = px.state;
-      if (pf(px)) {
-        px.state = state;
-        return true;
-      }
-      return false;
-    }
-  }
-
-  public static pExists(sid: number) {
-    return (px: PContext) => {
-      return getstate(px.state, sid) !== null;
-    }
-  }
-
-  public static pMatch(sid: number) {
-    return (px: PContext) => {
-      const state = getstate(px.state, sid);
-      if (state !== null && px.x.startsWith(state.val, px.pos)) {
-        px.pos += state.val.length;
-        return true;
-      }
-      return false;
-    }
-  }
+  public static pSymbol = pSymbol;
+  public static pScope = pScope;
+  public static pExists = pExists;
+  public static pMatch = pMatch;
 
   /* Optimize */
 
-  public static pAndChar = (text: string) => {
-    return () => (px: PContext) => {
-      return px.x.startsWith(text, px.pos);
-    };
-  }
+  public static pAndChar = pAndChar;
+  public static pNotChar = pNotChar;
+  public static pOptionChar = pOptionChar;
+  public static pManyChar = pManyChar;
+  public static pMany1Char = pMany1Char;
 
-  public static pNotChar = (text: string) => {
-    return () => (px: PContext) => {
-      return !px.x.startsWith(text, px.pos);
-    };
-  }
-
-  public static pOptionChar = (text: string) => {
-    const clen = text.length;
-    return () => (px: PContext) => {
-      if (px.x.startsWith(text, px.pos)) {
-        px.pos += clen;
-      }
-      return true;
-    };
-  }
-
-  public static pManyChar = (text: string) => {
-    const clen = text.length;
-    return () => (px: PContext) => {
-      while (px.x.startsWith(text, px.pos)) {
-        px.pos += clen;
-      }
-      return true;
-    };
-  }
-
-  public static pMany1Char = (text: string) => {
-    const clen = text.length;
-    return () => (px: PContext) => {
-      if (!px.x.startsWith(text, px.pos)) {
-        return false;
-      }
-      px.pos += clen;
-      while (px.x.startsWith(text, px.pos)) {
-        px.pos += clen;
-      }
-      return true;
-    };
-  }
-
-  public static pAndRange = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      if (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (n < bitmap.length && (bitmap[n] & mask) === mask) {
-          px.pos += 1;
-          return true;
-        }
-      }
-      return false;
-    }
-  }
-
-  public static pNotRange = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      if (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (n < bitmap.length && (bitmap[n] & mask) === mask) {
-          return false;
-        }
-      }
-      return true;
-    }
-  }
-
-  public static pOptionRange = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      if (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if ((n < bitmap.length && (bitmap[n] & mask) === mask)) {
-          px.pos += 1;
-        }
-      }
-      return true;
-    }
-  }
-
-  public static pManyRange = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      while (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (!(n < bitmap.length && (bitmap[n] & mask) === mask)) {
-          break;
-        }
-        px.pos += 1;
-      }
-      return true;
-    }
-  }
-
-  public static pMany1Range = (chars: string, ranges = '') => {
-    const bitmap = toBitmap(chars, ranges);
-    return (px: PContext) => {
-      if (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (!(n < bitmap.length && (bitmap[n] & mask) === mask)) {
-          return false;
-        }
-      }
-      px.pos += 1;
-      while (px.pos < px.epos) {
-        const c = px.x.charCodeAt(px.pos);
-        const n = (c / 8) | 0;
-        const mask = 1 << ((c % 8) | 0);
-        if (!(n < bitmap.length && (bitmap[n] & mask) === mask)) {
-          break;
-        }
-        px.pos += 1;
-      }
-      return true;
-    }
-  }
+  public static pAndRange = pAndRange;
+  public static pNotRange = pNotRange;
+  public static pOptionRange = pOptionRange;
+  public static pManyRange = pManyRange;
+  public static pMany1Range = pMany1Range;
 
   public static generate = (generated: { [key: string]: PFunc }, start: string): Parser => {
     const pf = generated[start];
