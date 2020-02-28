@@ -1,6 +1,6 @@
 {
   "name": "pegtree",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "A PEG-Tree Parser Combinator",
   "main": "dist/index.js",
   "directories": {
