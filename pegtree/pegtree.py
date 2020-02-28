@@ -748,7 +748,7 @@ class Generator(Optimizer):
             f = getattr(self, cname)
             return f(pe, step)
         print('@TODO(Generator)', cname, pe)
-        return self.PChar(EMPTY)
+        return self.PChar(EMPTY, step)
 
     def PAny(self, pe, step):
         return pasm.pAny()
@@ -878,6 +878,19 @@ class Generator(Optimizer):
         params = pe.params
         sid = self.getsid(str(params[0]))
         return pasm.pMatch(sid)
+
+    def Def(self, pe, step):  # @def(A, '名詞')
+        params = pe.params
+        name = str(params[1]) if len(params) == 2 else str(params[0])
+        pf = self.emit(pe.e, step)
+        #print('@def', pf, name)
+        return pasm.pDef(name, pf)
+
+    def In(self, pe, step):  # @in(A)
+        params = pe.params
+        name = str(params[0])
+        #print('@in', name)
+        return pasm.pIn(name)
 
 
 generator = Generator()
@@ -1064,7 +1077,7 @@ class TPEGLoader(object):
         e = self.conv(t.e, step)
         return PFold(edge, e, tag, 0)
 
-    FIRST = {'lazy', 'scope', 'symbol',
+    FIRST = {'lazy', 'scope', 'symbol', 'def',
              'match', 'equals', 'contains', 'cat'}
 
     def Func(self, t, step):

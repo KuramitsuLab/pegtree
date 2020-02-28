@@ -587,55 +587,46 @@ def pMatch(sid):  # @Match(A)
         return False
     return match
 
+#params = pe.params
+#name = str(params[0])
+#pf = self.emit(pe.e, step)
 
-'''
-def Def(self, pe, step):
-    params = pe.params
-    name = str(params[0])
-    pf = self.emit(pe.e, step)
 
-    def define_dict(px):
+def pDef(name, pf):
+    def define_dic(px):
         pos = px.pos
         if pf(px):
             s = px.inputs[pos:px.pos]
             if len(s) == 0:
                 return True
-            if name in px.memo:
-                d = px.memo[name]
-            else:
-                d = {}
-                px.memo[name] = d
-            key = s[0]
-            if not key in d:
-                d[key] = [s]
-                return True
-            l = d[key]
-            slen = len(s)
-            for i in range(len(l)):
-                if slen > len(l[i]):
-                    l.insert(i, s)
-                    break
+            if name not in px.dic:
+                px.dic[name] = []
+            ss = px.dic[name]
+            ss.append(s)
+            px.dic[name] = sorted(ss, key=lambda x: len(x))[::-1]
+            # print(px.dic[name])
             return True
         return False
-    return define_dict
+    return define_dic
 
 
-def In(self, pe, step):  # @in(NAME)
-    params = pe.params
-    name = str(params[0])
+#params = pe.params
+#name = str(params[0])
 
-    def refdict(px):
-        if name in px.memo and px.pos < px.epos:
-            d = px.memo[name]
-            key = px.inputs[px.pos]
-            if key in d:
-                for s in d[key]:
-                    if px.inputs.startswith(s, px.pos):
-                        px.pos += len(s)
-                        return True
+def pIn(name):  # @in(NAME)
+    def match_dic(px):
+        #print('@matching', name, px.inputs, px.pos)
+        if name in px.dic:
+            ss = px.dic[name]
+            for s in ss:
+                if px.inputs.startswith(s, px.pos):
+                    #print('@matched', s)
+                    px.pos += len(s)
+                    return True
+            #print('@', px.inputs[px.pos:], ss)
         return False
-    return refdict
-'''
+    return match_dic
+
 
 # Optimized
 
@@ -758,7 +749,7 @@ def pOptionRange(chars, ranges):
 
 class PContext:
     __slots__ = ['inputs', 'pos', 'epos',
-                 'headpos', 'ast', 'state', 'memo']
+                 'headpos', 'ast', 'state', 'memo', 'dic']
 
     def __init__(self, inputs, spos, epos):
         self.inputs = inputs
@@ -768,6 +759,7 @@ class PContext:
         self.ast = None
         self.state = None
         self.memo = [PMemo() for x in range(1789)]
+        self.dic = {}
 
 # ParseTree
 

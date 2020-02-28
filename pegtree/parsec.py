@@ -225,6 +225,17 @@ class Parsec(Generator):
         e = self.emit(pe.e, step)
         return self.emitApply('Scope', e)
 
+    def Def(self, pe, step):
+        params = pe.params
+        name = str(params[1]) if len(params) == 2 else str(params[0])
+        e = self.emit(pe.e, step)
+        return self.emitApply('Def', self.quote(name), e)
+
+    def In(self, pe, step):
+        params = pe.params
+        name = str(params[0])
+        return self.emitApply('In', self.quote(name))
+
 
 def parsec(peg, **options):
     generator = Parsec(**options)
