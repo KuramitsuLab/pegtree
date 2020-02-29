@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 from pegtree.pegtree import Generator, grammar, Grammar
 # from pegtree import Generator, grammar
@@ -13,6 +14,14 @@ PASMS = [
     ]
 ]
 
+CODE = {
+    'ts': {
+        'file': 'ts.txt',
+        'prefix': 'PAsm.p',
+        'rule': '  {};',
+    }
+}
+
 
 class Parsec(Generator):
     ESCTBL = str.maketrans(
@@ -22,14 +31,33 @@ class Parsec(Generator):
     def __init__(self, **options):
         super().__init__()
         self.domains = []
+        self.rule = '{}'
         self.apply = '{}({})'
         self.delim = ','
-        self.prefix = os.environ['PREFIX'] if 'PREFIX' in os.environ else 'p'
+        self.string = '"{}"'
+        self.prefix = os.environ.get('PREFIX', 'p')
         self.PASM = set(PASMS[options.get('optimized', 1)])
+        self.rules = None
+
+    def setup(self, spec):
+        self.apply = spec.get('apply', '{}({})')
+        self.string = spec.get('string', '"{}"')
+        self.delim = spec.get('delim', ',')
+        self.prefix = spec.get('prefix', os.environ.get('PREFIX', 'p'))
+        if 'PASM' in spec:
+            self.PASM = set(spec['PASM'])
+        self.rule = spec.get('rule', '\t{}')
+        self.rules = []
+        spec['rules'] = self.rules
 
     def emitRule(self, ref):
         name = self.getref(ref.uname(self.peg))
-        print(self.emitApply('Rule', 'peg', name, self.emit(ref.deref(), 0)))
+        rule = self.rule.format(self.emitApply(
+            'Rule', 'peg', name, self.emit(ref.deref(), 0)))
+        if isinstance(self.rules, list):
+            self.rules.append(rule)
+        else:
+            print(rule)
 
     def emitParser(self, ref):
         pass
@@ -56,13 +84,13 @@ class Parsec(Generator):
                 return 'FIXME'
 
     def quote(self, s):
-        if isinstance(s, tuple) or isinstance(s, list):
-            sb = []
-            for r in s:
-                sb.append(r[0]+r[1])
-            s = ''.join(sb)
-            return '"' + s.translate(Parsec.ESCTBL) + '"'
-        return '"' + s.translate(Parsec.ESCTBL) + '"'
+        # if isinstance(s, tuple) or isinstance(s, list):
+        #     sb = []
+        #     for r in s:
+        #         sb.append(r[0]+r[1])
+        #     s = ''.join(sb)
+        #     return '"' + s.translate(Parsec.ESCTBL) + '"'
+        return self.string.format(str(s).translate(Parsec.ESCTBL))
 
     def param(self, pe):
         if hasattr(pe, 'text'):
@@ -184,7 +212,7 @@ class Parsec(Generator):
             e = self.emit(pe.e, step)
             return self.emitApply('Node', e, self.quote(pe.tag), f'{pe.shift}')
         else:
-            print('//OOD', self.join(fixed, *es))
+            #print('//OOD', self.join(fixed, *es))
             return self.emit(self.join(fixed, *es), step)
 
     def PEdge(self, pe, step):
@@ -198,7 +226,7 @@ class Parsec(Generator):
             e = self.emit(pe.e, step)
             return self.emitApply('Fold', self.quote(pe.edge), e, self.quote(pe.tag), f'{pe.shift}')
         else:
-            print('//OOD', self.join(fixed, *es))
+            #print('//OOD', self.join(fixed, *es))
             return self.emit(self.join(fixed, *es), step)
 
     def PAbs(self, pe, step):
@@ -237,9 +265,28 @@ class Parsec(Generator):
         return self.emitApply('In', self.quote(name))
 
 
+def load(spec):
+    path = Path(spec['file'])
+    if not path.exists():
+        path = Path(__file__).resolve().parent / 'code' / path
+    with path.open() as f:
+        for line in f:
+            if line.startswith('#@RULE'):
+                for rule in spec['rules']:
+                    print(rule)
+            else:
+                print(line, end='')
+
+
 def parsec(peg, **options):
     generator = Parsec(**options)
-    return generator.generate(peg, **options)
+    if 'ext' in options:
+        spec = CODE[options['ext']]
+        generator.setup(spec)
+        generator.generate(peg, **options)
+        load(spec)
+    else:
+        generator.generate(peg, **options)
 
 
 if __name__ == '__main__':

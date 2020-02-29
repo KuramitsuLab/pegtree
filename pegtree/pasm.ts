@@ -23,11 +23,11 @@ class PContext {
 }
 
 class PTree {
-  prev: PTree | null;
-  tag: string;
-  spos: number;
-  epos: number;
-  child: PTree | null;
+  readonly prev: PTree | null;
+  readonly tag: string;
+  readonly spos: number;
+  readonly epos: number;
+  readonly child: PTree | null;
   constructor(prev: PTree | null, tag: string, spos: number, epos: number, child: PTree | null) {
     this.prev = prev
     this.tag = tag
@@ -596,8 +596,8 @@ const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
     return (px: PContext) => {
       const pos = px.pos
       const pt = px.ast;
-      const prev = pt ? pt.prev : null;
-      px.ast = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
+      const prev = (pt !== null) ? pt.prev : null;
+      px.ast = pt ? (prev ? new PTree(null, pt.tag, pt.spos, pt.epos, pt.child) : pt) : null;
       if (pf(px)) {
         px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
         return true;
@@ -692,7 +692,7 @@ const pDef = (name: string, pf: PFunc) => {
       ss.push(s)
       ss.sort((x, y) => x.length - y.length);
       (px as any)[name] = ss;
-      console.log(ss);
+      console.log('@TODO ss');
       return true;
     }
     return false;
@@ -702,7 +702,7 @@ const pDef = (name: string, pf: PFunc) => {
 const pIn = (name: string) => {
   return (px: PContext) => {
     const ss = (px as any)[name]
-    if (!ss) {
+    if (ss) {
       for (const s of ss) {
         if (px.x.startsWith(s, px.pos)) {
           px.pos += s.length;
@@ -938,30 +938,30 @@ export class ParseTree {
 
 const PTree2ParseTree = (pt: PTree, urn: string, inputs: string) => {
   if (pt.prev !== null) {
-    return PTree2ParseTreeImpl('', urn, inputs, pt.spos, pt.epos, pt)
+    return PTree2ParseTreeChild('', urn, inputs, pt.spos, pt.epos, pt)
   }
   else {
-    return PTree2ParseTreeImpl(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
+    return PTree2ParseTreeChild(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
   }
 }
 
-const PTree2ParseTreeImpl = (tag: string, urn: string, inputs: string, spos: number, epos: number, subnode: PTree | null) => {
+const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: number, epos: number, sub: PTree | null) => {
   const t = new ParseTree(tag, inputs, spos, epos, urn);
-  while (subnode !== null) {
-    if (subnode.isEdge()) {
-      if (subnode.child === null) {
-        var tt = PTree2ParseTreeImpl('', urn, inputs, subnode.spos, Math.abs(subnode.epos), null)
+  while (sub !== null) {
+    if (sub.isEdge()) {
+      if (sub.child === null) {
+        var tt = PTree2ParseTreeChild('', urn, inputs, sub.spos, Math.abs(sub.epos), null)
       }
       else {
-        tt = PTree2ParseTree(subnode.child, urn, inputs);
+        tt = PTree2ParseTree(sub.child, urn, inputs);
       }
-      t.add(tt, subnode.tag);
+      t.add(tt, sub.tag);
     }
     else {
-      t.add(PTree2ParseTreeImpl(subnode.tag, urn, inputs,
-        subnode.spos, Math.abs(subnode.epos), subnode.child))
+      t.add(PTree2ParseTreeChild(sub.tag, urn, inputs,
+        sub.spos, sub.epos, sub.child))
     }
-    subnode = subnode.prev;
+    sub = sub.prev;
   }
   const tail = t.subs_.length - 1
   for (var i = 0; i < (tail + 1) / 2; i += 1) {
@@ -1003,17 +1003,6 @@ export const quote = (s: string) => {
 
 export type Parser = (inputs: string, options?: any) => ParseTree;
 
-
-// export const example = (generated: { [key: string]: PFunc }, start: string, input: string) => {
-//   const p = generate(generated, start);
-//   const t = p(input)
-//   console.log(t.dump())
-// }
-
-// export const pRule = (peg: { [key: string]: PFunc }, name: string, e: PFunc) => {
-//   peg[name] = e;
-// }
-
 export class PAsm {
 
   public static pRule = (peg: { [key: string]: PFunc }, name: string, e: PFunc) => {
@@ -1027,6 +1016,7 @@ export class PAsm {
   public static pChar = pChar;
   public static pRange = pRange;
   public static pRef = pRef;
+  public static pMemo = pMemo;
 
   public static pAnd = pAnd;
   public static pNot = pNot;
