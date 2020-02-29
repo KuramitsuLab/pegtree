@@ -3,6 +3,13 @@ import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
+'''
+vim setup.py
+rm -rf dist/
+python3 setup.py sdist bdist_wheel
+twine upload --repository pypi dist/*
+'''
+
 setup(
     name='pegtree',
     version='0.9.3',
@@ -13,7 +20,8 @@ setup(
     install_requires=['setuptools'],
         packages=['pegtree'],
         package_data={'pegtree': ['grammar/*.tpeg',
-                                  'grammar/*/*.txt']},
+                                  'grammar/*/*.txt',
+                                  'code/*.txt']},
     entry_points={
         'console_scripts': [
             'pegtree = pegtree.main:main'
