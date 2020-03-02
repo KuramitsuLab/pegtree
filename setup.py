@@ -1,6 +1,8 @@
 from setuptools import setup
 import sys
 from pathlib import Path
+from Cython.Build import cythonize
+from Cython.Distutils import build_ext
 sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 setup(
@@ -28,5 +30,8 @@ setup(
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Text Processing',
     ],
-    test_suite='test_all.suite'
+    test_suite='test_all.suite',
+    cmdclass = {'build_ext': build_ext},
+    ext_modules = cythonize(['pegtree/parsec.py', 'pegtree/pasm.py', 'pegtree/pegtree.py', 'pegtree/tpeg.py'],
+                            compiler_directives={'language_level' : "3"})
 )
