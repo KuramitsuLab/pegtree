@@ -175,7 +175,7 @@ def parse(options, conv=None):
             st = time.time()
             t = parser(read_inputs(file))
             et = time.time()
-            print(file, (et - st) * 1000.0, "[ms]:", t.tag)
+            print(file, (et - st) * 1000.0, "[ms]:", t.gettag())
 
 
 def dump(t, indent='  ', edge=''):
