@@ -25,7 +25,7 @@ example Seq3 abc
 example Seq4 abcd
 example Seq  abcde
 
-Node = { 'a' }
+Node = { 'a' #A }
 NodeTag = { 'a' #A }
 NodeFold = NodeTag ^{ 'b' #B }
 

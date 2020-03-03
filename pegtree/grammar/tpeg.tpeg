@@ -60,7 +60,7 @@ Identifier = {
 
 NAME = [A-Za-z_] [A-Za-z0-9_.]*
 
-UNAME = (![(){}^[\]&! \t\r\n/|*+?.'"@:] .)+
+UNAME = (![(){}^[\]&! \t　\r\n/|*+?.'"@:#] .)+
 
 example Expression a b / c
 example Expression a b || c

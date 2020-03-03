@@ -6,7 +6,7 @@ def TPEG(peg):
     pRule(peg, "EOF", pNot(pAny()))
     pRule(peg, "NAME", pSeq2(pRange("_", "AZaz"), pManyRange("_.", "AZaz09")))
     pRule(peg, "UNAME", pMany1(
-        pSeq2(pNotRange("(){}^[]&! \t\r\n/|*+?.\'\"@:", ""), pAny())))
+        pSeq2(pNotRange("(){}^[]&! \t\r\n　/|*+?.\'\"@:#", ""), pAny())))
     pRule(peg, "Char", pSeq3(pChar("\'"), pNode(pMany(pOre2(pSeq2(pChar("\\"),
                                                                   pAny()), pSeq2(pNotChar("\'"), pAny()))), "Char", 0), pChar("\'")))
     pRule(peg, "DELIM1", pChar("\'\'\'"))
@@ -76,8 +76,8 @@ def TPEG(peg):
     pRule(peg, "Statement", pOre3(pRef(peg, "Import"),
                                   pRef(peg, "Example"), pRef(peg, "Rule")))
     pRule(peg, "Source", pNode(pMany(pRef(peg, "Statement")), "Source", 0))
-    pRule(peg, "File", pSeq3(pRef(peg, "__"),
-                             pRef(peg, "Source"), pRef(peg, "EOF")))
+    pRule(peg, "Start", pSeq3(pRef(peg, "__"),
+                              pRef(peg, "Source"), pRef(peg, "EOF")))
     pRule(peg, "Term", pOre(pRef(peg, "Group"), pRef(peg, "Char"), pRef(peg, "Class"), pRef(peg, "Any"), pRef(peg, "Fold"), pRef(
         peg, "Node"), pRef(peg, "OldFold"), pRef(peg, "EdgeFold"), pRef(peg, "Edge"), pRef(peg, "Func"), pRef(peg, "Ref")))
     pRule(peg, "Predicate", pOre3(pRef(peg, "Not"),

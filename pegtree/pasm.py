@@ -837,19 +837,19 @@ class ParseTree(list):
 
     def subs(self):
         es = []
-        for i, child in enumerate(t):
+        for i, child in enumerate(self):
             es.append((child.spos_, '', child))
         for key in self.__dict__:
             v = self.__dict__[key]
             if isinstance(v, ParseTree):
-                es.append((v.spos_, key, child))
+                es.append((v.spos_, key, v))
         es.sort()
         return [(x[1], x[2]) for x in es]
 
     def get(self, key):
         return getattr(self, key)
 
-    def set(self, key, t: ParseTree):
+    def set(self, key, t):
         assert isinstance(t, ParseTree)
         if key == '':
             self.append(key, t)
@@ -867,35 +867,48 @@ class ParseTree(list):
         self.strOut(sb)
         return "".join(sb)
 
-    def dump(self, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
+    def dump(self, indent='\n', tab='  ', tag=nop, edge=nop, token=nop):
         if self.isSyntaxError():
             print(self.showing('Syntax Error'))
         else:
             sb = []
-            self.strOut(sb)
+            self.strOut(sb, indent, tab, '', tag, edge, token)
             print("".join(sb))
 
-    def strOut(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
-        sb.append("[" + tag(f'#{self.tag_}'))
-        hasContent = False
-        next_indent = indent + tab
-        for child in self:
-            hasContent = True
-            sb.append(indent)
-            if hasattr(child, 'strOut'):
-                child.strOut(sb, next_indent, tab, tag, edge, token)
-            else:
-                sb.append(repr(child))
-        for key in self.__dict__:
-            v = self.__dict__[key]
-            if isinstance(v, ParseTree):
-                hasContent = True
-                sb.append(indent)
-                sb.append(edge(key) + ': ')
-                v.strOut(sb, next_indent, tab, tag, edge, token)
-        if not hasContent:
+    def strOut(self, sb, indent='\n  ', tab='  ', prefix='', tag=nop, edge=nop, token=nop):
+        sb.append(indent + prefix + "[" + tag(f'#{self.tag_}'))
+        subs = self.subs()
+        if len(subs) > 0:
+            next_indent = indent + tab
+            for label, child in subs:
+                prefix = edge(label) + ': ' if label != '' else ''
+                child.strOut(sb, next_indent, tab, prefix, tag, edge, token)
+            sb.append(indent + "]")
+        else:
             sb.append(' ' + token(repr(str(self))))
-        sb.append("]")
+            sb.append("]")
+
+    # def strOut2(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
+    #     sb.append("[" + tag(f'#{self.tag_}'))
+    #     hasContent = False
+    #     next_indent = indent + tab
+    #     for child in self:
+    #         hasContent = True
+    #         sb.append(indent)
+    #         if hasattr(child, 'strOut'):
+    #             child.strOut(sb, next_indent, tab, tag, edge, token)
+    #         else:
+    #             sb.append(repr(child))
+    #     for key in self.__dict__:
+    #         v = self.__dict__[key]
+    #         if isinstance(v, ParseTree):
+    #             hasContent = True
+    #             sb.append(indent)
+    #             sb.append(edge(key) + ': ')
+    #             v.strOut(sb, next_indent, tab, tag, edge, token)
+    #     if not hasContent:
+    #         sb.append(' ' + token(repr(str(self))))
+    #     sb.append("]")
 
 
 def PTree2ParseTree(pt: PTree, urn, inputs):

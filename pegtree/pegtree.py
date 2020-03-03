@@ -282,9 +282,9 @@ class POption(PUnary):
 
 
 class PName(PUnary):
-    __slot__ = ['name', 'position']
+    __slot__ = ['e', 'name', 'position']
 
-    def __init__(self, e: Ref, name: str, position: ParseTree):
+    def __init__(self, e, name: str, position):
         super().__init__(e)
         self.name = name
         self.position = position
@@ -419,9 +419,9 @@ class Grammar(dict):
         super().__setitem__(key, item)
 
     def newRef(self, name):
-        refs = self['@refs']
+        refs = self['@@refs']
         if name not in refs:
-            refs[key] = PRef(self, name)
+            refs[name] = PRef(self, name)
         return refs[name]
 
     def start(self):

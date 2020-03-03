@@ -169,7 +169,8 @@ def parse(options, conv=None):
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        parser(read_inputs(inputs[0])).dump(tag=lambda x: color('Blue', x))
+        parser(read_inputs(inputs[0])).dump(
+            tag=lambda x: color('Blue', x), token=lambda x: color('Red', x))
     else:
         for file in options['inputs']:
             st = time.time()
@@ -178,19 +179,19 @@ def parse(options, conv=None):
             print(file, (et - st) * 1000.0, "[ms]:", t.tag)
 
 
-def dump(t, indent='  ', edge=''):
-    tag = color('Blue', '#' + t.tag)
-    if t.child is None:
-        s = t.inputs[t.spos: t.epos]
-        print(indent + edge + bold("[")+tag, color('Red', repr(s)) + bold("]"))
-        return
-    print(indent + edge + bold("[") + tag)
-    indent2 = '  ' + indent
-    for tag, child in t.subs():
-        if tag != '':
-            tag = tag+'='
-        dump(child, indent2, tag)
-    print(indent + bold("]"))
+# def dump(t, indent='  ', edge=''):
+#     tag = color('Blue', '#' + t.tag)
+#     if t.child is None:
+#         s = t.inputs[t.spos: t.epos]
+#         print(indent + edge + bold("[")+tag, color('Red', repr(s)) + bold("]"))
+#         return
+#     print(indent + edge + bold("[") + tag)
+#     indent2 = '  ' + indent
+#     for tag, child in t.subs():
+#         if tag != '':
+#             tag = tag+'='
+#         dump(child, indent2, tag)
+#     print(indent + bold("]"))
 
 
 def example(options):
@@ -210,7 +211,8 @@ def example(options):
         fail = doc.inputs_[res.epos_:doc.epos_]
         print(bold(f'parsing {name}'), color(
             'Green', f'{ok}')+color('Red', f'{fail}'), bold('=> '), end='')
-        res.dump()
+        res.dump(tag=lambda x: color('Blue', x),
+                 token=lambda x: color('Red', x))
 
 
 def dumpError(lines, line, s):
