@@ -282,11 +282,12 @@ class POption(PUnary):
 
 
 class PName(PUnary):
+    __slot__ = ['name', 'position']
 
-    def __init__(self, e: Ref, name: str, t: ParseTree):
+    def __init__(self, e: Ref, name: str, position: ParseTree):
         super().__init__(e)
         self.name = name
-        self.t = t
+        self.position = position
 
     def __repr__(self):
         return repr(self.e)
@@ -699,9 +700,9 @@ class Generator(Optimizer):
     def PRef(self, pe, step):
         return pasm.pRef(self.generated, pe.uname())
 
-    def PName(self, pe, step):
+    def PName(self, pe: PName, step):
         if step == 0 and self.generating_nonterminal == pe.name:
-            print(pe.t.showing('left recursion'))
+            print(pe.position.showing('left recursion'))
             return self.emit(FAIL, step)
         return self.PRef(pe.e, step)
 
@@ -901,7 +902,8 @@ class TPEGLoader(object):
     def Name(self, t, step):
         name = str(t)
         if name in self.names:
-            return self.peg.newRef(name)
+            ref = self.peg.newRef(name)
+            return PName(ref, ref.uname(), t)
         if name[0].isupper() or name[0].islower() or name.startswith('_'):
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg[name] = EMPTY
@@ -911,7 +913,8 @@ class TPEGLoader(object):
     def Quoted(self, t, step):
         name = str(t)
         if name in self.names:
-            return self.peg.newRef(name)
+            ref = self.peg.newRef(name)
+            return PName(ref, ref.uname(), t)
         return PChar(name[1:-1])
 
     def Many(self, t, step):
