@@ -12,7 +12,7 @@ twine upload --repository pypi dist/*
 
 setup(
     name='pegtree',
-    version='0.9.3',
+    version='0.9.4',
     url='https://github.com/KuramitsuLab/pegtree.git',
     license='MIT',
     author='Kimio Kuramitsu',

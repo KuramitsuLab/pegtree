@@ -281,6 +281,20 @@ class POption(PUnary):
     def minLen(self): return 0
 
 
+class PName(PUnary):
+
+    def __init__(self, e: Ref, name: str, t: ParseTree):
+        super().__init__(e)
+        self.name = name
+        self.t = t
+
+    def __repr__(self):
+        return repr(self.e)
+
+    def minLen(self):
+        return self.e.minLen()
+
+
 class PNode(PUnary):
     __slot__ = ['e', 'tag', 'shift']
 
@@ -353,64 +367,6 @@ EMPTY = PChar('')
 ANY = PAny()
 FAIL = PNot(EMPTY)
 
-'''
-def pEmpty(): return EMPTY
-
-
-def pAny(): return ANY
-
-
-def pChar(c: str): return PChar(c) if len(c) > 0 else EMPTY
-
-
-def pRange(cs: str, rs: str): return PRange(cs, rs)
-
-
-def pAnd(e: PExpr): return PAnd(e)
-
-
-def pNot(e: PExpr): return PNot(e)
-
-
-def pMany(e: PExpr): return PMany(e)
-
-
-def pMany1(e: PExpr): return PMany1(e)
-
-
-def pOption(e: PExpr): return POption(e)
-
-
-def pSeq(*es): return PSeq(*es)
-
-
-def pSeq2(e: PExpr, e2: PExpr): return PSeq(e, e2)
-
-
-def pSeq3(e: PExpr, e2: PExpr, e3: PExpr): return PSeq(e, e2, e3)
-
-
-def pOre(*es): return POre.new(*es)
-
-
-def pOre2(e: PExpr, e2: PExpr): return POre.new(e, e2)
-
-
-def pOre3(e: PExpr, e2: PExpr, e3: PExpr): return POre.new(e, e2, e3)
-
-
-def pRef(peg, name: str): return PRef(peg, name)
-
-
-def pNode(e, tag, shift): return PNode(e, tag)
-
-
-def pEdge(label, e): return PEdge(label, e) if label != '' else e
-
-
-def pFold(label, e, tag, shift): return PFold(label, e, tag)
-'''
-
 # repr
 
 
@@ -440,6 +396,7 @@ class Grammar(dict):
         self.N = []
         GrammarId += 1
         super().__setitem__('@@example', [])
+        super().__setitem__('@@refs', {})
 
     def __repr__(self):
         ss = []
@@ -461,106 +418,19 @@ class Grammar(dict):
         super().__setitem__(key, item)
 
     def newRef(self, name):
-        key = '@' + name
-        if key not in self:
-            super().__setitem__(key, PRef(self, name))
-        return self[key]
+        refs = self['@refs']
+        if name not in refs:
+            refs[key] = PRef(self, name)
+        return refs[name]
 
     def start(self):
         if len(self.N) == 0:
             self['EMPTY'] = EMPTY
         return self.N[0]
 
-
-# def pRule(peg, name, pf):
-#     peg[name] = pf
-
-
-# def TPEG(peg):
-#     pRule(peg, 'Start', pSeq3(pRef(peg, '__'), pRef(
-#         peg, 'Source'), pRef(peg, 'EOF')))
-#     pRule(peg, '__', pMany(pOre2(pRange(' \t\r\n', []), pRef(peg, 'COMMENT'))))
-#     pRule(peg, '_', pMany(pOre2(pRange(' \t', []), pRef(peg, 'COMMENT'))))
-#     pRule(peg, 'COMMENT', pOre2(pSeq3(pChar('/*'), pMany(pSeq2(pNot(pChar('*/')), pAny())),
-#                                       pChar('*/')), pSeq2(pChar('//'), pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())))))
-#     pRule(peg, 'EOL', pOre(pChar('\n'), pChar('\r\n'), pRef(peg, 'EOF')))
-#     pRule(peg, 'EOF', pNot(pAny()))
-#     pRule(peg, 'S', pRange(' \t', []))
-#     pRule(peg, 'Source', pNode(
-#         pMany(pEdge('', pRef(peg, 'Statement'))), 'Source', 0))
-#     pRule(peg, 'EOS', pOre2(pSeq2(pRef(peg, '_'), pMany1(pSeq2(pChar(';'), pRef(
-#         peg, '_')))), pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL')))))
-#     pRule(peg, 'Statement', pOre(pRef(peg, 'Import'), pRef(
-#         peg, 'Example'), pRef(peg, 'Rule')))
-#     pRule(peg, 'Import', pSeq2(pNode(pSeq(pChar('from'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'Char'))), pOption(
-#         pSeq(pRef(peg, '_'), pChar('import'), pRef(peg, 'S'), pRef(peg, '_'), pEdge('names', pRef(peg, 'Names'))))), 'Import', 0), pRef(peg, 'EOS')))
-#     pRule(peg, 'Example', pSeq2(pNode(pSeq(pChar('example'), pRef(peg, 'S'), pRef(peg, '_'), pEdge(
-#         'names', pRef(peg, 'Names')), pEdge('doc', pRef(peg, 'Doc'))), 'Example', 0), pRef(peg, 'EOS')))
-#     pRule(peg, 'Names', pNode(pSeq3(pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_'), pMany(pSeq(
-#         pChar(','), pRef(peg, '_'), pEdge('', pRef(peg, 'Identifier')), pRef(peg, '_')))), '', 0))
-#     pRule(peg, 'Doc', pOre(pRef(peg, 'Doc1'),
-#                            pRef(peg, 'Doc2'), pRef(peg, 'Doc0')))
-#     pRule(peg, 'Doc0', pNode(pMany(pSeq2(pNot(pRef(peg, 'EOL')), pAny())), 'Doc', 0))
-#     pRule(peg, 'Doc1', pSeq(pRef(peg, 'DELIM1'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-#         pSeq2(pNot(pSeq2(pRef(peg, 'DELIM1'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM1')))
-#     pRule(peg, 'DELIM1', pChar("'''"))
-#     pRule(peg, 'Doc2', pSeq(pRef(peg, 'DELIM2'), pMany(pRef(peg, 'S')), pRef(peg, 'EOL'), pNode(pMany(
-#         pSeq2(pNot(pSeq2(pRef(peg, 'DELIM2'), pRef(peg, 'EOL'))), pAny())), 'Doc', 0), pRef(peg, 'DELIM2')))
-#     pRule(peg, 'DELIM2', pChar('```'))
-#     pRule(peg, 'Rule', pSeq2(pNode(pSeq(pEdge('name', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName'))), pRef(peg, '__'), pOre2(pChar('='), pChar(
-#         '<-')), pRef(peg, '__'), pOption(pSeq2(pRange('/|', []), pRef(peg, '__'))), pEdge('e', pRef(peg, 'Expression'))), 'Rule', 0), pRef(peg, 'EOS')))
-#     pRule(peg, 'Identifier', pNode(pRef(peg, 'NAME'), 'Name', 0))
-#     pRule(peg, 'NAME', pSeq2(pRange('_', ['AZ', 'az']),
-#                              pMany(pRange('_.', ['AZ', 'az', '09']))))
-#     pRule(peg, 'Expression', pSeq2(pRef(peg, 'Choice'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pChar(
-#         '|'), pNot(pChar('|')), pRef(peg, '_'), pEdge('', pRef(peg, 'Choice')))), 'Alt', 0))))
-#     pRule(peg, 'Choice', pSeq2(pRef(peg, 'Sequence'), pOption(pFold('', pMany1(pSeq(pRef(peg, '__'), pOre2(
-#         pChar('/'), pChar('||')), pRef(peg, '_'), pEdge('', pRef(peg, 'Sequence')))), 'Ore', 0))))
-#     pRule(peg, 'Sequence', pSeq2(pRef(peg, 'Predicate'), pOption(pFold('', pMany1(
-#         pSeq2(pRef(peg, 'SS'), pEdge('', pRef(peg, 'Predicate')))), 'Seq', 0))))
-#     pRule(peg, 'SS', pOre2(pSeq3(pRef(peg, 'S'), pRef(peg, '_'), pNot(pRef(peg, 'EOL'))), pSeq3(
-#         pMany1(pSeq2(pRef(peg, '_'), pRef(peg, 'EOL'))), pRef(peg, 'S'), pRef(peg, '_'))))
-#     pRule(peg, 'Predicate', pOre(pRef(peg, 'Not'), pRef(
-#         peg, 'And'), pRef(peg, 'Suffix')))
-#     pRule(peg, 'Not', pSeq2(pChar('!'), pNode(
-#         pEdge('e', pRef(peg, 'Predicate')), 'Not', 0)))
-#     pRule(peg, 'And', pSeq2(pChar('&'), pNode(
-#         pEdge('e', pRef(peg, 'Predicate')), 'And', 0)))
-#     pRule(peg, 'Suffix', pSeq2(pRef(peg, 'Term'), pOption(pOre(pFold('e', pChar(
-#         '*'), 'Many', 0), pFold('e', pChar('+'), 'Many1', 0), pFold('e', pChar('?'), 'Option', 0)))))
-#     pRule(peg, 'Term', pOre(pRef(peg, 'Group'), pRef(peg, 'Char'), pRef(peg, 'Class'), pRef(peg, 'Any'), pRef(
-#         peg, 'Node'), pRef(peg, 'Fold'), pRef(peg, 'EdgeFold'), pRef(peg, 'Edge'), pRef(peg, 'Func'), pRef(peg, 'Ref')))
-#     pRule(peg, 'Empty', pNode(pEmpty(), 'Empty', 0))
-#     pRule(peg, 'Group', pSeq(pChar('('), pRef(peg, '__'), pOre2(
-#         pRef(peg, 'Expression'), pRef(peg, 'Empty')), pRef(peg, '__'), pChar(')')))
-#     pRule(peg, 'Any', pNode(pChar('.'), 'Any', 0))
-#     pRule(peg, 'Char', pSeq3(pChar("'"), pNode(pMany(pOre2(pSeq2(
-#         pChar('\\'), pAny()), pSeq2(pNot(pChar("'")), pAny()))), 'Char', 0), pChar("'")))
-#     pRule(peg, 'Class', pSeq3(pChar('['), pNode(pMany(pOre2(pSeq2(
-#         pChar('\\'), pAny()), pSeq2(pNot(pChar(']')), pAny()))), 'Class', 0), pChar(']')))
-#     pRule(peg, 'Node', pNode(pSeq(pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(
-#         peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Node', 0))
-#     pRule(peg, 'Tag', pSeq2(pChar('#'), pNode(
-#         pMany1(pSeq2(pNot(pRange(' \t\r\n}', [])), pAny())), 'Tag', 0)))
-#     pRule(peg, 'Fold', pNode(pSeq(pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pEdge('e', pOre2(pSeq2(
-#         pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-#     pRule(peg, 'Edge', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(
-#         peg, '_'), pNot(pChar('^')), pEdge('e', pRef(peg, 'Term'))), 'Edge', 0))
-#     pRule(peg, 'EdgeFold', pNode(pSeq(pEdge('edge', pRef(peg, 'Identifier')), pChar(':'), pRef(peg, '_'), pChar('^'), pRef(peg, '_'), pChar('{'), pRef(peg, '__'), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(
-#         peg, '__'))), pEdge('e', pOre2(pSeq2(pRef(peg, 'Expression'), pRef(peg, '__')), pRef(peg, 'Empty'))), pOption(pSeq2(pEdge('tag', pRef(peg, 'Tag')), pRef(peg, '__'))), pRef(peg, '__'), pChar('}')), 'Fold', 0))
-#     pRule(peg, 'Func', pNode(pSeq(pChar('@'), pEdge('', pRef(peg, 'Identifier')), pChar('('), pRef(peg, '__'), pOre2(pEdge('', pRef(peg, 'Expression')), pEdge(
-#         '', pRef(peg, 'Empty'))), pMany(pSeq(pRef(peg, '_'), pChar(','), pRef(peg, '__'), pEdge('', pRef(peg, 'Expression')))), pRef(peg, '__'), pChar(')')), 'Func', 0))
-#     pRule(peg, 'Ref', pOre2(pRef(peg, 'Identifier'), pRef(peg, 'QName')))
-#     pRule(peg, 'QName', pNode(pSeq3(pChar('"'), pMany(pOre2(pSeq2(
-#         pChar('\\'), pAny()), pSeq2(pNot(pChar('"')), pAny()))), pChar('"')), 'Name', 0))
-#     return peg
-
-
-# TPEGGrammar = TPEG(Grammar())
-# print(TPEGGrammar)
-
 ######################################################################
 # ast.env
+
 
 class Optimizer(object):
 
@@ -829,6 +699,12 @@ class Generator(Optimizer):
     def PRef(self, pe, step):
         return pasm.pRef(self.generated, pe.uname())
 
+    def PName(self, pe, step):
+        if step == 0 and self.generating_nonterminal == pe.name:
+            print(pe.t.showing('left recursion'))
+            return self.emit(FAIL, step)
+        return self.PRef(pe.e, step)
+
     # Tree Construction
 
     def PNode(self, pe, step):
@@ -1012,15 +888,15 @@ class TPEGLoader(object):
             return PChar(chars[0])
         return PRange(''.join(chars), ''.join(ranges))
 
-    def Ref(self, t, step):
-        name = str(t)
-        if name in self.peg:
-            return PAction(self.peg.newRef(name), 'NT', (name,), t.getpos4())
-        if name[0].isupper() or name[0].islower() or name.startswith('_'):
-            logger('warning', t, f'undefined nonterminal {name}')
-            self.peg.add(name, EMPTY)
-            return self.peg.newRef(name)
-        return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
+    # def Ref(self, t, step):
+    #     name = str(t)
+    #     if name in self.peg:
+    #         return PAction(self.peg.newRef(name), 'NT', (name,), t.getpos4())
+    #     if name[0].isupper() or name[0].islower() or name.startswith('_'):
+    #         logger('warning', t, f'undefined nonterminal {name}')
+    #         self.peg.add(name, EMPTY)
+    #         return self.peg.newRef(name)
+    #     return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
 
     def Name(self, t, step):
         name = str(t)
@@ -1030,7 +906,13 @@ class TPEGLoader(object):
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
-        return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
+        return PChar(name)
+
+    def Quoted(self, t, step):
+        name = str(t)
+        if name in self.names:
+            return self.peg.newRef(name)
+        return PChar(name[1:-1])
 
     def Many(self, t, step):
         return PMany(self.conv(t.e, step))

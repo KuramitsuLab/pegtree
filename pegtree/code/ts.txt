@@ -1,0 +1,9 @@
+import { PAsm, ParseTree } from './pasm';
+
+export const PEG = (peg?: any) => {
+  if (peg === undefined) {
+    peg = {}
+  }
+#@RULE
+  return peg;
+}

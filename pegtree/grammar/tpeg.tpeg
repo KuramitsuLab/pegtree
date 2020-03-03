@@ -3,12 +3,12 @@
 
 File = __ Source EOF
 
-__ = ([ \t\r\n] / COMMENT)*
-_ = ([ \t] / COMMENT)*
+S = [ \t　]   // Zenkaku Space
+__ = (S / [\r\n] / COMMENT)*
+_ = (S / COMMENT)*
 COMMENT = '/*' (!'*/' .)* '*/' / '//' (!EOL .)*
 EOL = '\n' / '\r\n' / EOF
 EOF = !.
-S = [ \t]
 
 Source = { Statement* #Source }
 
@@ -47,18 +47,20 @@ Doc2 = DELIM2 S* EOL { (!(DELIM2 EOL) .)* #Doc } DELIM2
 DELIM2 = '```'
 
 Rule = { 
-  name: (Identifier / QName)
+  name: (Identifier / Quoted)
   __ ('=' / '<-') __ ([/|] __)? 
   e: Expression
   #Rule 
 } EOS
 
 Identifier = {
-  NAME
+  NAME / UNAME
   #Name
 }
 
 NAME = [A-Za-z_] [A-Za-z0-9_.]*
+
+UNAME = (![(){}^[\]&! \t\r\n/|*+?.'"@:] .)+
 
 example Expression a b / c
 example Expression a b || c
@@ -76,7 +78,7 @@ Suffix = Term (
   / e: ^{ '+' #Many1 }
   / e: ^{ '?' #Option } )?
 
-Term = Group / Char / Class / Any / Node / Fold / EdgeFold / Edge / Func / Ref
+Term = Group / Char / Class / Any / Fold / Node / OldFold / EdgeFold / Edge / Func / Ref
 Empty = { #Empty }
 
 Group = '(' __ (Expression / Empty) __ ')'
@@ -97,9 +99,18 @@ Node = {
   #Node
 }
 
-Tag = '#' { (![ \t\r\n}] .)+ #Tag }
+Tag = '#' { (![ \t　\r\n}] .)+ #Tag }
 
 Fold = {
+  '{' _ ('^' __ / __ edge: (Identifier ':' _ '^' __) )
+  (tag: Tag __ )?
+  e: (Expression __ / Empty)
+  (tag: Tag __ )?
+  __ '}'
+  #Fold
+}
+
+OldFold = {
   '^' _ '{' __
   (tag: Tag __ )?
   e: (Expression __ / Empty)
@@ -135,18 +146,13 @@ example Func,Expression   @test()
 example Func,Expression   @test(A)
 example Func,Expression   @test(A,B)
 
-Ref = Identifier / QName
+Ref = Identifier / Quoted
 
-QName =  { '"' ('\\' . / !'"' .)* '"' #Name } 
-
-// Ref = Identifier / {
-//   (![ \t\r\n(){}[\]/|?*+@:#] .)
-//   #Ref
-// }
+Quoted =  { '"' ('\\' . / !'"' .)* '"' #Quoted } 
 
 example Source '''
-Expression = Product (^ { [+\-] Product #Infix })*
-Product = Value (left:^ { op: [*%/] right: Value #Infix })*
+Expression = Product { ^ [+\-] Product #Infix }*
+Product = Value { left:^ op: [*%/] right: Value #Infix }*
 Value = Int / '(' Expression ')'
 Int = { [0-9]+ #Int }
 

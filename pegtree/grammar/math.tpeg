@@ -5,7 +5,7 @@ Expression = Product (^ { [+\-] Product #Infix })*
 Product = Value (^ { [*%/] Value #Infix })*
 Value = Int / '(' Expression ')'
 
-Int = { [0-9]+ #Int }
+Int = { [0-9]+  #Int } 
 
 example Expression 1*2+3
 example Expression 1+2*3

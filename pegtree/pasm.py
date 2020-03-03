@@ -827,6 +827,35 @@ class ParseTree(list):
     def isSyntaxError(self):
         return self.tag_ == 'err'
 
+    def keys(self):
+        ks = []
+        for key in self.__dict__:
+            v = self.__dict__[key]
+            if isinstance(v, ParseTree):
+                ks.append(v)
+        return ks
+
+    def subs(self):
+        es = []
+        for i, child in enumerate(t):
+            es.append((child.spos_, '', child))
+        for key in self.__dict__:
+            v = self.__dict__[key]
+            if isinstance(v, ParseTree):
+                es.append((v.spos_, key, child))
+        es.sort()
+        return [(x[1], x[2]) for x in es]
+
+    def get(self, key):
+        return getattr(self, key)
+
+    def set(self, key, t: ParseTree):
+        assert isinstance(t, ParseTree)
+        if key == '':
+            self.append(key, t)
+        else:
+            setattr(self, key, t)
+
     def __str__(self):
         s = self.inputs_[self.spos_:self.epos_]
         return s.decode('utf-8') if isinstance(s, bytes) else s
