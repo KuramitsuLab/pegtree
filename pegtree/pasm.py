@@ -575,12 +575,12 @@ def pScope(pf):
 
 
 def pExists(sid):  # @Match(A)
-    return lambda px: px.getstate(px.state, sid) != None
+    return lambda px: getstate(px.state, sid) != None
 
 
 def pMatch(sid):  # @Match(A)
     def match(px):
-        state = px.getstate(px.state, sid)
+        state = getstate(px.state, sid)
         if state is not None and px.inputs.startswith(state.val, px.pos):
             px.pos += len(state.val)
             return True
