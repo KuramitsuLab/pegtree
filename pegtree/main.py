@@ -136,10 +136,27 @@ def usage():
     print(" update     update pegtree (via pip)")
 
 
+showingTPEG = True
+
+
 def load_grammar(options, default=None):
+    global showingTPEG
     file = options.get('grammar', default)
     if file is None:
-        raise CommandUsageError()
+        print('Enter a TPEG grammar')
+        sb = []
+        try:
+            while True:
+                s = input()
+                if s == '' or s is None:
+                    break
+                sb.append(s)
+        except:
+            pass
+        data = '\n'.join(sb)
+        options['basepath'] = '(stdin)'
+        showingTPEG = False
+        return pegtree.grammar(data, **options)
     if file == 'stdin.tpeg':
         data = sys.stdin.read()
         options['basepath'] = file
@@ -154,6 +171,24 @@ def generator(options):
     return pegtree.generate
 
 
+def getstart(peg, options):
+    if 'start' in options:
+        return options['start']
+    return peg.start()
+
+
+def dump(t):
+    if t.isSyntaxError():
+        print(t.message(color('Red', 'Syntax Error')))
+    else:
+        unconsumed = ''
+        if t.epos_ < len(t.inputs_):
+            unconsumed = ' + ' + color('Purple', t.inputs_[t.epos_:])
+        sb = []
+        t.strOut(sb, token=lambda x: color('Blue', x),
+                 tag=lambda x: color('Cyan', x))
+        print("".join(sb) + unconsumed)
+
 # parse command
 
 
@@ -163,35 +198,22 @@ def parse(options, conv=None):
     inputs = options['inputs']
     if len(inputs) == 0:  # Interactive Mode
         try:
+            if showingTPEG:
+                print(peg)
+            start = getstart(peg, options)
             while True:
-                s = readlines(bold('>>> '))
-                parser(s).dump(tag=lambda x: color('Blue', x))
+                s = readlines(color('Blue', start) + bold(' <<< '))
+                dump(parser(s, urn='(stdin'))
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        parser(read_inputs(inputs[0])).dump(
-            tag=lambda x: color('Blue', x), token=lambda x: color('Red', x))
+        dump(read_inputs(inputs[0]))
     else:
         for file in options['inputs']:
             st = time.time()
             t = parser(read_inputs(file))
             et = time.time()
             print(file, (et - st) * 1000.0, "[ms]:", t.tag)
-
-
-# def dump(t, indent='  ', edge=''):
-#     tag = color('Blue', '#' + t.tag)
-#     if t.child is None:
-#         s = t.inputs[t.spos: t.epos]
-#         print(indent + edge + bold("[")+tag, color('Red', repr(s)) + bold("]"))
-#         return
-#     print(indent + edge + bold("[") + tag)
-#     indent2 = '  ' + indent
-#     for tag, child in t.subs():
-#         if tag != '':
-#             tag = tag+'='
-#         dump(child, indent2, tag)
-#     print(indent + bold("]"))
 
 
 def example(options):
@@ -211,8 +233,7 @@ def example(options):
         fail = doc.inputs_[res.epos_:doc.epos_]
         print(bold(f'parsing {name}'), color(
             'Green', f'{ok}')+color('Red', f'{fail}'), bold('=> '), end='')
-        res.dump(tag=lambda x: color('Blue', x),
-                 token=lambda x: color('Red', x))
+        dump(res)
 
 
 def dumpError(lines, line, s):

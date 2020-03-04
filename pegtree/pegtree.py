@@ -305,7 +305,7 @@ class PNode(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        s = '' if self.shift == 0 else f'/*{self.shift}*/'
+        s = '' if self.shift == 0 else f' /*shift={self.shift}*/'
         return '{' + s + repr(self.e) + ' #' + self.tag + '}'
 
 
@@ -330,7 +330,7 @@ class PFold(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        s = '' if self.shift == 0 else f'/*{self.shift}*/'
+        s = '' if self.shift == 0 else f' /*shift={self.shift}*/'
         if self.edge == '':
             return '^ {' + s + repr(self.e) + ' #' + self.tag + '}'
         return self.edge + ': ^ {' + s + repr(self.e) + ' #' + self.tag + '}'
@@ -702,7 +702,7 @@ class Generator(Optimizer):
 
     def PName(self, pe: PName, step):
         if step == 0 and self.generating_nonterminal == pe.name:
-            print(pe.position.showing('left recursion'))
+            print(pe.position.message('Left recursion'))
             return self.emit(FAIL, step)
         return self.PRef(pe.e, step)
 
@@ -781,7 +781,7 @@ def generate(peg, **options):
 
 
 def logger(type, pos, msg):
-    print(pos.showing(msg))
+    print(pos.message(msg))
 
 
 class TPEGLoader(object):
@@ -904,7 +904,7 @@ class TPEGLoader(object):
         if name in self.names:
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), t)
-        if name[0].isupper() or name[0].islower() or name.startswith('_'):
+        if name[0].isupper() or name.startswith('_'):  # or name[0].islower() :
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
@@ -1018,7 +1018,7 @@ def grammar_factory():
         # logger = options.get('logger', logger)
         # pegparser = pasm.generate(options.get('peg', TPEGGrammar))
         pegparser = pasm.generate(TPEGGrammar['Start'])
-        if isinstance(file, Path):
+        if isinstance(file, Path) and file.is_file():
             f = file.open(encoding=options.get('encoding', 'utf-8_sig'))
             data = f.read()
             f.close()
@@ -1039,11 +1039,11 @@ def grammar_factory():
         pconv.load(t)
 
     def findpath(paths, file):
-        if file.find('=') > 0:
+        if file.find('=') > 0 or file.find('<-') > 0:
             return file
         for p in paths:
             path = Path(p) / file
-            if path.exists():
+            if path.is_file():
                 return path.resolve()
         raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)
 

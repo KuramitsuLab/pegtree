@@ -817,7 +817,7 @@ class ParseTree(list):
         mark = ''.join(mark)
         return (self.urn_, spos, linenum, column, line, mark)
 
-    def showing(self, msg='Syntax Error'):
+    def message(self, msg='Syntax Error'):
         urn, pos, linenum, cols, line, mark = self.decode()
         return '{} ({}:{}:{}+{})\n{}\n{}'.format(msg, urn, linenum, cols, pos, line, mark)
 
@@ -862,14 +862,14 @@ class ParseTree(list):
 
     def __repr__(self):
         if self.isSyntaxError():
-            return self.showing('Syntax Error')
+            return self.message('Syntax Error')
         sb = []
         self.strOut(sb)
         return "".join(sb)
 
     def dump(self, indent='\n', tab='  ', tag=nop, edge=nop, token=nop):
         if self.isSyntaxError():
-            print(self.showing('Syntax Error'))
+            print(self.message('Syntax Error'))
         else:
             sb = []
             self.strOut(sb, indent, tab, '', tag, edge, token)
