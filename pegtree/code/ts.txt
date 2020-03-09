@@ -1,4 +1,4 @@
-import { PAsm, ParseTree } from './pasm';
+import { PAsm, ParseTree } from 'pegtree';
 
 export const PEG = (peg?: any) => {
   if (peg === undefined) {
