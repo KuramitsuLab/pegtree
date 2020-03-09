@@ -44,15 +44,6 @@ class PChar(PExpr):
     def minLen(self): return len(self.text)
 
 
-# def newranges(ranges):
-#     if not isinstance(ranges, str):
-#         sb = []
-#         for r in ranges:
-#             sb.append(r[0]+r[1])
-#         return ''.join(sb)
-#     return ranges
-
-
 class PRange(PExpr):
     __slots__ = ['chars', 'ranges']
     ESCTBL = str.maketrans(
@@ -77,26 +68,6 @@ class PRange(PExpr):
         return ''.join(sb)
 
     def minLen(self): return 1
-
-
-def isSingleChar(e):
-    return (isinstance(e, PChar) and len(e.text) == 1) or isinstance(e, PRange)
-
-
-def mergeRange(e, e2):
-    chars = ''
-    ranges = ''
-    if isinstance(e, PChar):
-        chars += e.text
-    if isinstance(e2, PChar):
-        chars += e2.text
-    if isinstance(e, PRange):
-        chars += e.chars
-        ranges += e.ranges
-    if isinstance(e2, PRange):
-        chars += e2.chars
-        ranges += e2.ranges
-    return PRange(chars, ranges)
 
 
 class PRef(PExpr):
@@ -199,6 +170,26 @@ class POre(PTuple):
                 break
             dic2.append(s)
         return dic2
+
+
+def isSingleChar(e):
+    return (isinstance(e, PChar) and len(e.text) == 1) or isinstance(e, PRange)
+
+
+def mergeRange(e, e2):
+    chars = ''
+    ranges = ''
+    if isinstance(e, PChar):
+        chars += e.text
+    if isinstance(e2, PChar):
+        chars += e2.text
+    if isinstance(e, PRange):
+        chars += e.chars
+        ranges += e.ranges
+    if isinstance(e2, PRange):
+        chars += e2.chars
+        ranges += e2.ranges
+    return PRange(chars, ranges)
 
 
 def appendChoice(choices, pe):
@@ -305,8 +296,9 @@ class PNode(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        s = '' if self.shift == 0 else f' /*shift={self.shift}*/'
-        return '{' + s + repr(self.e) + ' #' + self.tag + '}'
+        s = '' if self.shift == 0 else f'/*shift={self.shift}*/'
+        tag = '' if self.tag == '' else f' #{self.tag} '
+        return '{' + s + ' ' + repr(self.e) + tag + '}'
 
 
 class PEdge(PUnary):
@@ -330,10 +322,10 @@ class PFold(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        s = '' if self.shift == 0 else f' /*shift={self.shift}*/'
-        if self.edge == '':
-            return '^ {' + s + repr(self.e) + ' #' + self.tag + '}'
-        return self.edge + ': ^ {' + s + repr(self.e) + ' #' + self.tag + '}'
+        s = '' if self.shift == 0 else f'/*shift={self.shift}*/'
+        edge = '^' if self.edge == '' else f'{self.edge}:^'
+        tag = '' if self.tag == '' else f' #{self.tag} '
+        return '{ ' + edge + s + ' ' + repr(self.e) + tag + '}'
 
 
 class PAbs(PUnary):
@@ -362,12 +354,6 @@ class PAction(PUnary):
     def cname(self):
         return self.func.capitalize()
 
-
-# CONSTANT
-EMPTY = PChar('')
-ANY = PAny()
-FAIL = PNot(EMPTY)
-
 # repr
 
 
@@ -378,11 +364,18 @@ def grouping(e, f):
 def inUnary(e):
     return isinstance(e, POre) \
         or isinstance(e, PSeq) or isinstance(e, PAlt) \
-        or (isinstance(e, PEdge))or isinstance(e, PFold)
+        or (isinstance(e, PEdge))
 
 
 def ss(e):
     return grouping(e, lambda e: isinstance(e, POre) or isinstance(e, PAlt))
+
+
+# CONSTANT
+EMPTY = PChar('')
+ANY = PAny()
+FAIL = PNot(EMPTY)
+
 
 # # Grammar
 
@@ -407,11 +400,6 @@ class Grammar(dict):
             ss.append(repr(self[rule]))
             ss.append('\n')
         return ''.join(ss)
-
-    # def add(self, key, item):
-    #     if not key in self:
-    #         self.N.append(key)
-    #     self[key] = item
 
     def __setitem__(self, key, item):
         if not key in self:
@@ -888,16 +876,6 @@ class TPEGLoader(object):
         if len(chars) == 1 and len(ranges) == 0:
             return PChar(chars[0])
         return PRange(''.join(chars), ''.join(ranges))
-
-    # def Ref(self, t, step):
-    #     name = str(t)
-    #     if name in self.peg:
-    #         return PAction(self.peg.newRef(name), 'NT', (name,), t.getpos4())
-    #     if name[0].isupper() or name[0].islower() or name.startswith('_'):
-    #         logger('warning', t, f'undefined nonterminal {name}')
-    #         self.peg.add(name, EMPTY)
-    #         return self.peg.newRef(name)
-    #     return PChar(name[1:-1]) if name.startswith('"') else PChar(name)
 
     def Name(self, t, step):
         name = str(t)

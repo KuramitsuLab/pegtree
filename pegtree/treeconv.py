@@ -153,3 +153,50 @@ def dot(t: ParseTree):
         'edge_description': ';\n    '.join([dot_edge(*x) for x in nodes]),
     }
     return string.Template(DOT).substitute(context)
+
+
+def synttree(t, fmt='\\synttree{{1}}{}'):
+    sb = []
+    sb.append(f'[\\Tag{{{t.gettag()}}}')
+    subs = t.subs()
+    if len(subs) > 0:
+        for _, sub in subs:
+            #sb.append(' ')
+            sb.append(synttree(sub, None))
+    else:
+        #sb.append(' ')
+        sb.append(f'[\\Token{{{str(t)}}}]')
+    sb.append(']')
+    s = ' '.join(sb)
+    return s if fmt is None else fmt.format(s)
+
+
+def qtree(t, fmt='\\Tree {}'):
+    sb = []
+    sb.append(f'[.\\Tag{{{t.gettag()}}}')
+    subs = t.subs()
+    if len(subs) > 0:
+        c = -(len(subs)+1)//2
+        for label, sub in subs:
+            if label != '':
+                pos = 'left' if c <= 0 else 'right'
+                sb.append(f'\\edge node[midway,{pos}]{{\\Edge{{{label}}}}};')
+            sb.append(qtree(sub, None))
+            c += 1
+    else:
+        #sb.append(' ')
+        sb.append(f'\\Token{{{str(t)}}}')
+    sb.append(']')
+    s = ' '.join(sb)
+    return s if fmt is None else fmt.format(s)
+
+
+def treedump(options, dump):
+    ext = options.get('ext')
+    if ext == 'dot':
+        return dot
+    if ext == 'qtree':
+        return qtree
+    if ext == 'synttree':
+        return synttree
+    return dump

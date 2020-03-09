@@ -8,6 +8,7 @@ import sys
 import os
 import importlib
 import pegtree
+import pegtree.treeconv as treeconv
 
 istty = True
 
@@ -179,7 +180,7 @@ def getstart(peg, options):
 
 def dump(t):
     if t.isSyntaxError():
-        print(t.message(color('Red', 'Syntax Error')))
+        return t.message(color('Red', 'Syntax Error'))
     else:
         unconsumed = ''
         if t.epos_ < len(t.inputs_):
@@ -187,7 +188,7 @@ def dump(t):
         sb = []
         t.strOut(sb, token=lambda x: color('Blue', x),
                  tag=lambda x: color('Cyan', x))
-        print("".join(sb) + unconsumed)
+        return "".join(sb) + unconsumed
 
 # parse command
 
@@ -196,6 +197,7 @@ def parse(options, conv=None):
     peg = load_grammar(options)
     parser = generator(options)(peg, **options)
     inputs = options['inputs']
+    tdump = treeconv.treedump(options, dump)
     if len(inputs) == 0:  # Interactive Mode
         try:
             if showingTPEG:
@@ -203,7 +205,7 @@ def parse(options, conv=None):
             start = getstart(peg, options)
             while True:
                 s = readlines(color('Blue', start) + bold(' <<< '))
-                dump(parser(s, urn='(stdin'))
+                print(tdump(parser(s, urn='(stdin')))
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
