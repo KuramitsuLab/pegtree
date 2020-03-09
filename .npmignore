@@ -4,6 +4,7 @@ tslint.json
 OLDpegpy/
 pegtree/
 test/
+test2/
 src/
 setup.py
 pegtree.egg-info/
