@@ -265,7 +265,7 @@ def test(options):
                 try:
                     t = parser(line)
                     fail += dumpError(lines, line, t)
-                except:
+                except RecursionError:
                     print(color('Red', line))
                     fail += 1
     et = time.time()
