@@ -812,6 +812,29 @@ const pMany1Range = (chars: string, ranges = '') => {
   }
 }
 
+// 
+export type Position = {
+  position: number;
+  column: number;  /* column >=0 */
+  row: number;   /* row >= 1 */
+}
+
+const getpos = (s: string, pos: number): Position => {
+  pos = Math.min(pos, s.length);
+  var row = 0;
+  var col = 0;
+  for (var i = 0; i <= pos; i += 1) {
+    if (s.charCodeAt(i) == 10) {
+      row += 1;
+      col = 0;
+    }
+    else {
+      col += 1;
+    }
+  }
+  return { position: pos, column: col, row: row }
+}
+
 // ParseTree
 
 export class ParseTree {
@@ -832,28 +855,32 @@ export class ParseTree {
     this.subs_ = ParseTree.EMPTY;
   }
 
-  public is(tag: string) {
-    return this.tag_ === tag;
-  }
-
   public gettag() {
     return this.tag_;
   }
 
-  public add(t: ParseTree, edge: string = '') {
-    if (edge === '') {
+  public is(tag: string) {
+    return this.tag_ === tag;
+  }
+
+  public get(key: string): ParseTree {
+    return (this as any)[key] as ParseTree;
+  }
+
+  public set(key: string, t: ParseTree) {
+    if (key === '') {
       if (this.subs_ === ParseTree.EMPTY) {
         this.subs_ = [];
       }
       this.subs_.push(t)
     }
     else {
-      (this as any)[edge] = t;
+      (this as any)[key] = t;
     }
   }
 
-  public get(key: string) {
-    return (this as any)[key];
+  public append(t: ParseTree, edge: string = '') {
+    this.set(edge, t);
   }
 
   public subNodes() {
@@ -864,29 +891,12 @@ export class ParseTree {
     return this.tag_ === 'err'
   }
 
-  private pos_(pos: number) {
-    const s = this.inputs_;
-    pos = Math.min(pos, s.length);
-    var row = 0;
-    var col = 0;
-    for (var i = 0; i <= pos; i += 1) {
-      if (s.charCodeAt(i) == 10) {
-        row += 1;
-        col = 0;
-      }
-      else {
-        col += 1;
-      }
-    }
-    return [pos, row, col]
-  }
-
   public beginPosition() {
-    return this.pos_(this.spos_);
+    return getpos(this.inputs_, this.spos_);
   }
 
   public endPosition() {
-    return this.pos_(this.spos_);
+    return getpos(this.inputs_, this.epos_);
   }
 
   public length() {
@@ -927,13 +937,13 @@ export class ParseTree {
     sb.push("]")
   }
 
-  public showing(msg = 'Syntax Error') {
-    const p = this.beginPosition();
-    const pos = p[0];
-    const row = p[1];
-    const col = p[2];
-    return `(${this.urn_}:${row}+${col}) ${msg}`
-  }
+  // public showing(msg = 'Syntax Error') {
+  //   const p = this.beginPosition();
+  //   const pos = p[0];
+  //   const row = p[1];
+  //   const col = p[2];
+  //   return `(${this.urn_}:${row}+${col}) ${msg}`
+  // }
 }
 
 const PTree2ParseTree = (pt: PTree, urn: string, inputs: string) => {

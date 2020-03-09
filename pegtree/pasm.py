@@ -455,14 +455,6 @@ class PTree(object):
         return ''.join(sb)
 
 
-def splitPTree(pt):
-    if pt is None:
-        return None, None
-    if pt.prev is None:
-        return None, pt
-    return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child)
-
-
 def makePTree(pt: PTree, inputs: str):
     ns = []
     while pt != None:
@@ -502,24 +494,29 @@ def pEdge(edge, pf):
     return match_edge
 
 
+def splitPTree(pos, pt):
+    if pt is None:
+        return None, None, pos
+    if pt.prev is None:
+        return None, pt, pt.spos
+    return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child), pt.spos
+
+
 def pFold(edge, pf, tag, shift):
     if edge == '':
         def match_fold(px):
-            pos = px.pos
-            prev, px.ast = splitPTree(px.ast)
+            prev, px.ast, spos = splitPTree(px.pos, px.ast)
             if pf(px):
-                px.ast = PTree(prev, tag, pos+shift, px.pos, px.ast)
+                px.ast = PTree(prev, tag, spos, px.pos, px.ast)
                 return True
             return False
         return match_fold
     else:
         def match_fold2(px):
-            pos = px.pos
-            # pprev = px.ast
-            prev, pt = splitPTree(px.ast)
-            px.ast = PTree(None, edge, 0, -pos, pt)
+            prev, pt, spos = splitPTree(px.spos, px.ast)
+            px.ast = PTree(None, edge, 0, -spos, pt)
             if pf(px):
-                px.ast = PTree(prev, tag, pos+shift, px.pos, px.ast)
+                px.ast = PTree(prev, tag, spos, px.pos, px.ast)
                 return True
             return False
         return match_fold2
@@ -887,28 +884,6 @@ class ParseTree(list):
         else:
             sb.append(' ' + token(repr(str(self))))
             sb.append("]")
-
-    # def strOut2(self, sb, indent='\n  ', tab='  ', tag=nop, edge=nop, token=nop):
-    #     sb.append("[" + tag(f'#{self.tag_}'))
-    #     hasContent = False
-    #     next_indent = indent + tab
-    #     for child in self:
-    #         hasContent = True
-    #         sb.append(indent)
-    #         if hasattr(child, 'strOut'):
-    #             child.strOut(sb, next_indent, tab, tag, edge, token)
-    #         else:
-    #             sb.append(repr(child))
-    #     for key in self.__dict__:
-    #         v = self.__dict__[key]
-    #         if isinstance(v, ParseTree):
-    #             hasContent = True
-    #             sb.append(indent)
-    #             sb.append(edge(key) + ': ')
-    #             v.strOut(sb, next_indent, tab, tag, edge, token)
-    #     if not hasContent:
-    #         sb.append(' ' + token(repr(str(self))))
-    #     sb.append("]")
 
 
 def PTree2ParseTree(pt: PTree, urn, inputs):

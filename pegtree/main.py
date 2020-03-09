@@ -262,8 +262,12 @@ def test(options):
         with open(file) as f:
             for line in f:
                 lines += 1
-                t = parser(line)
-                fail += dumpError(lines, line, t)
+                try:
+                    t = parser(line)
+                    fail += dumpError(lines, line, t)
+                except:
+                    print(color('Red', line))
+                    fail += 1
     et = time.time()
     if lines > 0:
         print(f'{fail}/{lines} {fail/lines} {(et - st) * 1000.0} ms')
