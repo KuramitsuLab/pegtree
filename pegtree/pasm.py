@@ -513,7 +513,7 @@ def pFold(edge, pf, tag, shift):
         return match_fold
     else:
         def match_fold2(px):
-            prev, pt, spos = splitPTree(px.spos, px.ast)
+            prev, pt, spos = splitPTree(px.pos, px.ast)
             px.ast = PTree(None, edge, 0, -spos, pt)
             if pf(px):
                 px.ast = PTree(prev, tag, spos, px.pos, px.ast)
