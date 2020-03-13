@@ -197,6 +197,6 @@ def treedump(options, dump):
         return dot
     if ext == 'qtree':
         return qtree
-    if ext == 'synttree':
+    if ext == 'synttree' or ext == 'syntree':
         return synttree
     return dump

@@ -137,7 +137,7 @@ def usage():
     print(" update     update pegtree (via pip)")
 
 
-showingTPEG = True
+showingTPEG = False
 
 
 def load_grammar(options, default=None):
