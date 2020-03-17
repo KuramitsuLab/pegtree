@@ -144,6 +144,8 @@ class POre(PTuple):
     @classmethod
     def new(cls, *es):
         choices = []
+        if len(choices) == 0:
+            return FAIL
         for e in es:
             appendChoice(choices, e)
         return choices[0] if len(choices) == 1 else POre(*choices)
@@ -872,7 +874,7 @@ class TPEGLoader(object):
             else:
                 chars.append(c)
         if len(chars) == 0 and len(ranges) == 0:
-            return EMPTY
+            return FAIL
         if len(chars) == 1 and len(ranges) == 0:
             return PChar(chars[0])
         return PRange(''.join(chars), ''.join(ranges))
@@ -970,7 +972,7 @@ class TPEGLoader(object):
                 ss = [x.strip('\r\n') for x in f.readlines()]
                 ds |= {x for x in ss if len(x) > 0 and not x.startswith('#')}
         choice = [PChar(x) for x in sorted(ds, key=lambda x: len(x))[::-1]]
-        return POre(*choice)
+        return POre.new(*choice)
 
     @classmethod
     def choiceN(cls, urn, n, es):
@@ -987,7 +989,7 @@ class TPEGLoader(object):
                     ds |= {x for x in ss if len(
                         x) == n and not x.startswith('#')}
         choice = [PChar(x) for x in ds]
-        return POre(*choice)
+        return POre.new(*choice)
 
 
 def grammar_factory():

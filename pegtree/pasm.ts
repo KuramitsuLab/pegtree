@@ -965,10 +965,10 @@ const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: nu
       else {
         tt = PTree2ParseTree(sub.child, urn, inputs);
       }
-      t.add(tt, sub.tag);
+      t.set(sub.tag, tt);
     }
     else {
-      t.add(PTree2ParseTreeChild(sub.tag, urn, inputs,
+      t.set('', PTree2ParseTreeChild(sub.tag, urn, inputs,
         sub.spos, sub.epos, sub.child))
     }
     sub = sub.prev;
