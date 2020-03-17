@@ -143,9 +143,9 @@ class PAlt(PTuple):
 class POre(PTuple):
     @classmethod
     def new(cls, *es):
-        choices = []
-        if len(choices) == 0:
+        if len(es) == 0:
             return FAIL
+        choices = []
         for e in es:
             appendChoice(choices, e)
         return choices[0] if len(choices) == 1 else POre(*choices)
