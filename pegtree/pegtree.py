@@ -814,7 +814,7 @@ class TPEGLoader(object):
         self.peg['@@example'].append((name, doc))
 
     def conv(self, t, step):
-        tag = t.gettag()
+        tag = t.getTag()
         if hasattr(self, tag):
             f = getattr(self, tag)
             return f(t, step)

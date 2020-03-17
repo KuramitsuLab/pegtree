@@ -178,17 +178,17 @@ def getstart(peg, options):
     return peg.start()
 
 
-def dump(t):
+def colorTree(t):
     if t.isSyntaxError():
         return t.message(color('Red', 'Syntax Error'))
     else:
-        unconsumed = ''
-        if t.epos_ < len(t.inputs_):
-            unconsumed = ' + ' + color('Purple', t.inputs_[t.epos_:])
+        # unconsumed = ''
+        # if epos < len(t.inputs_):
+        #     unconsumed = ' + ' + color('Purple', t.inputs_[epos:])
         sb = []
         t.strOut(sb, token=lambda x: color('Blue', x),
                  tag=lambda x: color('Cyan', x))
-        return "".join(sb) + unconsumed
+        return "".join(sb)
 
 # parse command
 
@@ -197,7 +197,7 @@ def parse(options, conv=None):
     peg = load_grammar(options)
     parser = generator(options)(peg, **options)
     inputs = options['inputs']
-    tdump = treeconv.treedump(options, dump)
+    tdump = treeconv.treedump(options, colorTree)
     if len(inputs) == 0:  # Interactive Mode
         try:
             if showingTPEG:
@@ -209,7 +209,7 @@ def parse(options, conv=None):
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:
-        dump(read_inputs(inputs[0]))
+        colorTree(read_inputs(inputs[0]))
     else:
         for file in options['inputs']:
             st = time.time()
@@ -235,7 +235,7 @@ def example(options):
         fail = doc.inputs_[res.epos_:doc.epos_]
         print(bold(f'parsing {name}'), color(
             'Green', f'{ok}')+color('Red', f'{fail}'), bold('=> '), end='')
-        dump(res)
+        print(colorTree(res))
 
 
 def dumpError(lines, line, s):

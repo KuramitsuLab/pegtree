@@ -12,7 +12,7 @@ def make_graph(t: ParseTree, nodes, edges, c):
     es.sort()
     if len(es) > 0:
         parentId = c
-        nodes.append((parentId, t.gettag(), None))
+        nodes.append((parentId, t.getTag(), None))
         for i, e in enumerate(es):
             _, child, edge = e
             childId = c+1
@@ -20,7 +20,7 @@ def make_graph(t: ParseTree, nodes, edges, c):
             edges.append((parentId, childId, edge))
         return c
     if t != '':
-        nodes.append((parentId, t.gettag(), None))
+        nodes.append((parentId, t.getTag(), None))
         edges.append((parentId, parentId+1, None))
         nodes.append((parentId+1, None, str(t)))
         return parentId+1
@@ -95,10 +95,10 @@ def make_dot(nodes, edges, t: ParseTree, idc: int):
         edges.append(edge)
         hasContent = True
     if not hasContent:
-        node = f'n{tid} [label="#{t.gettag()}"]'
+        node = f'n{tid} [label="#{t.getTag()}"]'
         nodes.append(node)
         idc = tid+1
-        node = f'n{idc} [label="#{t.gettag()}"]'
+        node = f'n{idc} [label="#{t.getTag()}"]'
         edge = f'n{tid} -> n{idc}'
         edges.append(edge)
     return idc
@@ -157,7 +157,7 @@ def dot(t: ParseTree):
 
 def synttree(t, fmt='\\synttree{{1}}{}'):
     sb = []
-    sb.append(f'[\\Tag{{{t.gettag()}}}')
+    sb.append(f'[\\Tag{{{t.getTag()}}}')
     subs = t.subs()
     if len(subs) > 0:
         for _, sub in subs:
@@ -173,7 +173,7 @@ def synttree(t, fmt='\\synttree{{1}}{}'):
 
 def qtree(t, fmt='\\Tree {}'):
     sb = []
-    sb.append(f'[.\\Tag{{{t.gettag()}}}')
+    sb.append(f'[.\\Tag{{{t.getTag()}}}')
     subs = t.subs()
     if len(subs) > 0:
         c = -(len(subs)+1)//2

@@ -781,13 +781,13 @@ class ParseTree(list):
         self.epos_ = epos if epos is not None else len(inputs)
         self.urn_ = urn
 
-    def gettag(self):
+    def getTag(self):
         return self.tag_
 
-    def start(self):
+    def getPosition(self):
         return rowcol(self.urn_, self.inputs_, self.spos_)
 
-    def end(self):
+    def getEndPosition(self):
         return rowcol(self.urn_, self.inputs_, self.epos_)
 
     def decode(self):
@@ -844,12 +844,14 @@ class ParseTree(list):
         return [(x[1], x[2]) for x in es]
 
     def get(self, key):
+        if isinstance(key, int):
+            return self[key]
         return getattr(self, key)
 
     def set(self, key, t):
         assert isinstance(t, ParseTree)
         if key == '':
-            self.append(key, t)
+            self.append(t)
         else:
             setattr(self, key, t)
 
@@ -873,7 +875,7 @@ class ParseTree(list):
             print("".join(sb))
 
     def strOut(self, sb, indent='\n  ', tab='  ', prefix='', tag=nop, edge=nop, token=nop):
-        sb.append(indent + prefix + "[" + tag(f'#{self.tag_}'))
+        sb.append(indent + prefix + "[" + tag(f'#{self.getTag()}'))
         subs = self.subs()
         if len(subs) > 0:
             next_indent = indent + tab
@@ -902,10 +904,7 @@ def PTree2ParseTreeImpl(tag, urn, inputs, spos, epos, subnode):
                     '', urn, inputs, subnode.spos, abs(subnode.epos), None)
             else:
                 tt = PTree2ParseTree(subnode.child, urn, inputs)
-            if subnode.tag == '':
-                t.append(tt)
-            else:
-                setattr(t, subnode.tag, tt)
+            t.set(subnode.tag, tt)
         else:
             t.append(PTree2ParseTreeImpl(subnode.tag, urn, inputs,
                                          subnode.spos, abs(subnode.epos), subnode.child))
@@ -928,6 +927,3 @@ def generate(pf):
                                                              "", pos, px.pos, None)
         return conv(result, urn, inputs)
     return parse
-
-
-# TPEG
