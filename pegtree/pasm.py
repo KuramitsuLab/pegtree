@@ -311,17 +311,17 @@ def pDict(words):
     return lambda px: match_trie(px, dic)
 
 
-def pRef(generated, uname):
-    if uname not in generated:
-        fs = None
+# def pRef(generated, uname):
+#     if uname not in generated:
+#         fs = None
 
-        def match_deref(px):
-            nonlocal fs
-            if fs is None:
-                fs = generated[uname]
-            return fs(px)
-        generated[uname] = match_deref
-    return generated[uname]
+#         def match_deref(px):
+#             nonlocal fs
+#             if fs is None:
+#                 fs = generated[uname]
+#             return fs(px)
+#         generated[uname] = match_deref
+#     return generated[uname]
 
 
 def pRef(generated, uname):

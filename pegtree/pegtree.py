@@ -949,46 +949,42 @@ class TPEGLoader(object):
         funcname = str(t[0])
         ps = [self.conv(p, step) for p in t[1:]]
         if funcname.startswith('choice'):
+            def feq(ss, n):
+                return {x for x in ss if len(x) == n and not x.startswith('#')}
+
+            def fgt(ss, n):
+                return {x for x in ss if len(x) > n and not x.startswith('#')}
             n = funcname[6:]
             if n.isdigit():
-                return TPEGLoader.choiceN(t.urn_, int(n), ps)
-            return TPEGLoader.choice(t.urn_, ps)
+                return TPEGLoader.choice(t.urn_, ps, int(n), feq)
+            if n.startswith('G'):
+                return TPEGLoader.choice(t.urn_, ps, int(n[1:]), fgt)
+            return TPEGLoader.choice(t.urn_, ps, 0, fgt)
         if funcname in TPEGLoader.FIRST:
             return PAction(ps[0], funcname, tuple(ps), t)
         return PAction(EMPTY, funcname, tuple(ps), t)
 
     @classmethod
-    def fileName(cls, e):
-        s = str(e)
-        return s[1:-1]  # if s.startswith('"') else s
+    def fileName(cls, urn, file):
+        if file.startswith('CJDIC'):
+            file = file.replace('CJDIC', os.environ.get('CJDIC', 'cjdic'))
+            return Path(file)
+        return Path(urn).parent / file
 
     @classmethod
-    def choice(cls, urn, es):
+    def choice(cls, urn, es, n, fset):
         ds = set()
         for e in es:
-            file = TPEGLoader.fileName(e)
-            file = Path(urn).parent / file
-            with file.open(encoding='utf-8_sig') as f:
-                ss = [x.strip('\r\n') for x in f.readlines()]
-                ds |= {x for x in ss if len(x) > 0 and not x.startswith('#')}
+            filename = str(e)[1:-1]
+            file = TPEGLoader.fileName(urn, filename)
+            try:
+                with file.open(encoding='utf-8_sig') as f:
+                    ss = [x.strip('\r\n') for x in f.readlines()]
+                    ds |= fset(ss, n)
+            except:
+                if not filename.startswith('CJDIC'):
+                    print(f'File Not Found: {file}')
         choice = [PChar(x) for x in sorted(ds, key=lambda x: len(x))[::-1]]
-        return POre.new(*choice)
-
-    @classmethod
-    def choiceN(cls, urn, n, es):
-        ds = set()
-        for e in es:
-            file = TPEGLoader.fileName(e)
-            file = Path(urn).parent / file
-            with file.open(encoding='utf-8_sig') as f:
-                ss = [x.strip('\r\n') for x in f.readlines()]
-                if n == 0:
-                    ds |= {x for x in ss if len(
-                        x) > 9 and not x.startswith('#')}
-                else:
-                    ds |= {x for x in ss if len(
-                        x) == n and not x.startswith('#')}
-        choice = [PChar(x) for x in ds]
         return POre.new(*choice)
 
 

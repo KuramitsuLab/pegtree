@@ -1,13 +1,13 @@
 // PContext
 
 class PContext {
-  x: string;
+  readonly x: string;
   pos: number;
   epos: number;
   headpos: number;
   ast: PTree | null;
   state: PState | null;
-  memos: PMemo[];
+  readonly memos: PMemo[];
   constructor(inputs: string, pos: number, epos: number) {
     this.x = inputs;
     this.pos = pos;
@@ -21,45 +21,6 @@ class PContext {
     }
   }
 }
-
-class PTree {
-  readonly prev: PTree | null;
-  readonly tag: string;
-  readonly spos: number;
-  readonly epos: number;
-  readonly child: PTree | null;
-  constructor(prev: PTree | null, tag: string, spos: number, epos: number, child: PTree | null) {
-    this.prev = prev
-    this.tag = tag
-    this.spos = spos
-    this.epos = epos
-    this.child = child
-  }
-
-  isEdge() {
-    return (this.epos < 0);
-  }
-
-  dump(inputs: string) {
-    const sb: string[] = []
-    if (this.prev !== null) {
-      sb.push(this.prev.dump(inputs))
-      sb.push(',')
-    }
-    sb.push(`{#${this.tag} `)
-    if (this.child === null) {
-      sb.push("'")
-      sb.push(inputs.substring(this.spos, this.epos))
-      sb.push("'")
-    }
-    else {
-      sb.push(this.child.dump(inputs))
-    }
-    sb.push('}')
-    return sb.join('')
-  }
-}
-
 
 export type PFunc = (px: PContext) => boolean;
 
@@ -119,16 +80,6 @@ const pChar = (text: string) => {
     return false
   });
 }
-
-// const range_min = (chars: string, ranges: string) => {
-//   const s = chars + ranges;
-//   var min = 0xffff;
-//   for (var i = 0; i < s.length; i++) {
-//     const c = s.charCodeAt(i)
-//     min = Math.min(min, c);
-//   }
-//   return min;
-// }
 
 /* Range */
 
@@ -251,7 +202,7 @@ const pMany = (pf: PFunc) => {
   }
 }
 
-const pMany1 = (pf: PFunc) => {
+const pOneMany = (pf: PFunc) => {
   return (px: PContext) => {
     if (!pf(px)) {
       return false;
@@ -548,6 +499,44 @@ const pMemo = (pf: PFunc, mp: number, mpsize: number) => {
 
 /* Tree Construction */
 
+class PTree {
+  readonly prev: PTree | null;
+  readonly tag: string;
+  readonly spos: number;
+  readonly epos: number;
+  readonly child: PTree | null;
+  constructor(prev: PTree | null, tag: string, spos: number, epos: number, child: PTree | null) {
+    this.prev = prev
+    this.tag = tag
+    this.spos = spos
+    this.epos = epos
+    this.child = child
+  }
+
+  isEdge() {
+    return (this.epos < 0);
+  }
+
+  dump(inputs: string) {
+    const sb: string[] = []
+    if (this.prev !== null) {
+      sb.push(this.prev.dump(inputs))
+      sb.push(',')
+    }
+    sb.push(`{#${this.tag} `)
+    if (this.child === null) {
+      sb.push("'")
+      sb.push(inputs.substring(this.spos, this.epos))
+      sb.push("'")
+    }
+    else {
+      sb.push(this.child.dump(inputs))
+    }
+    sb.push('}')
+    return sb.join('')
+  }
+}
+
 const pNode = (pf: PFunc, tag: string, shift: number) => {
   return (px: PContext) => {
     const pos = px.pos
@@ -714,8 +703,6 @@ const pIn = (name: string) => {
   }
 }
 
-
-
 // Optimized
 
 const pAndChar = (text: string) => {
@@ -750,7 +737,7 @@ const pManyChar = (text: string) => {
   };
 }
 
-const pMany1Char = (text: string) => {
+const pOneManyChar = (text: string) => {
   const clen = text.length;
   return (px: PContext) => {
     if (!px.x.startsWith(text, px.pos)) {
@@ -798,7 +785,7 @@ const pManyRange = (chars: string, ranges = '') => {
   }
 }
 
-const pMany1Range = (chars: string, ranges = '') => {
+const pOneManyRange = (chars: string, ranges = '') => {
   const bitmap = toBitmap(chars, ranges);
   return (px: PContext) => {
     if (px.pos < px.epos && bitmatch(px.x.charCodeAt(px.pos), bitmap)) {
@@ -1031,7 +1018,7 @@ export class PAsm {
   public static pAnd = pAnd;
   public static pNot = pNot;
   public static pMany = pMany;
-  public static pMany1 = pMany1;
+  public static pOneMany = pOneMany;
   public static pOption = pOption;
 
   public static pSeq = pSeq;
@@ -1062,13 +1049,13 @@ export class PAsm {
   public static pNotChar = pNotChar;
   public static pOptionChar = pOptionChar;
   public static pManyChar = pManyChar;
-  public static pMany1Char = pMany1Char;
+  public static pOneManyChar = pOneManyChar;
 
   public static pAndRange = pAndRange;
   public static pNotRange = pNotRange;
   public static pOptionRange = pOptionRange;
   public static pManyRange = pManyRange;
-  public static pMany1Range = pMany1Range;
+  public static pOneManyRange = pOneManyRange;
 
   public static pDef = pDef;
   public static pIn = pIn;

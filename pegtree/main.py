@@ -258,19 +258,22 @@ def test(options):
     st = time.time()
     lines = 0
     fail = 0
-    for file in options['inputs']:
-        with open(file) as f:
-            for line in f:
-                lines += 1
-                try:
-                    t = parser(line)
-                    fail += dumpError(lines, line, t)
-                except RecursionError:
-                    print(color('Red', line))
-                    fail += 1
+    try:
+        for file in options['inputs']:
+            with open(file) as f:
+                for line in f:
+                    lines += 1
+                    try:
+                        t = parser(line)
+                        fail += dumpError(lines, line, t)
+                    except RecursionError:
+                        print(color('Red', line))
+                        fail += 1
+    except KeyboardInterrupt:
+        pass
     et = time.time()
     if lines > 0:
-        print(f'{fail}/{lines} {fail/lines} {(et - st) * 1000.0} ms')
+        print(f'{fail}/{lines} {(fail*100000)//(lines)/1000} {(et - st) * 1000.0} ms')
 
 
 def peg(options):

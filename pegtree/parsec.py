@@ -6,10 +6,10 @@ from pegtree.pegtree import Generator, grammar, Grammar
 PASMS = [
     [],
     [
-        'Option', 'Many1',
+        'Option', 'OneMany',
         'Seq', 'Ore', 'Seq3', 'Seq4', 'Ore3', 'Ore4',
-        'AndChar', 'NotChar', 'ManyChar', 'Many1Char', 'OptionChar',
-        'AndRange', 'NotRange', 'ManyRange', 'Many1Range', 'OptionRange',
+        'AndChar', 'NotChar', 'ManyChar', 'OneManyChar', 'OptionChar',
+        'AndRange', 'NotRange', 'ManyRange', 'OneManyRange', 'OptionRange',
         'Many2'
     ]
 ]
@@ -136,13 +136,13 @@ class Parsec(Generator):
             return self.emitApply(f'Many{cname}', *self.param(e))
         return self.emitApply('Many', self.emit(e, step))
 
-    def PMany1(self, pe, step):
+    def POneMany(self, pe, step):
         e = self.inline(pe.e)
-        if self.has('Many1'):
+        if self.has('OneMany'):
             cname = e.cname()[1:]
-            if self.has(f'Many1{cname}'):
-                return self.emitApply(f'Many1{cname}', *self.param(e))
-            return self.emitApply('Many1', self.emit(e, step))
+            if self.has(f'OneMany{cname}'):
+                return self.emitApply(f'OneMany{cname}', *self.param(e))
+            return self.emitApply('OneMany', self.emit(e, step))
         return self.emitApply('Seq2', self.emit(e, step), self.PMany(pe, pe.minLen()))
 
     def POption(self, pe, step):
