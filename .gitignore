@@ -9,6 +9,7 @@
 
 # testing
 /coverage
+__pycache__
 
 # production
 /pegtree.egg-info

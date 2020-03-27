@@ -142,8 +142,8 @@ def pMany(pf):
     return match_many
 
 
-def pMany1(pf):
-    def match_many1(px):
+def pOneMany(pf):
+    def match_OneMany(px):
         if pf(px):
             pos = px.pos
             ast = px.ast
@@ -155,7 +155,7 @@ def pMany1(pf):
             px.ast = ast
             return True
         return False
-    return match_many1
+    return match_OneMany
 
 
 def pOption(pf):
@@ -650,17 +650,17 @@ def pManyChar(text):
     return match_manychar
 
 
-def pMany1Char(text):
+def pOneManyChar(text):
     clen = len(text)
 
-    def match_many1char(px):
+    def match_OneManychar(px):
         if px.inputs.startswith(text, px.pos):
             px.pos += clen
             while px.inputs.startswith(text, px.pos):
                 px.pos += clen
             return True
         return False
-    return match_many1char
+    return match_OneManychar
 
 
 def pOptionChar(text):
@@ -723,7 +723,7 @@ def pManyRange(chars, ranges):
     return match_manybitset
 
 
-def pMany1Range(chars, ranges):
+def pOneManyRange(chars, ranges):
     return pSeq2(pRange(chars, ranges), pManyRange(chars, ranges))
 
 
@@ -863,7 +863,7 @@ class ParseTree(list):
         if self.isSyntaxError():
             return self.message('Syntax Error')
         sb = []
-        self.strOut(sb)
+        self.strOut(sb, indent='', tab='')
         return "".join(sb)
 
     def dump(self, indent='\n', tab='  ', tag=nop, edge=nop, token=nop):
@@ -875,7 +875,7 @@ class ParseTree(list):
             print("".join(sb))
 
     def strOut(self, sb, indent='\n  ', tab='  ', prefix='', tag=nop, edge=nop, token=nop):
-        sb.append(indent + prefix + "[" + tag(f'#{self.getTag()}'))
+        sb.append(indent + prefix + "[" + tag(f'#{self.getTag()} '))
         subs = self.subs()
         if len(subs) > 0:
             next_indent = indent + tab
@@ -884,7 +884,7 @@ class ParseTree(list):
                 child.strOut(sb, next_indent, tab, prefix, tag, edge, token)
             sb.append(indent + "]")
         else:
-            sb.append(' ' + token(repr(str(self))))
+            sb.append(token(repr(str(self))))
             sb.append("]")
 
 

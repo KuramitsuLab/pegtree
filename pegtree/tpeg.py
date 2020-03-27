@@ -5,7 +5,7 @@ def TPEG(peg):
     pRule(peg, "S", pRange(" \t　", ""))
     pRule(peg, "EOF", pNot(pAny()))
     pRule(peg, "NAME", pSeq2(pRange("_", "AZaz"), pManyRange("_.", "AZaz09")))
-    pRule(peg, "UNAME", pMany1(
+    pRule(peg, "UNAME", pOneMany(
         pSeq2(pNotRange("(){}^[]&! \t\r\n　/|*+?.\'\"@:#", ""), pAny())))
     pRule(peg, "Char", pSeq3(pChar("\'"), pNode(pMany(pOre2(pSeq2(pChar("\\"),
                                                                   pAny()), pSeq2(pNotChar("\'"), pAny()))), "Char", 0), pChar("\'")))
@@ -37,10 +37,10 @@ def TPEG(peg):
                             pRef(peg, "Doc2"), pRef(peg, "Doc0")))
     pRule(peg, "Names", pNode(pSeq3(pRef(peg, "Identifier"), pRef(peg, "_"), pMany(
         pSeq4(pChar(","), pRef(peg, "_"), pRef(peg, "Identifier"), pRef(peg, "_")))), "", 0))
-    pRule(peg, "EOS", pOre2(pSeq2(pRef(peg, "_"), pMany1(pSeq2(pChar(";"),
-                                                               pRef(peg, "_")))), pMany1(pSeq2(pRef(peg, "_"), pRef(peg, "EOL")))))
+    pRule(peg, "EOS", pOre2(pSeq2(pRef(peg, "_"), pOneMany(pSeq2(pChar(";"),
+                                                                 pRef(peg, "_")))), pOneMany(pSeq2(pRef(peg, "_"), pRef(peg, "EOL")))))
     pRule(peg, "SS", pOre2(pSeq3(pRange(" \t　", ""), pRef(peg, "_"), pNot(pRef(peg, "EOL"))), pSeq3(
-        pMany1(pSeq2(pRef(peg, "_"), pRef(peg, "EOL"))), pRange(" \t　", ""), pRef(peg, "_"))))
+        pOneMany(pSeq2(pRef(peg, "_"), pRef(peg, "EOL"))), pRange(" \t　", ""), pRef(peg, "_"))))
     pRule(peg, "Import", pSeq2(pSeq2(pSeq2(pChar("from"), pRange(" \t　", "")), pNode(pSeq3(pRef(peg, "_"), pEdge("name", pOre2(pRef(peg, "Identifier"), pRef(peg, "Char"))),
                                                                                            pOption(pSeq(pRef(peg, "_"), pChar("import"), pRange(" \t　", ""), pRef(peg, "_"), pEdge("names", pRef(peg, "Names"))))), "Import", -9)), pRef(peg, "EOS")))
     pRule(peg, "Example", pSeq2(pSeq2(pSeq2(pChar("example"), pRange(" \t　", "")), pNode(pSeq3(pRef(peg, "_"),
@@ -64,12 +64,12 @@ def TPEG(peg):
     pRule(peg, "Func", pSeq2(pChar("@"), pNode(pSeq(pRef(peg, "Identifier"), pChar("("), pRef(peg, "__"), pOre2(pSeq2(pRef(peg, "Expression"), pRef(peg, "_")), pRef(
         peg, "Empty")), pMany(pSeq(pRef(peg, "_"), pChar(","), pRef(peg, "__"), pRef(peg, "Expression"), pRef(peg, "_"))), pRef(peg, "__"), pChar(")")), "Func", -1)))
     pRule(peg, "Suffix", pSeq2(pRef(peg, "Term"), pOption(pOre3(pSeq2(pChar("*"), pFold("e", pEmpty(), "Many", -1)),
-                                                                pSeq2(pChar("+"), pFold("e", pEmpty(), "Many1", -1)), pSeq2(pChar("?"), pFold("e", pEmpty(), "Option", -1))))))
+                                                                pSeq2(pChar("+"), pFold("e", pEmpty(), "OneMany", -1)), pSeq2(pChar("?"), pFold("e", pEmpty(), "Option", -1))))))
     pRule(peg, "Sequence", pSeq2(pRef(peg, "Predicate"), pOption(
-        pFold("", pMany1(pSeq2(pRef(peg, "SS"), pRef(peg, "Predicate"))), "Seq", 0))))
-    pRule(peg, "Choice", pSeq2(pRef(peg, "Sequence"), pOption(pFold("", pMany1(pSeq4(
+        pFold("", pOneMany(pSeq2(pRef(peg, "SS"), pRef(peg, "Predicate"))), "Seq", 0))))
+    pRule(peg, "Choice", pSeq2(pRef(peg, "Sequence"), pOption(pFold("", pOneMany(pSeq4(
         pRef(peg, "__"), pDict("/ ||"), pRef(peg, "_"), pRef(peg, "Sequence"))), "Ore", 0))))
-    pRule(peg, "Expression", pSeq2(pRef(peg, "Choice"), pOption(pFold("", pMany1(pSeq(pRef(
+    pRule(peg, "Expression", pSeq2(pRef(peg, "Choice"), pOption(pFold("", pOneMany(pSeq(pRef(
         peg, "__"), pChar("|"), pNotChar("|"), pRef(peg, "_"), pRef(peg, "Choice"))), "Alt", 0))))
     pRule(peg, "Rule", pSeq2(pNode(pSeq(pEdge("name", pOre2(pRef(peg, "Identifier"), pRef(peg, "Quoted"))), pRef(peg, "__"), pDict("= <-"),
                                         pRef(peg, "__"), pOption(pSeq2(pRange("/|", ""), pRef(peg, "__"))), pEdge("e", pRef(peg, "Expression"))), "Rule", 0), pRef(peg, "EOS")))

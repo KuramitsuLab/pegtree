@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent / 'tests'))
 
 '''
+python3 -m unittest
 vim setup.py
 rm -rf dist/
 python3 setup.py sdist bdist_wheel

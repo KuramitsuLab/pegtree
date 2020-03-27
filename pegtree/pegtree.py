@@ -262,7 +262,7 @@ class PMany(PUnary):
     def minLen(self): return 0
 
 
-class PMany1(PUnary):
+class POneMany(PUnary):
     def __repr__(self):
         return grouping(self.e, inUnary)+'+'
 
@@ -462,7 +462,7 @@ class Optimizer(object):
             return size, e, es[1:]
         elif isinstance(e, PSeq):
             return self.fixedEach(size, e.es+es[1:])
-        elif isinstance(e, PMany1):
+        elif isinstance(e, POneMany):
             lsize, lfixed, les = self.fixedExpr(e.e)
             # print('PMany1', e, '=>', lsize, lfixed, les)
             if len(les) != 0:
@@ -644,13 +644,13 @@ class Generator(Optimizer):
             return pasm.pManyRange(e.chars, e.ranges)
         return pasm.pMany(self.emit(e, step))
 
-    def PMany1(self, pe, step):
+    def POneMany(self, pe, step):
         e = self.inline(pe.e)
         if(self.Olex and isinstance(e, PChar)):
-            return pasm.pMany1Char(e.text)
+            return pasm.pOneManyChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
-            return pasm.pMany1Range(e.chars, e.ranges)
-        return pasm.pMany1(self.emit(e, step))
+            return pasm.pOneManyRange(e.chars, e.ranges)
+        return pasm.pOneMany(self.emit(e, step))
 
     def POption(self, pe, step):
         e = self.inline(pe.e)
@@ -900,8 +900,8 @@ class TPEGLoader(object):
     def Many(self, t, step):
         return PMany(self.conv(t.e, step))
 
-    def Many1(self, t, step):
-        return PMany1(self.conv(t.e, step))
+    def OneMany(self, t, step):
+        return POneMany(self.conv(t.e, step))
 
     def Option(self, t, step):
         return POption(self.conv(t.e, step))
