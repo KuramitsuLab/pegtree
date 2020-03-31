@@ -50,6 +50,9 @@ def pChar(text):
 # Range
 
 
+BitmapCache = {}
+
+
 def unique_range(chars, ranges, memo=None):
     cs = 0
     for c in chars:
@@ -66,6 +69,7 @@ def unique_range(chars, ranges, memo=None):
     return cs
 
 
+'''
 def minimum_range(chars, ranges):
     cs = 0xffff
     for c in chars:
@@ -78,7 +82,6 @@ def minimum_range(chars, ranges):
     return cs
 
 
-BitmapCache = {}
 
 
 def bitmap(chars, ranges):
@@ -102,6 +105,91 @@ def pRange(chars, ranges):
                 return True
         return False
     return match_bitset
+'''
+
+# NewRange
+
+
+def tochars(chars, ranges):
+    cs = set(list(chars))
+    rs = ranges
+    while len(rs) > 0:
+        r = range(ord(rs[0]), ord(rs[1])+1)
+        cs |= set(map(chr, r))
+        rs = rs[2:]
+    return ''.join(sorted(cs))
+
+
+def make_bitset(chars, ranges, NBITS=8):
+    cmin = min(map(ord, list(chars+ranges)))-1
+    bitmap = [0] * ((max(map(ord, list(chars+ranges))) - cmin) // NBITS + 1)
+    for c in chars:
+        n = (ord(c) - cmin) // NBITS
+        mask = 1 << (ord(c) - cmin) % NBITS
+        bitmap[n] |= mask
+    r = ranges
+    while len(r) > 1:
+        for c in range(ord(r[0]), ord(r[1])+1):
+            n = (c - cmin) // NBITS
+            mask = 1 << (c - cmin) % NBITS
+            bitmap[n] |= mask
+        r = r[2:]
+    return bitmap, cmin, len(bitmap)*NBITS
+
+
+def range_pattern(chars, ranges):
+    key = tochars(chars, ranges)
+    if len(key) < 1000:
+        return key
+    if key in BitmapCache:
+        return BitmapCache[key]
+    BitmapCache[key] = make_bitset(chars, ranges)
+    return BitmapCache[key]
+
+
+def match_chars(px, chars):
+    return px.pos < px.epos and chars.find(px.inputs[px.pos]) != -1
+
+
+def match_bitset(px, bitset, offset, maxlen):
+    if px.pos < px.epos:
+        c = ord(px.inputs[px.pos]) - offset
+        if c < 0 or c >= maxlen:
+            return False
+        mask = 1 << c % 8
+        return bitset[c//8] & mask == mask
+    return False
+
+
+def pAndRange(chars, ranges):
+    pat = range_pattern(chars, ranges)
+    if isinstance(pat, str):
+        def match_chars(px):
+            return px.pos < px.epos and pat.find(px.inputs[px.pos]) != -1
+        return match_chars
+
+    bitset, offset, maxlen = pat
+
+    def match_ranges(px):
+        if px.pos < px.epos:
+            c = ord(px.inputs[px.pos]) - offset
+            if c < 0 or c >= maxlen:
+                return False
+            mask = 1 << (c % 8)
+            return bitset[c//8] & mask == mask
+        return False
+    return match_ranges
+
+
+def pRange(chars, ranges):
+    pf = pAndRange(chars, ranges)
+
+    def match_ranges(px):
+        if pf(px):
+            px.pos += 1
+            return True
+        return False
+    return match_ranges
 
 
 def pAnd(pf):
@@ -118,11 +206,11 @@ def pAnd(pf):
 def pNot(pf):
     def match_not(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         if not pf(px):
             px.headpos = max(px.pos, px.headpos)
             px.pos = pos
-            px.ast = ast
+            px.ptree = ptree
             return True
         return False
     return match_not
@@ -131,13 +219,13 @@ def pNot(pf):
 def pMany(pf):
     def match_many(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         while pf(px) and pos < px.pos:
             pos = px.pos
-            ast = px.ast
+            ptree = px.ptree
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         return True
     return match_many
 
@@ -146,13 +234,13 @@ def pOneMany(pf):
     def match_OneMany(px):
         if pf(px):
             pos = px.pos
-            ast = px.ast
+            ptree = px.ptree
             while pf(px) and pos < px.pos:
                 pos = px.pos
-                ast = px.ast
+                ptree = px.ptree
             px.headpos = max(px.pos, px.headpos)
             px.pos = pos
-            px.ast = ast
+            px.ptree = ptree
             return True
         return False
     return match_OneMany
@@ -161,11 +249,11 @@ def pOneMany(pf):
 def pOption(pf):
     def match_option(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         if not pf(px):
             px.headpos = max(px.pos, px.headpos)
             px.pos = pos
-            px.ast = ast
+            px.ptree = ptree
         return True
     return match_option
 
@@ -204,12 +292,12 @@ def pSeq(*pfs):
 def pOre2(pf, pf2):
     def match_ore2(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         if pf(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         return pf2(px)
     return match_ore2
 
@@ -217,17 +305,17 @@ def pOre2(pf, pf2):
 def pOre3(pf, pf2, pf3):
     def match_ore3(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         if pf(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         if pf2(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         return pf3(px)
     return match_ore3
 
@@ -235,22 +323,22 @@ def pOre3(pf, pf2, pf3):
 def pOre4(pf, pf2, pf3, pf4):
     def match_ore4(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         if pf(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         if pf2(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         if pf3(px):
             return True
         px.headpos = max(px.pos, px.headpos)
         px.pos = pos
-        px.ast = ast
+        px.ptree = ptree
         return pf4(px)
     return match_ore4
 
@@ -258,13 +346,13 @@ def pOre4(pf, pf2, pf3, pf4):
 def pOre(*pfs):
     def match_ore(px):
         pos = px.pos
-        ast = px.ast
+        ptree = px.ptree
         for pf in pfs:
             if pf(px):
                 return True
             px.headpos = max(px.pos, px.headpos)
             px.pos = pos
-            px.ast = ast
+            px.ptree = ptree
         return False
     return match_ore
 
@@ -331,13 +419,13 @@ def pRef(generated, uname):
 
 
 class PMemo(object):
-    __slots__ = ['key', 'pos', 'treeState', 'ast', 'prev', 'result']
+    __slots__ = ['key', 'pos', 'treeState', 'ptree', 'prev', 'result']
 
     def __init__(self):
         self.key = -1
         self.pos = 0
         self.treeState = False
-        self.ast = None
+        self.ptree = None
         self.prev = None
         self.result = False
 
@@ -355,23 +443,23 @@ def pMemo(fs, mp, mpsize):
         m = px.memo[key % 1789]
         if m.key == key:
             if m.treeState:
-                if m.prev == px.ast:
+                if m.prev == px.ptree:
                     px.pos = m.pos
-                    px.ast = m.ast
+                    px.ptree = m.ptree
                     hit += 1
                     return m.result
             else:
                 px.pos = m.pos
                 hit += 1
                 return m.result
-        prev = px.ast
+        prev = px.ptree
         m.result = fs(px)
         m.pos = px.pos
         m.key = key
-        if m.result and prev != px.ast:
+        if m.result and prev != px.ptree:
             m.treeState = True
             m.prev = prev
-            m.ast = px.ast
+            m.ptree = px.ptree
         else:
             m.treeState = False
         miss += 1
@@ -396,23 +484,23 @@ def pMemoDebug(name, fs, mp, mps):
         m = px.memo[key % 1789]
         if m.key == key:
             if m.treeState:
-                if m.prev == px.ast:
+                if m.prev == px.ptree:
                     px.pos = m.pos
-                    px.ast = m.ast
+                    px.ptree = m.ptree
                     hit += 1
                     return m.result
             else:
                 px.pos = m.pos
                 hit += 1
                 return m.result
-        prev = px.ast
+        prev = px.ptree
         m.result = fs(px)
         m.pos = px.pos
         m.key = key
-        if m.result and prev != px.ast:
+        if m.result and prev != px.ptree:
             m.treeState = True
             m.prev = prev
-            m.ast = px.ast
+            m.ptree = px.ptree
         else:
             m.treeState = False
         miss += 1
@@ -455,28 +543,13 @@ class PTree(object):
         return ''.join(sb)
 
 
-def makePTree(pt: PTree, inputs: str):
-    ns = []
-    while pt != None:
-        if pt.child == None:
-            child = repr(inputs[pt.spos:pt.epos])
-        else:
-            child = makePTree(pt.child)
-        child = (pt.tag, child)
-        ns.append(child)
-        pt = pt.prev
-    if len(ns) == 1:
-        return ns[0]
-    return list(reversed(ns))
-
-
 def pNode(pf, tag, shift):
     def make_tree(px):
         pos = px.pos
-        prev = px.ast
-        px.ast = None
+        prev = px.ptree
+        px.ptree = None
         if pf(px):
-            px.ast = PTree(prev, tag, pos+shift, px.pos, px.ast)
+            px.ptree = PTree(prev, tag, pos+shift, px.pos, px.ptree)
             return True
         return False
     return make_tree
@@ -485,38 +558,70 @@ def pNode(pf, tag, shift):
 def pEdge(edge, pf):
     def match_edge(px):
         pos = px.pos
-        prev = px.ast
-        px.ast = None
+        prev = px.ptree
+        px.ptree = None
         if pf(px):
-            px.ast = PTree(prev, edge, pos, -px.pos, px.ast)
+            if px.ptree is None:
+                px.ptree = PTree(None, '', pos, px.pos, px.ptree)
+            px.ptree = PTree(prev, edge, -1, -1, px.ptree)
             return True
         return False
     return match_edge
 
 
-def splitPTree(pos, pt):
+# def splitPTree(pos, pt):
+#     if pt is None:
+#         return None, None, pos
+#     if pt.prev is None:
+#         return None, pt, pt.spos
+#     return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child), pt.spos
+
+
+# def pFold(edge, pf, tag, shift):
+#     if edge == '':
+#         def match_fold(px):
+#             prev, px.ptree, spos = splitPTree(px.pos, px.ptree)
+#             if pf(px):
+#                 px.ptree = PTree(prev, tag, spos, px.pos, px.ptree)
+#                 return True
+#             return False
+#         return match_fold
+#     else:
+#         def match_fold2(px):
+#             prev, pt, spos = splitPTree(px.pos, px.ptree)
+#             px.ptree = PTree(None, edge, 0, -spos, pt)
+#             if pf(px):
+#                 px.ptree = PTree(prev, tag, spos, px.pos, px.ptree)
+#                 return True
+#             return False
+#         return match_fold2
+
+def popPTree(px):
+    pt = px.ptree
     if pt is None:
-        return None, None, pos
+        return px.pos, None
     if pt.prev is None:
-        return None, pt, pt.spos
-    return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child), pt.spos
+        px.ptree = pt
+        return pt.spos, None
+    px.ptree = PTree(None, pt.tag, pt.spos, pt.epos, pt.child)
+    return pt.spos, pt.prev
 
 
 def pFold(edge, pf, tag, shift):
     if edge == '':
         def match_fold(px):
-            prev, px.ast, spos = splitPTree(px.pos, px.ast)
+            pos, prev = popPTree(px)
             if pf(px):
-                px.ast = PTree(prev, tag, spos, px.pos, px.ast)
+                px.ptree = PTree(prev, tag, pos, px.pos, px.ptree)
                 return True
             return False
         return match_fold
     else:
         def match_fold2(px):
-            prev, pt, spos = splitPTree(px.pos, px.ast)
-            px.ast = PTree(None, edge, 0, -spos, pt)
+            pos, prev = popPTree(px)
+            px.ptree = PTree(None, edge, 0, -pos, px.ptree)
             if pf(px):
-                px.ast = PTree(prev, tag, spos, px.pos, px.ast)
+                px.ptree = PTree(prev, tag, pos, px.pos, px.ptree)
                 return True
             return False
         return match_fold2
@@ -524,9 +629,9 @@ def pFold(edge, pf, tag, shift):
 
 def pAbs(pf):
     def match_abs(px):
-        ast = px.ast
+        ptree = px.ptree
         if pf(px):
-            px.ast = ast
+            px.ptree = ptree
             return True
         return False
     return match_abs
@@ -584,9 +689,9 @@ def pMatch(sid):  # @Match(A)
         return False
     return match
 
-#params = pe.params
-#name = str(params[0])
-#pf = self.emit(pe.e, step)
+# params = pe.params
+# name = str(params[0])
+# pf = self.emit(pe.e, step)
 
 
 def pDef(name, pf):
@@ -607,20 +712,20 @@ def pDef(name, pf):
     return define_dic
 
 
-#params = pe.params
-#name = str(params[0])
+# params = pe.params
+# name = str(params[0])
 
 def pIn(name):  # @in(NAME)
     def match_dic(px):
-        #print('@matching', name, px.inputs, px.pos)
+        # print('@matching', name, px.inputs, px.pos)
         if name in px.dic:
             ss = px.dic[name]
             for s in ss:
                 if px.inputs.startswith(s, px.pos):
-                    #print('@matched', s)
+                    # print('@matched', s)
                     px.pos += len(s)
                     return True
-            #print('@', px.inputs[px.pos:], ss)
+            # print('@', px.inputs[px.pos:], ss)
         return False
     return match_dic
 
@@ -673,70 +778,45 @@ def pOptionChar(text):
     return match_optionchar
 
 
-def pAndRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
-
-    def match_andbitset(px):
-        if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos])  # - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                return True
-        return False
-    return match_andbitset
-
-
-def pAndRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
-
-    def match_andbitset(px):
-        if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos]) - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                return True
-        return False
-    return match_andbitset
-
-
 def pNotRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
+    pf = pAndRange(chars, ranges)
 
-    def match_notbitset(px):
-        if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos]) - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                return False
-        return True
-    return match_notbitset
+    def match_ranges(px):
+        return not pf(px)
+    return match_ranges
 
 
 def pManyRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
+    pf = pAndRange(chars, ranges)
 
     def match_manybitset(px):
-        while px.pos < px.epos:
-            shift = ord(px.inputs[px.pos]) - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                px.pos += 1
-            else:
-                break
+        while pf(px):
+            px.pos += 1
         return True
     return match_manybitset
 
 
 def pOneManyRange(chars, ranges):
-    return pSeq2(pRange(chars, ranges), pManyRange(chars, ranges))
+    pf = pAndRange(chars, ranges)
+
+    def match_onemanybitset(px):
+        c = 0
+        while pf(px):
+            px.pos += 1
+            c += 1
+        return c > 0
+    return match_onemanybitset
 
 
 def pOptionRange(chars, ranges):
-    bitset, offset = bitmap(chars, ranges)  # >> offset
+    pf = pAndRange(chars, ranges)
 
     def match_optionbitset(px):
-        if px.pos < px.epos:
-            shift = ord(px.inputs[px.pos]) - offset
-            if shift >= 0 and (bitset & (1 << shift)) != 0:
-                px.pos += 1
+        if pf(px):
+            px.pos += 1
         return True
     return match_optionbitset
+
 
 # generate
 
@@ -746,14 +826,14 @@ def pOptionRange(chars, ranges):
 
 class PContext:
     __slots__ = ['inputs', 'pos', 'epos',
-                 'headpos', 'ast', 'state', 'memo', 'dic']
+                 'headpos', 'ptree', 'state', 'memo', 'dic']
 
     def __init__(self, inputs, spos, epos):
         self.inputs = inputs
         self.pos = spos
         self.epos = epos
         self.headpos = spos
-        self.ast = None
+        self.ptree = None
         self.state = None
         self.memo = [PMemo() for x in range(1789)]
         self.dic = {}
@@ -888,26 +968,35 @@ class ParseTree(list):
             sb.append("]")
 
 
-def PTree2ParseTree(pt: PTree, urn, inputs):
+def PTreeConv(pt: PTree, urn, inputs):
     if pt.prev != None:
-        return PTree2ParseTreeImpl('', urn, inputs, pt.spos, pt.epos, pt)
+        ct = pt
+        while ct.prev is not None:
+            ct = ct.prev
+        return PTreeConvNode('', urn, inputs, ct.spos, pt.epos, pt)
+    if pt.isEdge():
+        ct = PTreeConv(pt.child, urn, inputs)
+        t = ParseTree('', inputs, ct.spos_, ct.epos_, urn)
+        t.set(pt.tag, ct)
+        return t
     else:
-        return PTree2ParseTreeImpl(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
+        return PTreeConvNode(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
 
 
-def PTree2ParseTreeImpl(tag, urn, inputs, spos, epos, subnode):
+def PTreeConvNode(tag, urn, inputs, spos, epos, subnode):
     t = ParseTree(tag, inputs, spos, epos, urn)
     while subnode != None:
         if subnode.isEdge():
-            if subnode.child == None:
-                tt = PTree2ParseTreeImpl(
-                    '', urn, inputs, subnode.spos, abs(subnode.epos), None)
-            else:
-                tt = PTree2ParseTree(subnode.child, urn, inputs)
+            # if subnode.child == None:
+            #     tt = PTreeConvNode(
+            #         '', urn, inputs, subnode.spos, abs(subnode.epos), None)
+            # else:
+            assert subnode.child != None
+            tt = PTreeConv(subnode.child, urn, inputs)
             t.set(subnode.tag, tt)
         else:
-            t.append(PTree2ParseTreeImpl(subnode.tag, urn, inputs,
-                                         subnode.spos, abs(subnode.epos), subnode.child))
+            t.append(PTreeConvNode(subnode.tag, urn, inputs,
+                                   subnode.spos, abs(subnode.epos), subnode.child))
         subnode = subnode.prev
     for i in range(len(t)//2):
         t[i], t[-(1+i)] = t[-(1+i)], t[i]
@@ -916,14 +1005,14 @@ def PTree2ParseTreeImpl(tag, urn, inputs, spos, epos, subnode):
 
 def generate(pf):
     # pf = self.generated[start.uname()]
-    def parse(inputs, urn='(unknown source)', pos=0, epos=None, conv=PTree2ParseTree):
+    def parse(inputs, urn='(unknown source)', pos=0, epos=None, conv=PTreeConv):
         if epos is None:
             epos = len(inputs)
         px = PContext(inputs, pos, epos)
         if not pf(px):
             result = PTree(None, "err", px.headpos, px.headpos, None)
         else:
-            result = px.ast if px.ast is not None else PTree(None,
-                                                             "", pos, px.pos, None)
+            result = px.ptree if px.ptree is not None else PTree(None,
+                                                                 "", pos, px.pos, None)
         return conv(result, urn, inputs)
     return parse

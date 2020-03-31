@@ -45,7 +45,7 @@ class PChar(PExpr):
 
 
 class PRange(PExpr):
-    __slots__ = ['chars', 'ranges']
+    __slots__ = ['chars', 'ranges', 'neg']
     ESCTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
          '\\': '\\\\', ']': '\\]', '-': '\\-'})
@@ -53,6 +53,7 @@ class PRange(PExpr):
     def __init__(self, chars, ranges):
         self.chars = chars
         self.ranges = ranges  # newranges(ranges)
+        self.neg = False
 
     def __repr__(self):
         sb = []
