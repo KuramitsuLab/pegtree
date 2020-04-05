@@ -1,22 +1,41 @@
 /**
- * Puppy (Kids Python) Grammar
+ * Puppy Grammar
  *
  * Authors:
  *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
  */
-
- // pegpy nezcc -g puppy3.tpeg parser.ts > puppy-parser.ts
-
-Source = EOL? {
-    (Statement (";" Statement)* ";"? EOL)*
-    #Source
-} EOF
+ // pegtree pasm -g puppy3.tpeg parser.ts > puppy-parser.ts
 
 example Source '''
 from puppy import *
 def cat_clicked(cat): print('Meaw')
 cat = Circle(500, 500, clicked=cat_clicked)
 '''
+
+/* Top Level */
+
+Source = EOL? {
+    (Statement (";" Statement)* ";"? EOL)*
+    #Source
+} EOF
+
+/* Code Layout */
+
+EOF          = !.
+LF           = '\n' / EOF
+S            = [ \t\u200B\v\r　]
+
+_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
+__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
+SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
+
+BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
+             / '(*' ( !'*)' . )* '*)'
+LINECOMMENT  = [#＃] ( !LF . )*
+
+EOL          = _ LF (_ LF)*
+INDENT       = '\n' [ \t　]+
+
 
 Statement = 
     / ClassDecl
@@ -75,7 +94,7 @@ ClassDecl = {
 
 /* 関数定義 */
 
-example FuncDecl,Statement '''
+example FuncDecl, Statement '''
 def succ(x):
     #hoge
     return x+1
@@ -95,7 +114,7 @@ FuncParams = {
 }
 
 FuncParam = {
-    name: Name
+    name: Name 
     ( ":" type: Name)?
     #Param
 }
@@ -158,7 +177,7 @@ IfStmt = {
     then: (Block / BlockStmt)
     (elif: ElifBlock)?
     (
-        (@match(INDENT) / NL)
+        (@match(INDENT) / LF)
         'else' !W _  ":"
         else: (Block / BlockStmt)
     )?
@@ -170,7 +189,7 @@ ElifBlock = {
 }
 
 ElifStmt = {
-    (@match(INDENT) / NL)
+    (@match(INDENT) / LF)
     ('elif' !W) _ 
     cond: Expression ":"
     then: (Block / BlockStmt)
@@ -215,8 +234,8 @@ VarDecl = {
 
 LeftHand =
     Name (
-	    recv:^ { "." name: Name #GetExpr }
-    	/ recv:^ { "[" index: Expression "]" #IndexExpr }
+	     { recv:^ "." name: Name #GetExpr }
+    	/ { recv:^ "[" index: Expression "]" #IndexExpr }
     )*
 
 SelfAssign = {
@@ -242,8 +261,11 @@ example Expression not 1 == 2 and 1 > 3
 //     / (left:^ { "=" right: Expression #AssignExpr})
 // )?
 
-Expression =
-     Operator (then:^ { 'if' !W _ cond: Expression 'else' !W _ else: Expression #IfExpr })?
+Expression = Operator {
+    then:^  
+    'if' !W _ cond: Expression 
+    'else' !W _ else: Expression #IfExpr 
+}?
 
 BUGS = [)\]} ）］｝　]*
 
@@ -374,9 +396,23 @@ KeyValue = {
 	#KeyValue
 }
 
+/* Type */
+
+"[<" = [<[［＜] _
+">]" = [\]>］＞] _
+"->" = [=-] '>' _
+
+Type = PrimaryType {^ "->" Type #FuncType }*
+
+PrimaryType =
+    / { "(" (Type ("," Type)*)? ")" #TupleType } _ParamType*
+    / { NAME #NameType } _ParamType*
+
+_ParamType = {^ "[<" (Type ("," Type)*)? ">]" #ParamType }
+
 /* Name, Identifier */
 
-Name = Identifier / IdentifierNLP
+Name = Identifier / IdentifierLFP
 
 NAME = [A-Za-z_] W*
 
@@ -385,19 +421,19 @@ Identifier = {
     #Name
 } _
 
-IdentifierNLP = {
+IdentifierLFP = {
     (HIRA / KATA / KANJI/ '_')+ W*
-    #NameOrNLP
+    #NameOrLFP
 } _
 
-NLPSymbol = {
+LFPSymbol = {
     (HIRA / KATA / KANJI)+
-    #NLPSymbol
+    #LFPSymbol
 } _
 
-NLKeyValue = {
+LFKeyValue = {
     (HIRA / KATA / KANJI)+
-    #NLKeyValue
+    #LFKeyValue
 } _
 
 W = [A-Za-z0-9_]
@@ -511,20 +547,6 @@ NullExpr  = { ('None' / 'null') #Null } _
 
 /* Indent-based Code Layout */
 
-EOF          = !.
-NL           = '\n' / EOF
-S            = [ \t\u200B\v\r　]
-
-_            = ( S / BLOCKCOMMENT / LINECOMMENT )*
-__           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
-SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
-
-BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
-             / '(*' ( !'*)' . )* '*)'
-LINECOMMENT  = ('#'/'＃') ( !NL . )*
-
-EOL          = _ NL (_ NL)*
-INDENT       = '\n' [ \t]+
 
 /* Character */
 
@@ -575,3 +597,6 @@ a=1;b=1
 example Expression ”Hello World“
 example Expression Circle(0, hoge, hoge=1)
 example Source if a = b and b = c: pass
+
+example Type a->b
+example Type List[a]->b->c

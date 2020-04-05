@@ -896,6 +896,13 @@ class TPEGLoader(object):
         if name in self.names:
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), t)
+        name = name[1:-1]
+        if '_' in self.names:
+            es = [PChar(name)]
+            if len(name) > 0 and name[-1].isalnum() and 'W' in self.names:
+                es.append(PNot(self.peg.newRef('W')))
+            es.append(self.peg.newRef('_'))
+            return PSeq(*es)
         return PChar(name[1:-1])
 
     def Many(self, t, step):
