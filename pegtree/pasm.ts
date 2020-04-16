@@ -559,7 +559,10 @@ const pEdge = (edge: string, pf: PFunc) => {
     const prev = px.ast
     px.ast = null;
     if (pf(px)) {
-      px.ast = new PTree(prev, edge, pos, -px.pos, px.ast);
+      if (px.ast === null) {
+        px.ast = new PTree(null, '', pos, px.pos, px.ast)
+      }
+      px.ast = new PTree(prev, edge, -1, -1, px.ast)
       return true;
     }
     return false;
@@ -822,6 +825,8 @@ const getpos = (s: string, pos: number): Position => {
   return { position: pos, column: col, row: row }
 }
 
+
+
 // ParseTree
 
 export class ParseTree {
@@ -842,7 +847,7 @@ export class ParseTree {
     this.subs_ = ParseTree.EMPTY;
   }
 
-  public gettag() {
+  public getTag() {
     return this.tag_;
   }
 
@@ -850,8 +855,31 @@ export class ParseTree {
     return this.tag_ === tag;
   }
 
-  public get(key: string): ParseTree {
-    return (this as any)[key] as ParseTree;
+  public has(key: string | number): boolean {
+    if (typeof key === 'string') {
+      const t = (this as any)[key];
+      return (t instanceof ParseTree);
+    }
+    return (key < this.subs_.length);
+  }
+
+  public isEmpty() {
+    return this.tag_ === 'empty';
+  }
+
+  private newEmpty() {
+    return new ParseTree('empty', this.inputs_, this.epos_, this.epos_, this.urn_);
+  }
+
+  public get(key: string | number): ParseTree {
+    if (typeof key === 'string') {
+      const t = (this as any)[key];
+      return (t instanceof ParseTree) ? t as ParseTree : this.newEmpty();
+    }
+    if (key < this.subs_.length) {
+      return this.subs_[key];
+    }
+    return this.newEmpty();
   }
 
   public set(key: string, t: ParseTree) {
@@ -878,11 +906,11 @@ export class ParseTree {
     return this.tag_ === 'err'
   }
 
-  public beginPosition() {
+  public getPosition() {
     return getpos(this.inputs_, this.spos_);
   }
 
-  public endPosition() {
+  public getEndPosition() {
     return getpos(this.inputs_, this.epos_);
   }
 
@@ -894,11 +922,14 @@ export class ParseTree {
     return Object.keys(this).filter(x => !x.endsWith('_'));
   }
 
-  public toString() {
-    return this.inputs_.substring(this.spos_, this.epos_);
+  public getToken(key?: string | number): string {
+    if (!key) {
+      return this.inputs_.substring(this.spos_, this.epos_);
+    }
+    return this.get(key).getToken();
   }
 
-  public dump() {
+  public toString() {
     const sb: string[] = [];
     this.strOut(sb);
     return sb.join('');
@@ -924,18 +955,28 @@ export class ParseTree {
     sb.push("]")
   }
 
-  // public showing(msg = 'Syntax Error') {
-  //   const p = this.beginPosition();
-  //   const pos = p[0];
-  //   const row = p[1];
-  //   const col = p[2];
-  //   return `(${this.urn_}:${row}+${col}) ${msg}`
-  // }
+  public message(msg = 'Syntax Error') {
+    const p = this.getPosition();
+    const pos = p.position;
+    const row = p.row
+    const col = p.column;
+    return `(${this.urn_}:${row}+${col}) ${msg}`
+  }
 }
 
-const PTree2ParseTree = (pt: PTree, urn: string, inputs: string) => {
+const PTree2ParseTree = (pt: PTree, urn: string, inputs: string): ParseTree => {
   if (pt.prev !== null) {
-    return PTree2ParseTreeChild('', urn, inputs, pt.spos, pt.epos, pt)
+    var ct = pt
+    while (ct.prev !== null) {
+      ct = ct.prev
+    }
+    return PTree2ParseTreeChild('', urn, inputs, ct.spos, pt.epos, pt)
+  }
+  if (pt.isEdge()) {
+    const ct = PTree2ParseTree(pt.child!, urn, inputs)
+    const t = new ParseTree('', inputs, ct.spos_, ct.epos_, urn)
+    t.set(pt.tag, ct)
+    return t
   }
   else {
     return PTree2ParseTreeChild(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
@@ -946,12 +987,7 @@ const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: nu
   const t = new ParseTree(tag, inputs, spos, epos, urn);
   while (sub !== null) {
     if (sub.isEdge()) {
-      if (sub.child === null) {
-        var tt = PTree2ParseTreeChild('', urn, inputs, sub.spos, Math.abs(sub.epos), null)
-      }
-      else {
-        tt = PTree2ParseTree(sub.child, urn, inputs);
-      }
+      const tt = PTree2ParseTree(sub.child!, urn, inputs);
       t.set(sub.tag, tt);
     }
     else {
@@ -968,6 +1004,7 @@ const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: nu
   }
   return t;
 }
+
 
 const translate = (s: string, dic: { [key: string]: string }) => {
   var foundESC = false;
@@ -1084,7 +1121,7 @@ export class PAsm {
   public static example = (generated: { [key: string]: PFunc }, start: string, input: string) => {
     const p = PAsm.generate(generated, start);
     const t = p(input)
-    console.log(t.dump())
+    console.log(t.toString())
   }
 
 }

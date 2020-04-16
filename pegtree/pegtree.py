@@ -768,7 +768,11 @@ def generate(peg, **options):
     return generator.generate(peg, **options)
 
 
-# ParseTree
+BUILTIN_RULE = {
+    'W': PRange('_', 'AZaz09'),
+    '!W': PNot(PRange('_', 'AZaz09')),
+    '_': PMany(PRange(' \t', '')),
+}
 
 
 def logger(type, pos, msg):
@@ -776,9 +780,10 @@ def logger(type, pos, msg):
 
 
 class TPEGLoader(object):
-    def __init__(self, peg):
+    def __init__(self, peg, **options):
         self.names = {}
         self.peg = peg
+        self.isOnlyPEG = options.get('isOnlyPEG', False)
 
     def load(self, t):
         for stmt in t:
@@ -816,10 +821,13 @@ class TPEGLoader(object):
 
     def conv(self, t, step):
         tag = t.getTag()
+        pe = t
         if hasattr(self, tag):
             f = getattr(self, tag)
-            return f(t, step)
-        return t
+            pe = f(t, step)
+        if not isinstance(pe, PExpr):
+            print(tag, type(pe), pe)
+        return pe
 
     @classmethod
     def unquote(cls, s):
@@ -880,16 +888,29 @@ class TPEGLoader(object):
             return PChar(chars[0])
         return PRange(''.join(chars), ''.join(ranges))
 
+    def newRef(self, name):
+        if name in self.names:
+            return self.peg.newRef(name)
+        if name in BUILTIN_RULE:
+            return BUILTIN_RULE[name]
+        es = [PChar(name)]
+        if len(name) > 0 and name[-1].isalnum():
+            es.append(PNot(self.newRef('W')))
+        es.append(self.newRef('_'))
+        return PSeq(*es)
+
     def Name(self, t, step):
         name = str(t)
         if name in self.names:
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), t)
         if name[0].isupper() or name.startswith('_'):  # or name[0].islower() :
+            if name in BUILTIN_RULE:
+                return self.newRef(name)
             logger('warning', t, f'undefined nonterminal {name}')
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
-        return PChar(name)
+        return self.newRef(name)
 
     def Quoted(self, t, step):
         name = str(t)
@@ -897,16 +918,13 @@ class TPEGLoader(object):
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), t)
         name = name[1:-1]
-        if '_' in self.names:
-            es = [PChar(name)]
-            if len(name) > 0 and name[-1].isalnum() and 'W' in self.names:
-                es.append(PNot(self.peg.newRef('W')))
-            es.append(self.peg.newRef('_'))
-            return PSeq(*es)
-        return PChar(name[1:-1])
+        return self.newRef(name)
 
     def Many(self, t, step):
         return PMany(self.conv(t.e, step))
+
+    def Many1(self, t, step):
+        return POneMany(self.conv(t.e, step))
 
     def OneMany(self, t, step):
         return POneMany(self.conv(t.e, step))
@@ -1019,7 +1037,7 @@ def grammar_factory():
         if t == 'err':
             logger('error', t, 'Syntax Error')
             return
-        pconv = TPEGLoader(g)
+        pconv = TPEGLoader(g, **options)
         pconv.load(t)
 
     def findpath(paths, file):

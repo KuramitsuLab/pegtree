@@ -569,33 +569,6 @@ def pEdge(edge, pf):
     return match_edge
 
 
-# def splitPTree(pos, pt):
-#     if pt is None:
-#         return None, None, pos
-#     if pt.prev is None:
-#         return None, pt, pt.spos
-#     return pt.prev, PTree(None, pt.tag, pt.spos, pt.epos, pt.child), pt.spos
-
-
-# def pFold(edge, pf, tag, shift):
-#     if edge == '':
-#         def match_fold(px):
-#             prev, px.ptree, spos = splitPTree(px.pos, px.ptree)
-#             if pf(px):
-#                 px.ptree = PTree(prev, tag, spos, px.pos, px.ptree)
-#                 return True
-#             return False
-#         return match_fold
-#     else:
-#         def match_fold2(px):
-#             prev, pt, spos = splitPTree(px.pos, px.ptree)
-#             px.ptree = PTree(None, edge, 0, -spos, pt)
-#             if pf(px):
-#                 px.ptree = PTree(prev, tag, spos, px.pos, px.ptree)
-#                 return True
-#             return False
-#         return match_fold2
-
 def popPTree(px):
     pt = px.ptree
     if pt is None:
@@ -817,7 +790,6 @@ def pOptionRange(chars, ranges):
         return True
     return match_optionbitset
 
-
 # generate
 
 
@@ -863,6 +835,9 @@ class ParseTree(list):
 
     def getTag(self):
         return self.tag_
+
+    def __eq__(self, tag):
+        return self.tag_ == tag
 
     def getPosition(self):
         return rowcol(self.urn_, self.inputs_, self.spos_)
@@ -923,10 +898,31 @@ class ParseTree(list):
         es.sort()
         return [(x[1], x[2]) for x in es]
 
-    def get(self, key):
+    def isEmpty(self):
+        return self.tag_ == 'empty'
+
+    def newEmpty(self):
+        return ParseTree('empty', self.inputs_, self.epos_, self.epos_, self.urn_)
+
+    def getNodeSize(self):
+        return len(self)
+
+    def getSubNodes(self):
+        return list(self)
+
+    def has(self, key):
+        if isinstance(key, str):
+            return hasattr(self, key) and isinstance(getattr(self, key), ParseTree)
         if isinstance(key, int):
-            return self[key]
-        return getattr(self, key)
+            return key < self.getNodeSize(key)
+        return False
+
+    def get(self, key):
+        if not self.has(key):
+            return self.newEmpty()
+        if isinstance(key, str):
+            return getattr(self, key)
+        return self[key]
 
     def set(self, key, t):
         assert isinstance(t, ParseTree)
@@ -934,6 +930,12 @@ class ParseTree(list):
             self.append(t)
         else:
             setattr(self, key, t)
+
+    def getToken(self, key=None):
+        if key is None:
+            s = self.inputs_[self.spos_:self.epos_]
+            return s.decode('utf-8') if isinstance(s, bytes) else s
+        return self.get(key).getToken()
 
     def __str__(self):
         s = self.inputs_[self.spos_:self.epos_]

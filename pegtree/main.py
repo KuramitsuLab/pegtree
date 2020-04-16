@@ -9,6 +9,7 @@ import os
 import importlib
 import pegtree
 import pegtree.treeconv as treeconv
+import pegtree.terminal
 
 istty = True
 
@@ -39,7 +40,6 @@ def showing(pos, msg):
     else:
         print(pos.showing(msg))
 
-
 def log(type, pos, *msg):
     msg = ' '.join(map(str, msg))
     if type.startswith('err'):
@@ -53,7 +53,7 @@ def log(type, pos, *msg):
 
 
 def version():
-    print(bold('PEGTree Parsing for Python3'))
+    print(bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
 
 
 def read_inputs(a):
@@ -86,9 +86,9 @@ def parse_options(argv):
     options = {
         'grammar': ['-g', '--grammar'],
         'start': ['-s', '--start'],
-        'parser': ['-p', '--parser'],
-        'output': ['-o', '--output'],
-        'verbose': ['--verbose'],
+        'expression': ['-e', '--expression'],
+        'format': ['-f', '--format'],
+        'verbose': ['-v', '--verbose'],
     }
 
     def parse_each(a, d):
@@ -117,23 +117,25 @@ class CommandUsageError(Exception):
 
 
 def usage():
+    print(bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
     print("Usage: pegtree <command> options inputs")
     print("  -g | --grammar <file>      specify a grammar file")
     print("  -s | --start <NAME>        specify a starting rule")
-    print("  -o | --output <file>       specify an output file")
-    print("  -D                         specify an optional value")
+    print("  -f | --format <file>       specify an output format")
     print()
 
     print("Example:")
     print("  pegtree parse -g math.tpeg <inputs>")
     print("  pegtree example -g math.tpeg <inputs>")
     print("  pegtree pasm -g math.tpeg")
+    print("  pegtree update")
     print()
 
     print("The most commonly used pegtree commands are:")
-    print(" parse      run an interactive parser")
-    print(" pasm       generate a parser combinator function")
+    print(" parse      run a generated parser")
     print(" example    test all examples")
+    print(" pasm       generate a pasm combinator function")
+    print(" list       all sample grammars")
     print(" update     update pegtree (via pip)")
 
 
@@ -142,8 +144,13 @@ showingTPEG = False
 
 def load_grammar(options, default=None):
     global showingTPEG
+    expr = options.get('expression', None)
+    if expr is not None:
+        grammar = 'A = ' + expr
+        options['basepath'] = '(expression)'
+        return pegtree.grammar(grammar, **options)
     file = options.get('grammar', default)
-    if file is None:
+    if file is None:        
         print('Enter a TPEG grammar')
         sb = []
         try:
@@ -191,7 +198,6 @@ def colorTree(t):
         return "".join(sb)
 
 # parse command
-
 
 def parse(options, conv=None):
     peg = load_grammar(options)
@@ -311,7 +317,6 @@ def update_beta(options):
     except:
         pass
 
-
 def main(argv=sys.argv):
     names = globals()
     if len(argv) > 1:
@@ -325,6 +330,7 @@ def main(argv=sys.argv):
             names[cmd](options)
             return
     usage()
+
 
 
 if __name__ == "__main__":

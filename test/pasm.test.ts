@@ -13,7 +13,7 @@ test(`'a'`, () => {
   pRule(peg, 'A', pChar('a'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`a`);
+  expect(tree.getToken()).toStrictEqual(`a`);
 });
 
 test(`''`, () => {
@@ -21,7 +21,7 @@ test(`''`, () => {
   pRule(peg, 'A', pChar(''));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(``);
+  expect(tree.getToken()).toStrictEqual(``);
 });
 
 test(`''`, () => {
@@ -29,7 +29,7 @@ test(`''`, () => {
   pRule(peg, 'A', pEmpty());
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(``);
+  expect(tree.getToken()).toStrictEqual(``);
 });
 
 test(`A`, () => {
@@ -38,7 +38,7 @@ test(`A`, () => {
   pRule(peg, 'B', pChar('aa'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`aa`);
+  expect(tree.getToken()).toStrictEqual(`aa`);
 });
 
 test(`A`, () => {
@@ -47,7 +47,7 @@ test(`A`, () => {
   pRule(peg, 'A', PAsm.pRef(peg, 'B'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`aa`);
+  expect(tree.getToken()).toStrictEqual(`aa`);
 });
 
 test(`'a' 'a'`, () => {
@@ -55,7 +55,7 @@ test(`'a' 'a'`, () => {
   pRule(peg, 'A', PAsm.pSeq2(pChar('a'), pChar('a')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaa')
-  expect(tree.toString()).toStrictEqual(`aa`);
+  expect(tree.getToken()).toStrictEqual(`aa`);
 });
 
 
@@ -64,7 +64,7 @@ test(`'a' 'a' 'a'`, () => {
   pRule(peg, 'A', PAsm.pSeq3(pChar('a'), pChar('a'), pChar('a')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`aaa`);
+  expect(tree.getToken()).toStrictEqual(`aaa`);
 });
 
 test(`'a' 'a' 'a' 'a'`, () => {
@@ -72,7 +72,7 @@ test(`'a' 'a' 'a' 'a'`, () => {
   pRule(peg, 'A', PAsm.pSeq4(pChar('a'), pChar('a'), pChar('a'), pChar('a')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`aaaa`);
+  expect(tree.getToken()).toStrictEqual(`aaaa`);
 });
 
 test(`'a' 'a' 'a' 'a' 'a'`, () => {
@@ -80,7 +80,7 @@ test(`'a' 'a' 'a' 'a' 'a'`, () => {
   pRule(peg, 'A', PAsm.pSeq(pChar('a'), pChar('a'), pChar('a'), pChar('a'), pChar('a')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`aaaaa`);
+  expect(tree.getToken()).toStrictEqual(`aaaaa`);
 });
 
 test(`[Aa]`, () => {
@@ -88,7 +88,7 @@ test(`[Aa]`, () => {
   pRule(peg, 'A', pRange('Aa'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aaaaaa')
-  expect(tree.toString()).toStrictEqual(`a`);
+  expect(tree.getToken()).toStrictEqual(`a`);
 });
 
 test(`[a-z]`, () => {
@@ -96,7 +96,7 @@ test(`[a-z]`, () => {
   pRule(peg, 'A', pRange('', 'az'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('zazb')
-  expect(tree.toString()).toStrictEqual(`z`);
+  expect(tree.getToken()).toStrictEqual(`z`);
 });
 
 test(`&'ab'`, () => {
@@ -104,7 +104,7 @@ test(`&'ab'`, () => {
   pRule(peg, 'A', PAsm.pAnd(pChar('ab')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('aba')
-  expect(tree.toString()).toStrictEqual(``);
+  expect(tree.getToken()).toStrictEqual(``);
 });
 
 test(`!'ab'`, () => {
@@ -112,7 +112,7 @@ test(`!'ab'`, () => {
   pRule(peg, 'A', PAsm.pNot(pChar('ab')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('bab')
-  expect(tree.toString()).toStrictEqual(``);
+  expect(tree.getToken()).toStrictEqual(``);
 });
 
 test(`'ab'*`, () => {
@@ -120,15 +120,15 @@ test(`'ab'*`, () => {
   pRule(peg, 'A', PAsm.pMany(pChar('ab')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('ababb')
-  expect(tree.toString()).toStrictEqual(`abab`);
+  expect(tree.getToken()).toStrictEqual(`abab`);
 });
 
 test(`'ab'+`, () => {
   const peg = {}
-  pRule(peg, 'A', PAsm.pMany1(pChar('ab')));
+  pRule(peg, 'A', PAsm.pOneMany(pChar('ab')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('ababb')
-  expect(tree.toString()).toStrictEqual(`abab`);
+  expect(tree.getToken()).toStrictEqual(`abab`);
 });
 
 test(`'ab'?`, () => {
@@ -136,7 +136,7 @@ test(`'ab'?`, () => {
   pRule(peg, 'A', PAsm.pOption(pChar('ab')));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('ababb')
-  expect(tree.toString()).toStrictEqual(`ab`);
+  expect(tree.getToken()).toStrictEqual(`ab`);
 });
 
 test(`pDict`, () => {
@@ -144,7 +144,7 @@ test(`pDict`, () => {
   pRule(peg, 'A', PAsm.pDict('aa ab ac ad ae af'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('acf')
-  expect(tree.toString()).toStrictEqual(`ac`);
+  expect(tree.getToken()).toStrictEqual(`ac`);
 });
 
 test(`pDict(trie)`, () => {
@@ -152,7 +152,7 @@ test(`pDict(trie)`, () => {
   pRule(peg, 'A', PAsm.pDict('aa ab ac ad ae af a a1 a2 a3 a4 a5 a6 a7 a8 a9'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('acf')
-  expect(tree.toString()).toStrictEqual(`ac`);
+  expect(tree.getToken()).toStrictEqual(`ac`);
 });
 
 test(`pDict(trie)`, () => {
@@ -160,5 +160,5 @@ test(`pDict(trie)`, () => {
   pRule(peg, 'A', PAsm.pDict('aa ab ac ad ae af a a1 a2 a3 a4 a5 a6 a7 a8 a9'));
   const parser = PAsm.generate(peg, 'A')
   const tree = parser('a1x')
-  expect(tree.toString()).toStrictEqual(`a`);
+  expect(tree.getToken()).toStrictEqual(`a`);
 });

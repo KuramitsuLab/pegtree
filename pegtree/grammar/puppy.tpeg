@@ -402,11 +402,13 @@ KeyValue = {
 ">]" = [\]>］＞] _
 "->" = [=-] '>' _
 
-Type = PrimaryType {^ "->" Type #FuncType }*
+Type = FuncType {^ ("|" Type)+ #UnionType }?
+
+FuncType = PrimaryType {^ "->" Type #FuncType }*
 
 PrimaryType =
     / { "(" (Type ("," Type)*)? ")" #TupleType } _ParamType*
-    / { NAME #NameType } _ParamType*
+    / { NAME #BaseType } _ _ParamType*
 
 _ParamType = {^ "[<" (Type ("," Type)*)? ">]" #ParamType }
 
@@ -598,5 +600,3 @@ example Expression ”Hello World“
 example Expression Circle(0, hoge, hoge=1)
 example Source if a = b and b = c: pass
 
-example Type a->b
-example Type List[a]->b->c

@@ -199,19 +199,25 @@ class PRef(PExpr):
 
 
 class PName(PUnary):
-    __slot__ = ['e', 'name', 'position', 'isLeftRec']
+    __slot__ = ['e', 'name', 'ptree', 'isLeftRec']
 
-    def __init__(self, e, name: str, position):
+    def __init__(self, e, name: str, ptree, isLeftRec=False):
         super().__init__(e)
         self.name = name
-        self.position = position
-        self.isLeftRec = False
+        self.ptree = ptree
+        self.isLeftRec = isLeftRec
 
     def __repr__(self):
         return repr(self.e)
 
+    def clone(self, e):
+        return PName(e, self.name, self.ptree, self.isLeftRec)
+
     def minLen(self):
         return self.e.minLen()
+
+    def deref(self):
+        return self.e.deref()
 
 
 class PSeq(PTuple):
@@ -225,11 +231,9 @@ class PSeq(PTuple):
 
     @classmethod
     def new(cls, *es):
-        newes = []
-        for e in es:
-            PE.appendSeq(e, newes)
-        return newes[0] if len(newes) == 1 else PSeq(*newes)
-
+        if len(es) == 0:
+            return EMPTY
+        return es[0] if len(es) == 1 else PSeq(*es)
 
 class PAlt(PTuple):
     def __repr__(self):
@@ -259,17 +263,7 @@ class POre(PTuple):
     def new(cls, *es):
         if len(es) == 0:
             return FAIL
-        newes = [es[0]]
-        for e in es[1:]:
-            if e == EMPTY:
-                break
-            e2 = PE.mergeRange(newes[-1], e)
-            if e2 is None:
-                newes.append(e)
-            else:
-                VERBOSE('MERGE', newes[-1], e, '=>', e2)
-                newes[-1] = es
-        return newes[0] if len(newes) == 1 else POre(*newes)
+        return es[0] if len(es) == 1 else POre(*es)
 
 
 class PAnd(PUnary):
@@ -314,20 +308,22 @@ class PNode(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        shift = '' if self.shift == 0 else f'/*shift={self.shift}*/'
+        shift = '' if self.shift == 0 else f'/*{self.shift}*/'
         tag = '' if self.tag == '' else f' #{self.tag} '
         return '{' + shift + ' ' + repr(self.e) + tag + '}'
 
 
 class PEdge(PUnary):
-    __slot__ = ['e', 'edge']
+    __slot__ = ['e', 'edge', 'shift']
 
-    def __init__(self, edge, e):
+    def __init__(self, edge, e, shift=0):
         self.e = e
         self.edge = edge
+        self.shift = shift
 
     def __repr__(self):
-        return self.edge + ': ' + self.grouping(self.e)
+        shift = '' if self.shift == 0 else f'/*{self.shift}*/'
+        return self.edge + shift + ': ' + self.grouping(self.e)
 
 
 class PFold(PUnary):
@@ -359,12 +355,13 @@ class PAbs(PUnary):
 
 
 class PAction(PUnary):
-    __slots__ = ['e', 'func', 'params']
+    __slots__ = ['e', 'func', 'params', 'ptree']
 
-    def __init__(self, e, func, params, pos4=None):
+    def __init__(self, e, func, params, ptree=None):
         self.e = e
         self.func = func
         self.params = params
+        self.ptree = ptree
 
     def __repr__(self):
         return f'@{self.func}{self.params}'
@@ -372,29 +369,81 @@ class PAction(PUnary):
     def cname(self):
         return self.func.capitalize()
 
-# repr
-
-
-'''
-def grouping(e, f):
-    return '(' + repr(e) + ')' if f(e) else repr(e)
-
-
-def inUnary(e):
-    return isinstance(e, POre) \
-        or isinstance(e, PSeq) or isinstance(e, PAlt) \
-        or (isinstance(e, PEdge))
-
-
-def ss(e):
-    return grouping(e, lambda e: isinstance(e, POre) or isinstance(e, PAlt))
-'''
-
 # CONSTANT
 EMPTY = PChar('')
 ANY = PAny()
 FAIL = PNot(EMPTY)
 
+
+def isEmpty(pe):
+  return pe == EMPTY or isinstance(pe, PChar) and len(pe.text) == 0
+
+
+def isAny(pe):
+  return pe == ANY or isinstance(pe, PAny)
+
+
+def isSingleCharacter(pe):
+        return (isinstance(pe, PChar) and len(pe.text) == 1) or isinstance(pe, PRange) or isinstance(pe, PAny)
+
+# PRange Utilities
+
+def bitsetRange(chars, ranges):
+    cs = 0
+    for c in chars:
+        cs |= 1 << ord(c)
+    r = ranges
+    while len(r) > 1:
+        for c in range(ord(r[0]), ord(r[1])+1):
+            cs |= 1 << c
+        r = r[2:]
+    return cs
+
+
+def stringfyRange(bits):
+    c = 0
+    s = None
+    p = None
+    chars = []
+    ranges = []
+    while bits > 0:
+        if bits & 1 == 1:
+            if s is None:
+                s = c
+                p = c
+            elif p + 1 == c:
+                p = c
+            else:
+                _appendRange(s, p, chars, ranges)
+                s = c
+                p = c
+        bits >>= 1
+        c += 1
+    if s is not None:
+        _appendRange(s, p, chars, ranges)
+    return ''.join(chars), ''.join(ranges)
+
+
+def _appendRange(s, p, chars, ranges):
+    if s == p:
+        chars.append(chr(s))
+    elif s+1 == p:
+        chars.append(chr(s))
+        chars.append(chr(p))
+    else:
+        ranges.append(chr(s))
+        ranges.append(chr(p))
+
+def uniqueRange(chars, ranges):
+    bits = bitsetRange(chars, ranges)
+    newchars, newranges = stringfyRange(bits)
+    checkbits = bitsetRange(chars, ranges)
+    assert bits == checkbits
+    return newchars, newranges
+
+#
+# Visitor
+# 
 
 class PVisitor(object):
     def visit(self, pe: PExpr):
@@ -443,6 +492,12 @@ class Nullable(PVisitor):
     def PAction(self, pe): return self.visit(pe.e)
 
 
+defaultNullableChecker = Nullable()
+
+def isAlwaysConsumed(cls, pe):
+    return defaultNullableChecker.visit(pe)
+
+
 class LeftRef(PVisitor):
     EMPTYSET = set()
 
@@ -477,7 +532,7 @@ class LeftRef(PVisitor):
         result = set()
         for e in pe:
             result |= self.visit(e)
-            if self.checkLeftRec & PE.isAlwaysConsumed(e):
+            if self.checkLeftRec & isAlwaysConsumed(e):
                 break
         return result
 
@@ -521,7 +576,7 @@ class First(PVisitor):
         return self.memos[uname]
 
     def PNot(self, pe):
-        if PE.isSingleCharacter(pe.e):
+        if isSingleCharacter(pe.e):
             pos, neg = self.visit(pe.e)
             return (neg, pos)
         return LeftRef.EMPTYSET
@@ -537,7 +592,7 @@ class First(PVisitor):
             pos1, neg1 = self.visit(e)
             pos |= pos1
             neg |= neg1
-            if PE.isAlwaysConsumed(e):
+            if isAlwaysConsumed(e):
                 break
         return (pos, neg)
 
@@ -557,186 +612,4 @@ class First(PVisitor):
     def PAction(self, pe): return self.visit(pe.e)
 
 
-defaultNullableChecker = Nullable()
 
-
-class PE:
-
-    @classmethod
-    def isAlwaysConsumed(cls, pe):
-        return defaultNullableChecker.visit(pe)
-
-    @classmethod
-    def isEmpty(cls, pe):
-        return pe == EMPTY or isinstance(pe, PChar) and len(pe.text) == 0
-
-    @classmethod
-    def isSingleCharacter(cls, pe):
-        return (isinstance(pe, PChar) and len(pe.text) == 1) or isinstance(pe, PRange) or isinstance(pe, PAny)
-
-    @classmethod
-    def mergeRange(cls, e, e2):
-        if PE.isSingleCharacter(e) and PE.isSingleCharacter(e2):
-            if e == ANY or e2 == ANY:
-                return ANY
-            chars = ''
-            ranges = ''
-            if isinstance(e, PChar):
-                chars += e.text
-            if isinstance(e2, PChar):
-                chars += e2.text
-            if isinstance(e, PRange):
-                chars += e.chars
-                ranges += e.ranges
-            if isinstance(e2, PRange):
-                chars += e2.chars
-                ranges += e2.ranges
-            chars, ranges = PE.uniqueRange(chars, ranges)
-            return PRange.new(chars, ranges)
-        return None
-
-    @classmethod
-    def range_bitset(cls, chars, ranges):
-        cs = 0
-        for c in chars:
-            cs |= 1 << ord(c)
-        r = ranges
-        while len(r) > 1:
-            for c in range(ord(r[0]), ord(r[1])+1):
-                cs |= 1 << c
-            r = r[2:]
-        return cs
-
-    @classmethod
-    def stringfyRange(cls, bits):
-        c = 0
-        s = None
-        p = None
-        chars = []
-        ranges = []
-        while bits > 0:
-            if bits & 1 == 1:
-                if s is None:
-                    s = c
-                    p = c
-                elif p + 1 == c:
-                    p = c
-                else:
-                    PE._appendRange(s, p, chars, ranges)
-                    s = c
-                    p = c
-            bits >>= 1
-            c += 1
-        if s is not None:
-            PE._appendRange(s, p, chars, ranges)
-        return ''.join(chars), ''.join(ranges)
-
-    @classmethod
-    def _appendRange(cls, s, p, chars, ranges):
-        if s == p:
-            chars.append(chr(s))
-        elif s+1 == p:
-            chars.append(chr(s))
-            chars.append(chr(p))
-        else:
-            ranges.append(chr(s))
-            ranges.append(chr(p))
-
-    @classmethod
-    def uniqueRange(cls, chars, ranges):
-        bits = PE.range_bitset(chars, ranges)
-        newchars, newranges = PE.stringfyRange(bits)
-        checkbits = PE.range_bitset(chars, ranges)
-        assert bits == checkbits
-        return newchars, newranges
-
-    @classmethod
-    def appendSeq(cls, pe, es):
-        if isinstance(pe, PSeq):
-            for e in pe:
-                PE.appendSeq(e, es)
-        elif pe == EMPTY:
-            pass
-        elif isinstance(pe, PChar) and len(es) > 0 and isinstance(es[-1], PChar):
-            e0 = es[-1]
-            es[-1] = PChar(e0.text+pe.text)
-        else:
-            es.append(pe)
-
-    @classmethod
-    def prefixChar(cls, pe):
-        if isinstance(pe, PChar) and len(pe.text) > 0:
-            return pe.text[0]
-        if isinstance(pe, PSeq):
-            return PE.prefix(pe.es[0])
-        if isinstance(pe, PNode):
-            return PE.prefix(pe.e)
-        return None
-
-    @classmethod
-    def dc(cls, pe):
-        if isinstance(pe, PChar) and len(pe.text) > 0:
-            return PChar.new(pe.text[1:])
-        if isinstance(pe, PSeq):
-            es = pe.es[:]
-            es[0] = PE.dc(es[0])
-            return PSeq.new(*es)
-        if isinstance(pe, PNode):
-            return PNode(PE.dc(pe.e), pe.tag, pe.shift-1)
-        return FAIL
-
-    @classmethod
-    def appendChoice(cls, pe, es, cmap=None, deref=False):
-        start = pe
-        while deref and isinstance(pe, PRef):
-            pe = pe.deref()
-        if isinstance(pe, POre):
-            for e in pe:
-                PE.appendChoice(e, es, cmap, deref)
-            return
-        elif PE.isEmpty(pe):
-            es.append(EMPTY)
-            return
-        elif len(es) > 0:
-            e2 = PE.mergeRange(es[-1], pe)
-            if e2 is not None:
-                es[-1] = e2
-                return
-        if cmap != None:
-            c = PE.prefixChar(pe)
-            if c is not None:
-                if c in cmap:
-                    x = es[cmap[c]]
-                    if not isinstance(x, list):
-                        x = [x]
-                        es[cmap[c]] = x
-                    x.append(pe)
-                else:
-                    cmap[c] = len(es)
-                    es.append(pe)
-                return
-        if len(es) > 0 and PE.isEmpty(es[-1]):
-            return
-        es.append(start)
-
-    @classmethod
-    def newChoice(cls, choices, deref=False):
-        es = []
-        for e in choices:
-            PE.appendChoice(e, es, {}, deref)
-        print('@@', es)
-        newes = []
-        for e in es:
-            if isinstance(e, list):
-                if isinstance(e, list):
-                    c = PChar(PE.prefixChar(e[0]))
-                    ecs = []
-                    for ec in e:
-                        ec = PE.dc(ec)
-                        PE.appendChoice(ec, ecs)
-                    newes.append(PSeq.new(c, PE.newChoice(ecs)))
-                else:
-                    newes.append(e)
-            else:
-                newes.append(e)
-        return newes[0] if len(newes) == 1 else POre(*newes)

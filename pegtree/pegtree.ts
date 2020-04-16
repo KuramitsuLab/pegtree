@@ -345,7 +345,7 @@ class PMany extends PUnary {
 }
 
 
-class PMany1 extends PUnary {
+class POneMany extends PUnary {
     public toString() {
         return grouping(this.e, inUnary) + '+';
     }
@@ -623,9 +623,9 @@ class Generator {
         return PAsm.pMany(pf);
     }
 
-    PMany1(pe: PUnary, step: number) {
+    POneMany(pe: PUnary, step: number) {
         const pf = this.emit(pe.e, step);
-        return PAsm.pMany1(pf);
+        return PAsm.pOneMany(pf);
     }
 
     POption(pe: PUnary, step: number) {
@@ -734,8 +734,8 @@ class TPEGLoader {
                 this.names[name] = stmt.get('e');
             } else if (stmt.is('Example')) {
                 const doc = stmt.get('doc')
-                for (const name of stmt.get('names')) {
-                    this.peg.examples.push([name, doc]);
+                for (const name of stmt.get('names').subNodes()) {
+                    this.peg.examples.push([name.getToken(), doc]);
                 }
             }
             else if (stmt.is('Import')) {
@@ -753,7 +753,7 @@ class TPEGLoader {
     }
 
     conv(t: ParseTree) {
-        const tag = t.gettag()
+        const tag = t.getTag()
         return (this as any)[tag](t);
     }
 
@@ -856,8 +856,8 @@ class TPEGLoader {
         return new PMany(this.conv(t.e))
     }
 
-    Many1(t: ParseTree | any) {
-        return new PMany1(this.conv(t.e))
+    OneMany(t: ParseTree | any) {
+        return new POneMany(this.conv(t.e))
     }
 
     Option(t: ParseTree | any) {
@@ -929,7 +929,7 @@ class TPEGLoader {
 //def grammar_factory():
 
 const logger = (type: string, pos: ParseTree, msg: string) => {
-    console.log(pos.showing(msg));
+    console.log(pos.message(msg));
 }
 
 const TPEGGrammar = TPEG();
