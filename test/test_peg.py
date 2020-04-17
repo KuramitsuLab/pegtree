@@ -7,92 +7,92 @@ class TestPeg(unittest.TestCase):
     def test_Empty(self):
         pe = PChar('')
         # print(pe)
-        self.assertFalse(PE.isAlwaysConsumed(pe))
+        self.assertFalse(isAlwaysConsumed(pe))
 
     def test_Char(self):
         pe = PChar('a')
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_String(self):
         pe = PChar('abc')
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_Range(self):
         pe = PRange('0123456789', 'AZaz')
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_Any(self):
         pe = PAny()
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_Seq(self):
         pe = PSeq(PChar('abc'), PRange('', 'AZaz'))
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_And(self):
         pe = PAnd(PChar('a'))
         # print(pe)
-        self.assertFalse(PE.isAlwaysConsumed(pe))
+        self.assertFalse(isAlwaysConsumed(pe))
 
     def test_Not(self):
         pe = PNot(PChar('a'))
         # print(pe)
-        self.assertFalse(PE.isAlwaysConsumed(pe))
+        self.assertFalse(isAlwaysConsumed(pe))
 
     def test_Many(self):
         pe = PMany(PChar('a'))
         # print(pe)
-        self.assertFalse(PE.isAlwaysConsumed(pe))
+        self.assertFalse(isAlwaysConsumed(pe))
 
     def test_OneMany(self):
         pe = POneMany(PChar('a'))
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
     def test_Option(self):
         pe = POption(PChar('a'))
         # print(pe)
-        self.assertFalse(PE.isAlwaysConsumed(pe))
+        self.assertFalse(isAlwaysConsumed(pe))
 
     def test_Ref(self):
         peg = Grammar()
         peg['A'] = PChar('a')
         pe = peg.newRef('A')
         # print(pe)
-        self.assertTrue(PE.isAlwaysConsumed(pe))
+        self.assertTrue(isAlwaysConsumed(pe))
 
-    def test_Choice(self):
-        print(PE.mergeRange(PChar('A'),
-                            PRange('0', 'AZ'),
-                            ))
-        print(PE.mergeRange(PChar('a'),
-                            PChar('b'),
-                            ))
-        print(PE.mergeRange(PChar('a'),
-                            PChar('c'),
-                            ))
-        es = [
-            PChar('return'),
-            PChar('r'),
-            PChar('ab'),
-            PChar('a'),
-            PChar('b'),
-            PChar('ba'),
-            PChar('ret'),
-        ]
-        print(PE.newChoice(es))
-        es = [
-            PChar('r'),
-            PChar('a'),
-            PChar('c'),
-            PChar('b'),
-        ]
-        print(PE.newChoice(es))
+    # def test_Choice(self):
+    #     print(PE.mergeRange(PChar('A'),
+    #                         PRange('0', 'AZ'),
+    #                         ))
+    #     print(PE.mergeRange(PChar('a'),
+    #                         PChar('b'),
+    #                         ))
+    #     print(PE.mergeRange(PChar('a'),
+    #                         PChar('c'),
+    #                         ))
+    #     es = [
+    #         PChar('return'),
+    #         PChar('r'),
+    #         PChar('ab'),
+    #         PChar('a'),
+    #         PChar('b'),
+    #         PChar('ba'),
+    #         PChar('ret'),
+    #     ]
+    #     print(PE.newChoice(es))
+    #     es = [
+    #         PChar('r'),
+    #         PChar('a'),
+    #         PChar('c'),
+    #         PChar('b'),
+    #     ]
+    #     print(PE.newChoice(es))
 
     # def test_Char(self):
     #     parser = generate(pChar('a'))

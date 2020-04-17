@@ -336,7 +336,7 @@ class PFold(PUnary):
         self.shift = shift
 
     def __repr__(self):
-        shift = '' if self.shift == 0 else f'/*shift={self.shift}*/'
+        shift = '' if self.shift == 0 else f'/*{self.shift}*/'
         edge = '^' if self.edge == '' else f'{self.edge}:^'
         tag = '' if self.tag == '' else f' #{self.tag} '
         return '{ ' + edge + shift + ' ' + repr(self.e) + tag + '}'
@@ -494,7 +494,7 @@ class Nullable(PVisitor):
 
 defaultNullableChecker = Nullable()
 
-def isAlwaysConsumed(cls, pe):
+def isAlwaysConsumed(pe):
     return defaultNullableChecker.visit(pe)
 
 

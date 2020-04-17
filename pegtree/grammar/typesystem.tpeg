@@ -1,0 +1,18 @@
+// Konoha Type System
+// by Kimio Kuramitsu
+
+Type = FuncType {^ ("|" Type)+ #UnionType }?
+
+FuncType = PrimaryType {^ "->" Type #FuncType }*
+
+PrimaryType =
+    / { "(" (Type ("," Type)*)? ")" #TupleType } _ParamType*
+    / { NAME #BaseType } _ _ParamType*
+
+_ParamType = {^ "[" (Type ("," Type)*)? "]" #ParamType }
+
+NAME = [A-Za-z_] W*
+
+example Type a | a->b
+example Type (a|b)->b
+example Type List[a]->b->c

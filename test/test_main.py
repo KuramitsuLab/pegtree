@@ -9,9 +9,9 @@ class TestMain(unittest.TestCase):
         print('pegtree peg -g math.tpeg')
         main(['', 'peg', '-g', 'math.tpeg'])
 
-    def test_pasm0(self):
-        print('pegtree pasm0 -g math.tpeg')
-        main(['', 'pasm0', '-g', 'math.tpeg'])
+    # def test_pasm0(self):
+    #     print('pegtree pasm0 -g math.tpeg')
+    #     main(['', 'pasm0', '-g', 'math.tpeg'])
 
 
 if __name__ == '__main__':

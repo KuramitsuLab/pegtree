@@ -1,6 +1,6 @@
 from pegtree.peg import *
 import pegtree.pasm as pasm
-import pegtree.optimizer as optim
+from pegtree.optimizer import prepare
 
 class Generator(object):
     def __init__(self):
@@ -19,40 +19,29 @@ class Generator(object):
 
     def generate(self, peg, **option):
         self.peg = peg
-        name = option.get('start', peg.start())
-        start = peg.newRef(name)
-        # if 'memos' in option and not isinstance(option['memos'], list):
-        if 'packrat' in peg:
-            memos = peg['packrat']
-            if isinstance(memos, POre):
-                self.memos = memos.listDict()
-            else:
-                self.memos = peg.N
-            # print(self.memos)
-        refs = optim.makeMinimumRules(start, {}, [])
-        refs = optim.sortRules(refs)
+        start, refs, rules, memos = prepare(peg, option.get('start', peg.start()))
+        self.memos = memos
         for ref in refs:
             assert isinstance(ref, PRef)
-            self.generating_nonterminal = ref.uname()
-            self.emitRule(ref)
+            uname = ref.uname()
+            self.generating_nonterminal = uname
+            self.emitRule(uname, rules[uname])
             self.generating_nonterminal = ''
-
         return self.emitParser(start)
 
-    def emitRule(self, ref):
-        A = self.emit(ref.deref(), 0)
-        if ref.peg == self.peg and ref.name in self.memos:
-            idx = self.memos.index(ref.name)
+    def emitRule(self, uname, pe: PExpr):
+        A = self.emit(pe, 0)
+        if uname in self.memos:
+            idx = self.memos.index(uname)
             if idx != -1:
                 A = pasm.pMemo(A, idx, len(self.memos))
                 # A = pasm.pMemoDebug(ref.name, A, idx, self.memos)
-        self.generated[ref.uname()] = A
+        self.generated[uname] = A
 
     def emitParser(self, start):
         return pasm.generate(self.generated[start.uname()])
 
     def emit(self, pe: PExpr, step: int):
-        pe = self.inline(pe)
         cname = pe.cname()
         if hasattr(self, cname):
             f = getattr(self, cname)
@@ -70,7 +59,7 @@ class Generator(object):
         return pasm.pRange(pe.chars, pe.ranges)
 
     def PAnd(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if(self.Olex and isinstance(e, PChar)):
             return pasm.pAndChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
@@ -78,7 +67,7 @@ class Generator(object):
         return pasm.pAnd(self.emit(e, step))
 
     def PNot(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if(self.Olex and isinstance(e, PChar)):
             return pasm.pNotChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
@@ -86,7 +75,7 @@ class Generator(object):
         return pasm.pNot(self.emit(e, step))
 
     def PMany(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if(self.Olex and isinstance(e, PChar)):
             return pasm.pManyChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
@@ -94,7 +83,7 @@ class Generator(object):
         return pasm.pMany(self.emit(e, step))
 
     def POneMany(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if(self.Olex and isinstance(e, PChar)):
             return pasm.pOneManyChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
@@ -102,7 +91,7 @@ class Generator(object):
         return pasm.pOneMany(self.emit(e, step))
 
     def POption(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if(self.Olex and isinstance(e, PChar)):
             return pasm.pOptionChar(e.text)
         if(self.Olex and isinstance(e, PRange)):
@@ -140,7 +129,7 @@ class Generator(object):
         return pasm.pRef(self.generated, pe.uname())
 
     def PName(self, pe: PName, step):
-        if step == 0 and self.generating_nonterminal == pe.name:
+        if step == 0 and self.generating_nonterminal == pe.e.uname():
             print(pe.position.message('Left recursion'))
             return self.emit(FAIL, step)
         return self.PRef(pe.e, step)
@@ -148,28 +137,15 @@ class Generator(object):
     # Tree Construction
 
     def PNode(self, pe, step):
-        _, fixed, es = self.fixedEach(0, [pe])
-        # print(_, fixed, es)
-        if fixed is None or not self.Ooox:
-            fs = self.emit(pe.e, step)
-            return pasm.pNode(fs, pe.tag, pe.shift)
-        else:
-            # print('//OOD', self.join(fixed, *es))
-            return self.emit(self.join(fixed, *es), step)
+        fs = self.emit(pe.e, step)
+        return pasm.pNode(fs, pe.tag, pe.shift)
 
     def PEdge(self, pe, step):
-        return pasm.pEdge(pe.edge, self.emit(pe.e, step))
+        return pasm.pEdge(pe.edge, self.emit(pe.e, step), pe.shift)
 
     def PFold(self, pe, step):
-        _, fixed, es = self.fixedEach(0, [pe])
-        # print(_, fixed, es)
-        # fixed = None
-        if fixed is None or not self.Ooox:
-            fs = self.emit(pe.e, step)
-            return pasm.pFold(pe.edge, fs, pe.tag, pe.shift)
-        else:
-            # print('//OOD', self.join(fixed, *es))
-            return self.emit(self.join(fixed, *es), step)
+        fs = self.emit(pe.e, step)
+        return pasm.pFold(pe.edge, fs, pe.tag, pe.shift)
 
     def PAbs(self, pe, step):
         return pasm.pAbs(self.emit(pe.e, step))

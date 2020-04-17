@@ -59,17 +59,17 @@ class TPEGLoader(object):
             #                             'import', (name, urn), pos4))
         for name in self.names:
             ptree = self.names[name]
-            self.peg[name] = self.conv(ptree, 0)
+            self.peg[name] = self.conv(ptree)
 
     def example(self, name, doc):
         self.peg['@@example'].append((name, doc))
 
-    def conv(self, ptree, step):
+    def conv(self, ptree):
         tag = ptree.getTag()
         pe = ptree
         if hasattr(self, tag):
             f = getattr(self, tag)
-            pe = f(ptree, step)
+            pe = f(ptree)
         if not isinstance(pe, PExpr):
             print('FIXME(TPEGLoader(conv)', tag, type(pe), pe)
         return pe

@@ -555,14 +555,14 @@ def pNode(pf, tag, shift):
     return make_tree
 
 
-def pEdge(edge, pf):
+def pEdge(edge, pf, shift=0):
     def match_edge(px):
         pos = px.pos
         prev = px.ptree
         px.ptree = None
         if pf(px):
             if px.ptree is None:
-                px.ptree = PTree(None, '', pos, px.pos, px.ptree)
+                px.ptree = PTree(None, '', pos+shift, px.pos, px.ptree)
             px.ptree = PTree(prev, edge, -1, -1, px.ptree)
             return True
         return False
@@ -931,11 +931,11 @@ class ParseTree(list):
         else:
             setattr(self, key, t)
 
-    def getToken(self, key=None):
+    def getToken(self, key=None, default_token=''):
         if key is None:
             s = self.inputs_[self.spos_:self.epos_]
             return s.decode('utf-8') if isinstance(s, bytes) else s
-        return self.get(key).getToken()
+        return self.get(key).getToken() if self.has(key) else default_token
 
     def __str__(self):
         s = self.inputs_[self.spos_:self.epos_]
