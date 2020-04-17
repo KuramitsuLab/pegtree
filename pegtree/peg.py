@@ -491,63 +491,12 @@ class Nullable(PVisitor):
 
     def PAction(self, pe): return self.visit(pe.e)
 
-
 defaultNullableChecker = Nullable()
 
 def isAlwaysConsumed(pe):
     return defaultNullableChecker.visit(pe)
 
 
-class LeftRef(PVisitor):
-    EMPTYSET = set()
-
-    def __init__(self, checkLeftRec=True):
-        self.checkLeftRec = checkLeftRec
-        self.memos = {}
-
-    def PChar(self, pe): return LeftRef.EMPTYSET
-    def PAny(self, pe): return LeftRef.EMPTYSET
-    def PRange(self, pe): return LeftRef.EMPTYSET
-
-    def PRef(self, pe):
-        uname = pe.uname()
-        if uname not in self.memos:
-            memos[uname] = LeftRef.EMPTYSET
-            memos[uname] = self.visit(pe.deref())
-        return set(pe)
-
-    def PName(self, pe):
-        if self.checkLeftRec:
-            self.visit(pe.e)
-            return set(pe)
-        return self.visit(pe.e)
-
-    def PAnd(self, pe): return self.visit(pe.e)
-    def PNot(self, pe): return self.visit(pe.e)
-    def PMany(self, pe): return self.visit(pe.e)
-    def POneMany(self, pe): return self.visit(pe.e)
-    def POption(self, pe): return self.visit(pe.e)
-
-    def PSeq(self, pe):
-        result = set()
-        for e in pe:
-            result |= self.visit(e)
-            if self.checkLeftRec & isAlwaysConsumed(e):
-                break
-        return result
-
-    def POre(self, pe):
-        result = set()
-        for e in pe:
-            result |= self.visit(e)
-        return result
-
-    def PNode(self, pe): return self.visit(pe.e)
-    def PFold(self, pe): return self.visit(pe.e)
-    def PEdge(self, pe): return self.visit(pe.e)
-    def PAbs(self, pe): return self.visit(pe.e)
-
-    def PAction(self, pe): return self.visit(pe.e)
 
 
 class First(PVisitor):

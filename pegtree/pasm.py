@@ -914,7 +914,7 @@ class ParseTree(list):
         if isinstance(key, str):
             return hasattr(self, key) and isinstance(getattr(self, key), ParseTree)
         if isinstance(key, int):
-            return key < self.getNodeSize(key)
+            return key < self.getNodeSize()
         return False
 
     def get(self, key):

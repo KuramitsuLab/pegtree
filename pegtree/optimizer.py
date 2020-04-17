@@ -359,8 +359,8 @@ def prepare(peg: Grammar, start_name=None, optimize_function=default_optimizer):
   for ref in refs:
     uname = ref.uname()
     rules[uname] = optimize_function(ref.deref())
-    if str(rules[uname]) != str(ref.deref()):
-      print('OPTIMIZE', ref.deref(), '\n\t=>', rules[uname])
+    # if str(rules[uname]) != str(ref.deref()):
+    #   print('OPTIMIZE', ref.deref(), '\n\t=>', rules[uname])
   memos = []
   if 'packrat' not in peg:
     memos.clear()

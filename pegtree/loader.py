@@ -6,29 +6,24 @@ from pathlib import Path
 from pegtree.peg import *
 import pegtree.pasm as pasm
 from pegtree.tpeg_pasm import TPEGGrammar
-from pegtree.terminal import DefaultConsole
+from pegtree.terminal import DefaultConsole as console
 
+#
+# BuiltIn_NonTerminal
+# 
 
-# TPEGLoader
-
-BuiltInNonTerminal = {
+BuiltIn_NonTerminal = {
     'W': PRange('_', 'AZaz09'),
     '!W': PNot(PRange('_', 'AZaz09')),
     '_': PMany(PRange(' \t', '')),
 }
 
+
 class TPEGLoader(object):
-    def __init__(self, peg, console, **options):
+    def __init__(self, peg, **options):
         self.names = {}
         self.peg = peg
-        self.console = console
-        self.isOnlyPEG = options.get('isOnlyPEG', False)
-
-    def perror(self, ptree, msg):
-        self.console.perror(ptree, msg)
-
-    def pwarn(self, ptree, msg):
-        self.console.pwarn(ptree, msg)
+        self.isOnlyPEG = options.get('isPurePEG', False)
 
     def load(self, ptree):
         for stmt in ptree:
@@ -36,7 +31,7 @@ class TPEGLoader(object):
                 name = str(stmt.name)
                 if name in self.names:
                     # pos4 = stmt['name'].getpos4()
-                    self.perror(stmt.name, f'redefined name {name}')
+                    console.perror(stmt.name, f'redefined name {name}')
                     continue
                 self.names[name] = stmt.e
             elif stmt == 'Example':
@@ -136,8 +131,8 @@ class TPEGLoader(object):
     def newRef(self, name):
         if name in self.names:
             return self.peg.newRef(name)
-        if name in BuiltInNonTerminal:
-            return BuiltInNonTerminal[name]
+        if name in BuiltIn_NonTerminal:
+            return BuiltIn_NonTerminal[name]
         es = [PChar(name)]
         if len(name) > 0 and name[-1].isalnum():
             es.append(PNot(self.newRef('W')))
@@ -149,13 +144,13 @@ class TPEGLoader(object):
         if name in self.names:
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), ptree)
-        if name in BuiltInNonTerminal:
+        if name in BuiltIn_NonTerminal:
             return self.newRef(name)
         if name[0].isupper() or name.startswith('_'):  # or name[0].islower() :
-            self.perror(ptree, f'undefined nonterminal {name}')
+            console.perror(ptree, f'undefined nonterminal {console.bold(name)}')
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
-        self.pwarn(ptree, f'undefined nonterminal {name}')
+        console.pwarn(ptree, f'undefined nonterminal {console.bold(name)}')
         return self.newRef(name)
 
     def Quoted(self, ptree):
@@ -163,7 +158,7 @@ class TPEGLoader(object):
         if name in self.names:
             ref = self.peg.newRef(name)
             return PName(ref, ref.uname(), ptree)
-        self.pwarn(ptree, f'undefined nonterminal {name}')
+        console.pwarn(ptree, f'undefined terminal {console.bold(name)}')
         name = name[1:-1]
         return self.newRef(name)
 
@@ -198,18 +193,18 @@ class TPEGLoader(object):
     def Node(self, ptree):
         tag = ptree.getToken('tag', '')
         e = self.conv(ptree.e)
-        return PNode(e, tag, 0)
+        return e if self.isOnlyPEG else PNode(e, tag, 0) 
 
     def Edge(self, ptree):
         edge = ptree.getToken('edge', '')
         e = self.conv(ptree.e)
-        return PEdge(edge, e)
+        return e if self.isOnlyPEG else PEdge(edge, e)
 
     def Fold(self, ptree):
         edge = ptree.getToken('edge', '')
         tag = ptree.getToken('tag', '')
         e = self.conv(ptree.e)
-        return PFold(edge, e, tag, 0)
+        return e if self.isOnlyPEG else PFold(edge, e, tag, 0)
 
     FIRST = {'lazy', 'scope', 'symbol', 'def',
              'match', 'equals', 'contains', 'cat'}
@@ -220,8 +215,8 @@ class TPEGLoader(object):
         if funcname.startswith('choice'):
           return TPEGLoader.loadChoice(ptree, funcname, ps)
         if funcname in TPEGLoader.FIRST:
-            return PAction(ps[0], funcname, tuple(ps), ptree)
-        return PAction(EMPTY, funcname, tuple(ps), ptree)
+            return ps[0] if self.isOnlyPEG else PAction(ps[0], funcname, tuple(ps), ptree)
+        return EMPTY if self.isOnlyPEG else PAction(EMPTY, funcname, tuple(ps), ptree)
 
     @classmethod
     def loadChoice(cls, ptree, funcname, ps):
@@ -260,42 +255,93 @@ class TPEGLoader(object):
         choice = [PChar(x) for x in sorted(ds, key=lambda x: len(x))[::-1]]
         return POre.new(*choice)
 
+class LeftRef(PVisitor):
+    EMPTYSET = set()
+
+    def __init__(self, checkLeftRec=True):
+        self.checkLeftRec = checkLeftRec
+        self.memos = {}
+
+    def PChar(self, pe): return LeftRef.EMPTYSET
+    def PAny(self, pe): return LeftRef.EMPTYSET
+    def PRange(self, pe): return LeftRef.EMPTYSET
+
+    def PRef(self, pe):
+        uname = pe.uname()
+        if uname not in self.memos:
+            memos[uname] = LeftRef.EMPTYSET
+            memos[uname] = self.visit(pe.deref())
+        return set(pe)
+
+    def PName(self, pe):
+        if self.checkLeftRec:
+            self.visit(pe.e)
+            return set(pe)
+        return self.visit(pe.e)
+
+    def PAnd(self, pe): return self.visit(pe.e)
+    def PNot(self, pe): return self.visit(pe.e)
+    def PMany(self, pe): return self.visit(pe.e)
+    def POneMany(self, pe): return self.visit(pe.e)
+    def POption(self, pe): return self.visit(pe.e)
+
+    def PSeq(self, pe):
+        result = set()
+        for e in pe:
+            result |= self.visit(e)
+            if self.checkLeftRec & isAlwaysConsumed(e):
+                break
+        return result
+
+    def POre(self, pe):
+        result = set()
+        for e in pe:
+            result |= self.visit(e)
+        return result
+
+    def PNode(self, pe): return self.visit(pe.e)
+    def PFold(self, pe): return self.visit(pe.e)
+    def PEdge(self, pe): return self.visit(pe.e)
+    def PAbs(self, pe): return self.visit(pe.e)
+
+    def PAction(self, pe): return self.visit(pe.e)
+
+#def checkLeftRecursion(peg: Grammar):
 
 
 TPEGParser = pasm.generate(TPEGGrammar['Start'])
 
-def load_grammar(peg, text, **options):
-    console = options.get('console', DefaultConsole)
+def load_grammar(peg, file_or_text, **options):
     # pegparser = pasm.generate(options.get('peg', TPEGGrammar))
     
-    if isinstance(text, Path) and text.is_file():
-        f = text.open(encoding=options.get('encoding', 'utf-8_sig'))
+    if isinstance(file_or_text, Path) and file_or_text.is_file():
+        f = file_or_text.open(encoding=options.get('encoding', 'utf-8_sig'))
         data = f.read()
         f.close()
-        t = TPEGParser(data, options.get('urn', text))
-        basepath = str(text)
+        ptree = TPEGParser(data, options.get('urn', file_or_text))
+        basepath = str(file_or_text)
     else:
         if 'basepath' in options:
             basepath = options['basepath']
         else:
             basepath = inspect.currentframe().f_back.f_code.co_filename
-        t = TPEGParser(text, options.get('urn', basepath))
+        ptree = TPEGParser(file_or_text, options.get('urn', basepath))
         basepath = (str(Path(basepath).resolve().parent))
     options['basepath'] = basepath
-    if t == 'err':
-        console.log('error', t, 'Syntax Error')
+    if ptree.isSyntaxError():
+        console.perror(ptree, 'Syntax Error')
         return
-    pconv = TPEGLoader(peg, console, **options)
-    pconv.load(t)
+    pconv = TPEGLoader(peg, **options)
+    pconv.load(ptree)
 
-def findpath(paths, file):
-    if file.find('=') > 0 or file.find('<-') > 0:
-        return file
+def findpath(paths, file_or_text):
+    if file_or_text.find('=') > 0 or file_or_text.find('<-') > 0:
+        return file_or_text
     for p in paths:
-        path = Path(p) / file
+        path = Path(p) / file_or_text
         if path.is_file():
             return path.resolve()
-    raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file)
+    raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file_or_text)
 
 GrammarDB = {}
 
@@ -320,4 +366,4 @@ def grammar(file_or_text, **options):
     return peg
 
 if __name__ == '__main__':
-    peg = grammar('es.tpeg')
+    peg = grammar('es4.tpeg')

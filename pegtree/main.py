@@ -9,8 +9,12 @@ import os
 import importlib
 import pegtree
 import pegtree.treeconv as treeconv
-import pegtree.terminal
+from pegtree.terminal import DefaultConsole
 
+bold = DefaultConsole.bold
+color = DefaultConsole.color
+
+'''
 istty = True
 
 
@@ -30,8 +34,6 @@ COLOR = {
 }
 
 
-def color(c, s):
-    return '\033[{}m{}\033[0m'.format(COLOR[c], str(s)) + '' if istty else str(s)
 
 
 def showing(pos, msg):
@@ -50,10 +52,10 @@ def log(type, pos, *msg):
         showing(pos, color('Cyan', '[info] ') + str(msg))
     else:
         showing(pos, str(msg))
-
+'''
 
 def version():
-    print(bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
+    print(DefaultConsole.bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
 
 
 def read_inputs(a):
@@ -81,34 +83,48 @@ def readlines(prompt):
                 break
         return '\n'.join(l)
 
-
 def parse_options(argv):
-    options = {
-        'grammar': ['-g', '--grammar'],
-        'start': ['-s', '--start'],
-        'expression': ['-e', '--expression'],
-        'format': ['-f', '--format'],
-        'verbose': ['-v', '--verbose'],
-    }
 
+
+    options = {
+        '-v': ('verbose', True),
+        '-verbose': ('verbose', True),
+        '-g': ('grammar', None),
+        '--grammar': ('grammar', None),
+        '-s': ('start', None),
+        '--start': ('start', None),
+        '-e': ('expression', None),
+        '--expr': ('expression', None),
+        '-f': ('format', None),
+        '--format': ('format', None),
+        '-O0': ('optimization', 0),
+        '-O1': ('optimization', 1),
+        '-O2': ('optimization', 2),
+    }
     def parse_each(a, d):
-        if a[0].startswith('-'):
-            if len(a) > 1:
-                for key, list in options.items():
-                    for l in list:
-                        if a[0] == l:
-                            d[key] = a[1]
-                            return a[2:]
-            d['inputs'].append(a)
+        first = a[0]
+        if first.startswith('-'):
+            if first in options:
+                key, value = options[first]
+                if value is None:
+                    if len(a) > 1:
+                        d[key] = a[1]
+                        return a[2:]
+                else:
+                    d[key] = value
+                    return a[1:]
+            #d['inputs'].append(a)
             raise CommandUsageError
         else:
             d['inputs'].append(a[0])
             return a[1:]
 
-    d = {'inputs': []}
+    d = {'inputs': [], 'optimization': 2, 'verbose': False}
     while len(argv) > 0:
         argv = parse_each(argv, d)
-    d['logger'] = log
+    #print('OPTION', d)
+    if d['verbose'] :
+        DefaultConsole.isverbose = True
     return d
 
 
@@ -120,6 +136,7 @@ def usage():
     print(bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
     print("Usage: pegtree <command> options inputs")
     print("  -g | --grammar <file>      specify a grammar file")
+    print("  -e | --expr <expression>   specify a parsing expression")
     print("  -s | --start <NAME>        specify a starting rule")
     print("  -f | --format <file>       specify an output format")
     print()
@@ -138,16 +155,14 @@ def usage():
     print(" list       all sample grammars")
     print(" update     update pegtree (via pip)")
 
-
 showingTPEG = False
-
 
 def load_grammar(options, default=None):
     global showingTPEG
     expr = options.get('expression', None)
     if expr is not None:
         grammar = 'A = ' + expr
-        options['basepath'] = '(expression)'
+        options['urn'] = f'(-e {repr(expr)})'
         return pegtree.grammar(grammar, **options)
     file = options.get('grammar', default)
     if file is None:        
@@ -162,20 +177,21 @@ def load_grammar(options, default=None):
         except:
             pass
         data = '\n'.join(sb)
-        options['basepath'] = '(stdin)'
+        options['urn'] = '(stdin)'
         showingTPEG = False
         return pegtree.grammar(data, **options)
     if file == 'stdin.tpeg':
         data = sys.stdin.read()
-        options['basepath'] = file
+        options['urn'] = file
         return pegtree.grammar(data, **options)
+    options['urn'] = file
     return pegtree.grammar(file, **options)
 
 
 def generator(options):
-    if 'parser' in options:
-        m = importlib.import_module(options['parser'])
-        return m.generate
+    #if 'parser' in options:
+    #    m = importlib.import_module(options['parser'])
+    #    return m.generate
     return pegtree.generate
 
 
@@ -199,6 +215,39 @@ def colorTree(t):
 
 # parse command
 
+def sample(options, conv=None):
+    files = os.listdir(Path(__file__).parent / 'grammar')
+    files.sort()
+    for file in files:
+        if file.endswith('.tpeg'):
+            print(file)
+
+
+def show(options, conv=None):
+    peg = load_grammar(options)
+    print(peg)
+    if '@@example' in peg:
+        print()
+        prefix = color('Blue', 'example')
+        quote = color("Red", "'''")
+        for testcase in peg['@@example']:
+            name, doc = testcase
+            name = bold(name)
+            doc = doc.getToken()
+            if doc.find('\n') > 0:
+                print(prefix, name, quote)
+                print(doc, quote, sep='\n')
+            else:
+                print(prefix, name, doc)
+
+
+def peg(options):
+    options['isPurePEG'] = True
+    peg = load_grammar(options)
+    print(peg)
+
+
+
 def parse(options, conv=None):
     peg = load_grammar(options)
     parser = generator(options)(peg, **options)
@@ -206,8 +255,6 @@ def parse(options, conv=None):
     tdump = treeconv.treedump(options, colorTree)
     if len(inputs) == 0:  # Interactive Mode
         try:
-            if showingTPEG:
-                print(peg)
             start = getstart(peg, options)
             while True:
                 s = readlines(color('Blue', start) + bold(' <<< '))
@@ -280,11 +327,6 @@ def test(options):
     et = time.time()
     if lines > 0:
         print(f'{fail}/{lines} {(fail*100000)//(lines)/1000} {(et - st) * 1000.0} ms')
-
-
-def peg(options):
-    peg = load_grammar(options)
-    print(peg)
 
 
 def pasm0(options):
