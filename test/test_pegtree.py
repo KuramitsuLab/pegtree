@@ -6,7 +6,7 @@ from pegtree import grammar, generate, ParseTree
 class TestPEGTree(unittest.TestCase):
 
     def test_int(self):
-        peg = grammar("math.tpeg", start='Int')
+        peg = grammar("math.tpeg")
         parser = generate(peg)
         tree = parser('1+')
         self.assertEqual(str(tree), '1')
