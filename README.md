@@ -7,7 +7,7 @@
 [![Python Versions](https://img.shields.io/pypi/pyversions/pegtree.svg)](https://pypi.org/project/pegtree/)
 [![PyPI version](https://badge.fury.io/py/pegtree.svg)](https://badge.fury.io/py/pegtree)
 
-PEG-Tree Parser Combinator for Python3 and TypeScript
+A PEG Parser Combinator Generator with Tree Annotation
 
 ## Installation
 
@@ -17,42 +17,25 @@ PEG-Tree Parser Combinator for Python3 and TypeScript
 pip3 install pegtree
 ```
 
-### TypeScript
-
-```sh
-npm install pegtree --save
-```
-
 ## Usage
 
 ### Python3
 
 ```python
-from pegtree import Grammar
+import pegtree as pg
 
-peg = Grammar('''
+# 1. load a sample grammar 'math.tpeg'
 
-''')
-parser = peg.generate()
+peg = pg.grammar('math.tpeg')
+
+# 2. generate parser from a grammar
+
+parser = pg.generate(peg)
+
+# 3. parse an input text, then you will obtain parse tree
+
 tree = parser('1+2*3')
+
 print(repr(tree))
 ```
 
-### TypeScript
-
-```typescript
-import { Grammar } from 'pegtree'
-const peg = new Grammar(`
-
-`)
-const parser = peg.generate()
-const tree = parser('1+2*3')
-console.log(tree)
-```
-
-## Test
-
-### TypeScript
-```sh
-npm run test
-```
