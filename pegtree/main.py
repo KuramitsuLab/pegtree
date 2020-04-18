@@ -97,9 +97,10 @@ def parse_options(argv):
         '--expr': ('expression', None),
         '-f': ('format', None),
         '--format': ('format', None),
-        '-O0': ('optimization', 0),
-        '-O1': ('optimization', 1),
-        '-O2': ('optimization', 2),
+        '-O0': ('-O', 0),
+        '-O1': ('-O', 1),
+        '-O2': ('-O', 2),
+        '-O2': ('-O', 3),
     }
     def parse_each(a, d):
         first = a[0]
@@ -119,7 +120,7 @@ def parse_options(argv):
             d['inputs'].append(a[0])
             return a[1:]
 
-    d = {'inputs': [], 'optimization': 2, 'verbose': False}
+    d = {'inputs': [], '-O': 2, 'verbose': False}
     while len(argv) > 0:
         argv = parse_each(argv, d)
     #print('OPTION', d)
@@ -329,15 +330,8 @@ def test(options):
         print(f'{fail}/{lines} {(fail*100000)//(lines)/1000} {(et - st) * 1000.0} ms')
 
 
-def pasm0(options):
-    from pegtree.parsec import parsec
-    peg = load_grammar(options)
-    options['optimized'] = 0
-    parsec(peg, **options)
-
-
 def pasm(options):
-    from pegtree.parsec import parsec
+    from pegtree.nezcc import parsec
     peg = load_grammar(options)
     parsec(peg, **options)
 

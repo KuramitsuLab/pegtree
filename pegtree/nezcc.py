@@ -1,29 +1,36 @@
 from pathlib import Path
 import os
-from pegtree.pegtree import Generator, grammar, Grammar
+from pegtree.nez import Generator
+from pegtree.terminal import DefaultConsole as console
+
 # from pegtree import Generator, grammar
 
-PASMS = [
-    [],
-    [
-        'Option', 'OneMany',
-        'Seq', 'Ore', 'Seq3', 'Seq4', 'Ore3', 'Ore4',
-        'AndChar', 'NotChar', 'ManyChar', 'OneManyChar', 'OptionChar',
-        'AndRange', 'NotRange', 'ManyRange', 'OneManyRange', 'OptionRange',
-        'Many2'
-    ]
+PASM0 = []
+PASM1 = [ 'Option', 'OneMany', 'Seq3', 'Seq4', 'Ore3', 'Ore4', 'Dict' ]
+PASM1_VARGS = [ 'Seq', 'Ore' ]
+PASM1_LEX = [
+    'AndChar', 'NotChar', 'ManyChar', 'OneManyChar', 'OptionChar',
+    'AndRange', 'NotRange', 'ManyRange', 'OneManyRange', 'OptionRange',
 ]
 
 CODE = {
+    'lisp': {
+        'pasm': PASM1 + PASM1_LEX + PASM1_VARGS,
+        'apply': '({} {})',
+        'delim': ' ',
+    },
+    'typescript': {
+        'pasm': PASM1 + PASM1_LEX + PASM1_VARGS,
+    },
     'ts': {
         'file': 'ts.txt',
         'prefix': 'PAsm.p',
         'rule': '  {};',
-    }
+        'pasm': PASM1 + PASM1_LEX + PASM1_VARGS,
+    },
 }
 
-
-class Parsec(Generator):
+class PAsmGenerator(Generator):
     ESCTBL = str.maketrans(
         {'\n': '\\n', '\t': '\\t', '\r': '\\r', '\v': '\\v', '\f': '\\f',
          '\\': '\\\\', "'": "\\'", '"': "\\\""})
@@ -36,7 +43,9 @@ class Parsec(Generator):
         self.delim = ','
         self.string = '"{}"'
         self.prefix = os.environ.get('PREFIX', 'p')
-        self.PASM = set(PASMS[options.get('optimized', 1)])
+        self.PASM = PASM1
+        if options.get('-O', 2) == 0:
+            self.PASM = PASM0
         self.rules = None
 
     def setup(self, spec):
@@ -44,16 +53,15 @@ class Parsec(Generator):
         self.string = spec.get('string', '"{}"')
         self.delim = spec.get('delim', ',')
         self.prefix = spec.get('prefix', os.environ.get('PREFIX', 'p'))
-        if 'PASM' in spec:
-            self.PASM = set(spec['PASM'])
-        self.rule = spec.get('rule', '\t{}')
+        if 'pasm' in spec and self.PASM != PASM0:
+            self.PASM = set(spec['pasm'])
+        self.rule = spec.get('rule', '{}')
         self.rules = []
         spec['rules'] = self.rules
 
-    def emitRule(self, ref):
-        name = self.getref(ref.uname(self.peg))
-        rule = self.rule.format(self.emitApply(
-            'Rule', 'peg', name, self.emit(ref.deref(), 0)))
+    def emitRule(self, uname, pe):
+        name = self.getref(uname)
+        rule = self.rule.format(self.emitApply('Rule', 'peg', name, self.emit(pe, 0)))
         if isinstance(self.rules, list):
             self.rules.append(rule)
         else:
@@ -90,7 +98,7 @@ class Parsec(Generator):
         #         sb.append(r[0]+r[1])
         #     s = ''.join(sb)
         #     return '"' + s.translate(Parsec.ESCTBL) + '"'
-        return self.string.format(str(s).translate(Parsec.ESCTBL))
+        return self.string.format(str(s).translate(PAsmGenerator.ESCTBL))
 
     def param(self, pe):
         if hasattr(pe, 'text'):
@@ -116,28 +124,28 @@ class Parsec(Generator):
         return self.emitApply('Range', self.quote(pe.chars), self.quote(pe.ranges))
 
     def PAnd(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         cname = e.cname()[1:]
         if self.has(f'And{cname}'):
             return self.emitApply(f'And{cname}', *self.param(e))
         return self.emitApply('And', self.emit(e, step))
 
     def PNot(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         cname = e.cname()[1:]
         if self.has(f'Not{cname}'):
             return self.emitApply(f'Not{cname}', *self.param(e))
         return self.emitApply('Not', self.emit(e, step))
 
     def PMany(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         cname = e.cname()[1:]
         if self.has(f'Many{cname}'):
             return self.emitApply(f'Many{cname}', *self.param(e))
         return self.emitApply('Many', self.emit(e, step))
 
     def POneMany(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if self.has('OneMany'):
             cname = e.cname()[1:]
             if self.has(f'OneMany{cname}'):
@@ -146,7 +154,7 @@ class Parsec(Generator):
         return self.emitApply('Seq2', self.emit(e, step), self.PMany(pe, pe.minLen()))
 
     def POption(self, pe, step):
-        e = self.inline(pe.e)
+        e = pe.e
         if self.has('Option'):
             cname = e.cname()[1:]
             if self.has(f'Option{cname}'):
@@ -206,28 +214,16 @@ class Parsec(Generator):
     # Tree Construction
 
     def PNode(self, pe, step):
-        _, fixed, es = self.fixedEach(0, [pe])
-        #print(_, fixed, es)
-        if fixed is None:
-            e = self.emit(pe.e, step)
-            return self.emitApply('Node', e, self.quote(pe.tag), f'{pe.shift}')
-        else:
-            #print('//OOD', self.join(fixed, *es))
-            return self.emit(self.join(fixed, *es), step)
+        e = self.emit(pe.e, step)
+        return self.emitApply('Node', e, self.quote(pe.tag), f'{pe.shift}')
 
     def PEdge(self, pe, step):
         e = self.emit(pe.e, step)
-        return self.emitApply('Edge', self.quote(pe.edge), e)
+        return self.emitApply('Edge', self.quote(pe.edge), e, f'{pe.shift}')
 
     def PFold(self, pe, step):
-        _, fixed, es = self.fixedEach(0, [pe])
-        #print(_, fixed, es)
-        if fixed is None:
-            e = self.emit(pe.e, step)
-            return self.emitApply('Fold', self.quote(pe.edge), e, self.quote(pe.tag), f'{pe.shift}')
-        else:
-            #print('//OOD', self.join(fixed, *es))
-            return self.emit(self.join(fixed, *es), step)
+        e = self.emit(pe.e, step)
+        return self.emitApply('Fold', self.quote(pe.edge), e, self.quote(pe.tag), f'{pe.shift}')
 
     def PAbs(self, pe, step):
         e = self.emit(pe.e, step)
@@ -265,30 +261,33 @@ class Parsec(Generator):
         return self.emitApply('In', self.quote(name))
 
 
-def load(spec):
-    path = Path(spec['file'])
-    if not path.exists():
-        path = Path(__file__).resolve().parent / 'code' / path
-    with path.open() as f:
-        for line in f:
-            if line.startswith('#@RULE'):
-                for rule in spec['rules']:
-                    print(rule)
-            else:
-                print(line, end='')
+def output(spec):
+    if 'file' in spec:
+        path = Path(__file__).resolve().parent / 'code' / spec['file']
+        with path.open() as f:
+            for line in f:
+                if line.startswith('#@RULE'):
+                    for rule in spec['rules']:
+                        print(rule)
+                else:
+                    print(line, end='')
+    else:
+        for rule in spec['rules']:
+            print(rule)
 
 
 def parsec(peg, **options):
-    generator = Parsec(**options)
-    if 'ext' in options:
-        spec = CODE[options['ext']]
+    generator = PAsmGenerator(**options)
+    if 'format' in options:
+        format = options['format']
+        if format not in CODE:
+            names = sorted(CODE.keys())
+            print(console.bold('Supported format:'), ' '.join(names))
+            return
+        spec = CODE[format]
         generator.setup(spec)
         generator.generate(peg, **options)
-        load(spec)
+        output(spec)
     else:
         generator.generate(peg, **options)
 
-
-if __name__ == '__main__':
-    g = grammar('es.tpeg')
-    parsec(g)

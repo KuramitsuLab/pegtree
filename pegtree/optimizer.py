@@ -300,6 +300,7 @@ class Optimizer(object):
 
     # Ore
     def POre(self, pe: POre):
+        if pe.isDict() and len(pe.es) > 8: return pe
         ps = flattenOre(pe, [], lambda e: self.visit(e))
         return newOre(ps,{})
 
