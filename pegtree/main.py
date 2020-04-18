@@ -248,6 +248,15 @@ def peg(options):
     print(peg)
 
 
+def optimize(options):
+    from pegtree.optimizer import prepare
+    peg = load_grammar(options)
+    start, refs, rules, memos = prepare(peg)
+    for ref in refs:
+        uname = ref.uname(peg)
+        print(uname, '=', rules[uname])
+    print('memo:', ' '.join(memos))
+
 
 def parse(options, conv=None):
     peg = load_grammar(options)
@@ -327,7 +336,7 @@ def test(options):
         pass
     et = time.time()
     if lines > 0:
-        print(f'{fail}/{lines} {(fail*100000)//(lines)/1000} {(et - st) * 1000.0} ms')
+        print(f'{fail}/{lines} {fail/lines} {(et - st) * 1000.0} ms')
 
 
 def pasm(options):

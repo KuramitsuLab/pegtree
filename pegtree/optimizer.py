@@ -168,12 +168,16 @@ def mergeRange(e, e2):
 def prefixChar(pe):
   if isinstance(pe, PChar) and len(pe.text) > 0:
       return pe.text[0]
+  if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
+      return pe.es[0].text[0]
   return None
-
 
 def dc(pe):
   if isinstance(pe, PChar) and len(pe.text) > 0:
-      return PChar.new(pe.text[1:])
+    return PChar.new(pe.text[1:])
+  if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
+    first = PChar.new(pe.es[0].text[1:])
+    return PSeq(first, *pe.es[1:])
   return FAIL
 
 def appendOre(ps: list, pe, cmap=None, deref=False):
@@ -349,20 +353,20 @@ def default_optimizer(e):
 def optimize(e):
   return optimizer.visit(e)
 
-
 def prepare(peg: Grammar, start_name=None, optimize_function=default_optimizer):
-  peg = peg
+  #peg = peg
   if start_name is None: start_name = peg.start()
   start_ref = peg.newRef(start_name)
   refs = makeMinimumRules(start_ref, {}, [])
   refs = sortRules(refs)
   rules = {}
+  memos = []
   for ref in refs:
-    uname = ref.uname()
+    uname = ref.uname(peg)
     rules[uname] = optimize_function(ref.deref())
+    memos.append(uname)
     # if str(rules[uname]) != str(ref.deref()):
     #   print('OPTIMIZE', ref.deref(), '\n\t=>', rules[uname])
-  memos = []
   if 'packrat' not in peg:
     memos.clear()
   return start_ref, refs, rules, memos

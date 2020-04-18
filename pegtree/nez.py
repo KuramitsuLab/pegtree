@@ -1,6 +1,7 @@
 from pegtree.peg import *
 import pegtree.pasm as pasm
 from pegtree.optimizer import prepare
+from pegtree.terminal import DefaultConsole as console
 
 class Generator(object):
     def __init__(self):
@@ -23,7 +24,7 @@ class Generator(object):
         self.memos = memos
         for ref in refs:
             assert isinstance(ref, PRef)
-            uname = ref.uname()
+            uname = ref.uname(peg)
             self.generating_nonterminal = uname
             self.emitRule(uname, rules[uname])
             self.generating_nonterminal = ''
@@ -39,7 +40,7 @@ class Generator(object):
         self.generated[uname] = A
 
     def emitParser(self, start):
-        return pasm.generate(self.generated[start.uname()])
+        return pasm.generate(self.generated[start.uname(self.peg)])
 
     def emit(self, pe: PExpr, step: int):
         cname = pe.cname()
@@ -126,11 +127,11 @@ class Generator(object):
         return pasm.pOre(*pfs)
 
     def PRef(self, pe, step):
-        return pasm.pRef(self.generated, pe.uname())
+        return pasm.pRef(self.generated, pe.uname(self.peg))
 
     def PName(self, pe: PName, step):
-        if step == 0 and self.generating_nonterminal == pe.e.uname():
-            print(pe.position.message('Left recursion'))
+        if step == 0 and self.generating_nonterminal == pe.e.uname(self.peg):
+            console.perror(pe.position, 'Left recursion')
             return self.emit(FAIL, step)
         return self.PRef(pe.e, step)
 
