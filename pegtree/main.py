@@ -347,7 +347,7 @@ def update(options):
 
 def update_beta(options):
     try:
-        # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git
+        # pip3 install -U git+https://github.com/KuramitsuLab/pegtree.git
         subprocess.check_call(
             ['pip3', 'install', '-U', 'git+https://github.com/KuramitsuLab/pegtree.git'])
     except:

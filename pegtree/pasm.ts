@@ -5,7 +5,7 @@ class PContext {
   pos: number;
   epos: number;
   headpos: number;
-  ast: PTree | null;
+  ptree: PTree | null;
   state: PState | null;
   readonly memos: PMemo[];
   constructor(inputs: string, pos: number, epos: number) {
@@ -13,7 +13,7 @@ class PContext {
     this.pos = pos;
     this.epos = epos;
     this.headpos = pos
-    this.ast = null
+    this.ptree = null
     this.state = null
     this.memos = [];
     for (var i = 0; i < 1789; i += 1) {
@@ -176,11 +176,11 @@ const pAnd = (pf: PFunc) => {
 const pNot = (pf: PFunc) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     if (!pf(px)) {
       px.headpos = Math.max(px.pos, px.headpos)
       px.pos = pos
-      px.ast = ast
+      px.ptree = ptree
       return true
     }
     return false
@@ -190,14 +190,14 @@ const pNot = (pf: PFunc) => {
 const pMany = (pf: PFunc) => {
   return (px: PContext) => {
     var pos = px.pos
-    var ast = px.ast
+    var ptree = px.ptree
     while (pf(px) && pos < px.pos) {
       pos = px.pos
-      ast = px.ast
+      ptree = px.ptree
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     return true
   }
 }
@@ -208,14 +208,14 @@ const pOneMany = (pf: PFunc) => {
       return false;
     }
     var pos = px.pos
-    var ast = px.ast
+    var ptree = px.ptree
     while (pf(px) && pos < px.pos) {
       pos = px.pos
-      ast = px.ast
+      ptree = px.ptree
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     return true
   }
 }
@@ -223,11 +223,11 @@ const pOneMany = (pf: PFunc) => {
 const pOption = (pf: PFunc) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     if (!pf(px)) {
       px.headpos = Math.max(px.pos, px.headpos)
       px.pos = pos
-      px.ast = ast
+      px.ptree = ptree
     }
     return true
   }
@@ -268,13 +268,13 @@ const pSeq = (...pfs: PFunc[]) => {
 const pOre2 = (pf: PFunc, pf2: PFunc) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     if (pf(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     return pf2(px);
   }
 }
@@ -282,19 +282,19 @@ const pOre2 = (pf: PFunc, pf2: PFunc) => {
 const pOre3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     if (pf(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     if (pf2(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     return pf3(px);
   }
 }
@@ -302,25 +302,25 @@ const pOre3 = (pf: PFunc, pf2: PFunc, pf3: PFunc) => {
 const pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     if (pf(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     if (pf2(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     if (pf3(px)) {
       return true;
     }
     px.headpos = Math.max(px.pos, px.headpos)
     px.pos = pos
-    px.ast = ast
+    px.ptree = ptree
     return pf4(px);
   }
 }
@@ -328,14 +328,14 @@ const pOre4 = (pf: PFunc, pf2: PFunc, pf3: PFunc, pf4: PFunc) => {
 const pOre = (...pfs: PFunc[]) => {
   return (px: PContext) => {
     const pos = px.pos
-    const ast = px.ast
+    const ptree = px.ptree
     for (const pf of pfs) {
       if (pf(px)) {
         return true;
       }
       px.headpos = Math.max(px.pos, px.headpos)
       px.pos = pos
-      px.ast = ast
+      px.ptree = ptree
     }
     return false;
   }
@@ -443,12 +443,12 @@ class PMemo {
   pos: number;
   treeState: boolean;
   prev: PTree | null;
-  ast: PTree | null;
+  ptree: PTree | null;
   result: boolean;
   constructor() {
     this.key = -1
     this.pos = 0
-    this.ast = null
+    this.ptree = null
     this.prev = null
     this.result = false
     this.treeState = false
@@ -465,9 +465,9 @@ const pMemo = (pf: PFunc, mp: number, mpsize: number) => {
     const m = px.memos[(key % 1789) | 0]
     if (m.key == key) {
       if (m.treeState) {
-        if (m.prev === px.ast) {
+        if (m.prev === px.ptree) {
           px.pos = m.pos
-          px.ast = m.ast
+          px.ptree = m.ptree
           hit += 1
           return m.result
         }
@@ -477,14 +477,14 @@ const pMemo = (pf: PFunc, mp: number, mpsize: number) => {
         return m.result;
       }
     }
-    const prev = px.ast;
+    const prev = px.ptree;
     m.result = pf(px);
     m.pos = px.pos
     m.key = key
-    if (m.result && prev != px.ast) {
+    if (m.result && prev != px.ptree) {
       m.treeState = true
       m.prev = prev
-      m.ast = px.ast
+      m.ptree = px.ptree
     }
     else {
       m.treeState = false
@@ -540,10 +540,10 @@ class PTree {
 const pNode = (pf: PFunc, tag: string, shift: number) => {
   return (px: PContext) => {
     const pos = px.pos
-    const prev = px.ast
-    px.ast = null;
+    const prev = px.ptree
+    px.ptree = null;
     if (pf(px)) {
-      px.ast = new PTree(prev, tag, pos + shift, px.pos, px.ast);
+      px.ptree = new PTree(prev, tag, pos + shift, px.pos, px.ptree);
       return true;
     }
     return false;
@@ -556,13 +556,13 @@ const pEdge = (edge: string, pf: PFunc) => {
   }
   return (px: PContext) => {
     const pos = px.pos
-    const prev = px.ast
-    px.ast = null;
+    const prev = px.ptree
+    px.ptree = null;
     if (pf(px)) {
-      if (px.ast === null) {
-        px.ast = new PTree(null, '', pos, px.pos, px.ast)
+      if (px.ptree === null) {
+        px.ptree = new PTree(null, '', pos, px.pos, px.ptree)
       }
-      px.ast = new PTree(prev, edge, -1, -1, px.ast)
+      px.ptree = new PTree(prev, edge, -1, -1, px.ptree)
       return true;
     }
     return false;
@@ -573,12 +573,12 @@ const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
   if (edge !== '') {
     return (px: PContext) => {
       const pos = px.pos
-      var pt = px.ast;
+      var pt = px.ptree;
       const prev = pt ? pt.prev : null;
       pt = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
-      px.ast = new PTree(null, edge, pos, -pos, pt);
+      px.ptree = new PTree(null, edge, pos, -pos, pt);
       if (pf(px)) {
-        px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
+        px.ptree = new PTree(prev, tag, pos, px.pos + shift, px.ptree);
         return true;
       }
       return false;
@@ -587,11 +587,11 @@ const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
   else {
     return (px: PContext) => {
       const pos = px.pos
-      const pt = px.ast;
+      const pt = px.ptree;
       const prev = (pt !== null) ? pt.prev : null;
-      px.ast = pt ? (prev ? new PTree(null, pt.tag, pt.spos, pt.epos, pt.child) : pt) : null;
+      px.ptree = pt ? (prev ? new PTree(null, pt.tag, pt.spos, pt.epos, pt.child) : pt) : null;
       if (pf(px)) {
-        px.ast = new PTree(prev, tag, pos, px.pos + shift, px.ast);
+        px.ptree = new PTree(prev, tag, pos, px.pos + shift, px.ptree);
         return true;
       }
       return false;
@@ -601,9 +601,9 @@ const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
 
 const pAbs = (pf: PFunc) => {
   return (px: PContext) => {
-    const ast = px.ast
+    const ptree = px.ptree
     if (pf(px)) {
-      px.ast = ast;
+      px.ptree = ptree;
       return true;
     }
     return false;
@@ -825,8 +825,6 @@ const getpos = (s: string, pos: number): Position => {
   return { position: pos, column: col, row: row }
 }
 
-
-
 // ParseTree
 
 export class ParseTree {
@@ -894,23 +892,27 @@ export class ParseTree {
     }
   }
 
-  public append(t: ParseTree, edge: string = '') {
-    this.set(edge, t);
+  public getNodeSize() {
+    return this.subs_.length;
   }
 
   public subNodes() {
     return this.subs_;
   }
 
+  public append(t: ParseTree, edge: string = '') {
+    this.set(edge, t);
+  }
+
   public isSyntaxError() {
     return this.tag_ === 'err'
   }
 
-  public getPosition() {
+  public getPosition() : Position {
     return getpos(this.inputs_, this.spos_);
   }
 
-  public getEndPosition() {
+  public getEndPosition(): Position {
     return getpos(this.inputs_, this.epos_);
   }
 
@@ -964,34 +966,34 @@ export class ParseTree {
   }
 }
 
-const PTree2ParseTree = (pt: PTree, urn: string, inputs: string): ParseTree => {
+const PTreeConv = (pt: PTree, urn: string, inputs: string): ParseTree => {
   if (pt.prev !== null) {
     var ct = pt
     while (ct.prev !== null) {
       ct = ct.prev
     }
-    return PTree2ParseTreeChild('', urn, inputs, ct.spos, pt.epos, pt)
+    return PTree2ParseTree('', urn, inputs, ct.spos, pt.epos, pt)
   }
   if (pt.isEdge()) {
-    const ct = PTree2ParseTree(pt.child!, urn, inputs)
+    const ct = PTreeConv(pt.child!, urn, inputs)
     const t = new ParseTree('', inputs, ct.spos_, ct.epos_, urn)
     t.set(pt.tag, ct)
     return t
   }
   else {
-    return PTree2ParseTreeChild(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
+    return PTree2ParseTree(pt.tag, urn, inputs, pt.spos, pt.epos, pt.child)
   }
 }
 
-const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: number, epos: number, sub: PTree | null) => {
+const PTree2ParseTree = (tag: string, urn: string, inputs: string, spos: number, epos: number, sub: PTree | null) => {
   const t = new ParseTree(tag, inputs, spos, epos, urn);
   while (sub !== null) {
     if (sub.isEdge()) {
-      const tt = PTree2ParseTree(sub.child!, urn, inputs);
+      const tt = PTreeConv(sub.child!, urn, inputs);
       t.set(sub.tag, tt);
     }
     else {
-      t.set('', PTree2ParseTreeChild(sub.tag, urn, inputs,
+      t.set('', PTree2ParseTree(sub.tag, urn, inputs,
         sub.spos, sub.epos, sub.child))
     }
     sub = sub.prev;
@@ -1004,7 +1006,6 @@ const PTree2ParseTreeChild = (tag: string, urn: string, inputs: string, spos: nu
   }
   return t;
 }
-
 
 const translate = (s: string, dic: { [key: string]: string }) => {
   var foundESC = false;
@@ -1105,16 +1106,16 @@ export class PAsm {
       const epos: number = options.epos || (inputs.length - pos);
       const px = new PContext(inputs, pos, epos);
       if (pf(px)) {
-        if (!px.ast) {
-          px.ast = new PTree(null, "", pos, px.pos, null);
+        if (!px.ptree) {
+          px.ptree = new PTree(null, "", pos, px.pos, null);
         }
       }
       else {
-        px.ast = new PTree(null, "err", px.headpos, px.headpos, null);
+        px.ptree = new PTree(null, "err", px.headpos, px.headpos, null);
       }
-      const conv: ((t: PTree, urn: string, inputs: string) => ParseTree) = options.conv || PTree2ParseTree;
+      const conv: ((t: PTree, urn: string, inputs: string) => ParseTree) = options.conv || PTreeConv;
       const urn = options.urn || '(unknown source)';
-      return conv(px.ast!, urn, inputs);
+      return conv(px.ptree!, urn, inputs);
     }
   }
 
@@ -1123,6 +1124,27 @@ export class PAsm {
     const t = p(input)
     console.log(t.toString())
   }
-
 }
 
+export abstract class ParseTreeVisitor<T> {
+  private methodMap: any = {}
+  protected getAcceptMethod(pt: ParseTree): string {
+    const tag = pt.getTag();
+    const method = this.methodMap[tag];
+    if (!method) {
+      const newmethod = `accept${tag}`;
+      this.methodMap[tag] = newmethod;
+      return newmethod;
+    }
+    return method;
+  }
+  protected visit(pt: ParseTree): T {
+    const method = this.getAcceptMethod(pt);
+    if (method in this) {
+      const ty = (this as any)[method](pt);
+      return ty;
+    }
+    return this.undefinedParseTree(pt);
+  }
+  protected abstract undefinedParseTree(pt: ParseTree): T;
+}

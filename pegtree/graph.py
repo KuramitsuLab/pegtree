@@ -42,10 +42,10 @@ def draw_graph(ptree: ParseTree, name='G'):
   g.attr('node', fontname='MS Gothic')
   g.attr('edge', fontname='MS Gothic')
   draw_node(g, ptree, GenId())
-  g.view()
+  #g.view()
   return g
 
-def graph(parser):
+def Graphviz(parser):
   return lambda s: draw_graph(parser(s))
 
 
