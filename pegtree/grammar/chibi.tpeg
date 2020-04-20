@@ -3,29 +3,28 @@
 
 example Program '''
 fib(n) = if n < 3 then 1 else fib(n-1)+fib(n-2)
-print(fib(10))
+print(fib(4))
 '''
 
 Program = {
-  Statement*
+  Expression*
   #Block
 } EOF
 
 EOF = !.
-
-Statement = FuncDecl / LetDecl / Expression
-
 _ = [ \t\r\n]*
 
-FuncDecl = {
-  Name '(' _ Name ')' _ '=' _ Expression
-  #FuncDecl
-} _
+Expression = FuncDecl / VarDecl / IfExpr / Binary
 
-LetDecl = {
-  Name '=' _ Expression
-  #LetDecl
-} _
+FuncDecl = {
+  Name "(" Name ")" "=" Expression
+  #FuncDecl
+}
+
+VarDecl = {
+  Var "=" Expression
+  #VarDecl
+}
 
 example Expression if a == 1 then print(a) else 0
 example Expression f(a+1)
@@ -34,34 +33,35 @@ example Expression 1*2+3
 example Expression 1-2-3
 example Expression 1+2-3
 
-Expression = IfExpr / Binary
-
 IfExpr = {
-  'if' _ Expression 
-  'then' _ Expression 
-  'else' _ Expression
+  "if" Expression 
+  "then" Expression 
+  "else" Expression
   #IfExpr
 }
 
-Binary = { Sum '==' _ Sum #Eq}
-  / { Sum '!=' _ Sum #Ne}
-  / { Sum '<' _ Sum #Lt}
-  / { Sum '>' _ Sum #Gt}
-  / { Sum '<=' _ Sum #Lte}
-  / { Sum '>=' _ Sum #Gte}
+Binary = 
+  / { Sum "==" Sum #Eq}
+  / { Sum "!=" Sum #Ne}
+  / { Sum "<" Sum #Lt}
+  / { Sum ">" Sum #Gt}
+  / { Sum "<=" Sum #Lte}
+  / { Sum ">=" Sum #Gte}
   / Sum
 
-Sum = Prod ( ^{ '+' Prod #Add } / ^ { '-' _ Prod #Sub} )*
-Prod = Term ( ^{ '*' Term #Mul } / ^{ '/' _ Term #Div} )*
+Sum = Prod ( ^{ "+" Prod #Add } / ^ { "-" Prod #Sub} )*
+Prod = Term ( ^{ "*" Term #Mul } / ^{ "/" Term #Div} )*
 
-Term = FuncApp / Name / Value / '(' _ Expression ')' _
+Term = FuncApp / Name / Value / "(" Expression ")"
 
 FuncApp = {
-  Name '(' _ Expression ')' _
+  Name "(" Expression ")"
   #FuncApp
 }
 
-Name = {
+Name = Var
+
+Var = {
   [A-Za-z] [A-Za-z0-9]* 
   #Var
 } _
