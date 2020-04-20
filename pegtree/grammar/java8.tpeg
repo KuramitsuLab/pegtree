@@ -15,27 +15,15 @@ File = _ {
 	 ImportDeclaration*
 	 TypeDeclaration*
 	 #Source
-} _ EOT
-
-
-/* ORIGAMI use Sinipet */
-
-Snippet = _ {
-    PackageDeclaration?
-    (ImportDeclaration / TypeDeclaration / Statement / Expression )*
-    #Block
-} EOT
+} _ EOF
 
 /* Code Layout (Whitespace) */
 
 _            = ( S / BLOCKCOMMENT / LINECOMMENT )*
-__           = !S
 S            = [ \n\r\t\u000B\u000C]
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
 LINECOMMENT  = '//' ( !'\n' . )*
-EOL          = '\r'? '\n'
-             / !.
-EOT          = !.
+EOL          = '\r'? '\n' / EOF
 
 /* Operators */
 "++"         = '++' _
@@ -88,61 +76,6 @@ EOT          = !.
 ")"          = ')' _
 "@"          = '@' _
 "->"         = '->' _
-
-// reserved keyword
-"abstract"     = 'abstract' !W _
-"assert"       = 'assert' !W _
-"boolean"      = 'boolean' !W _
-"break"        = 'break' !W _
-"byte"         = 'byte' !W _
-"case"         = 'case' !W _
-"catch"        = 'catch' !W _
-"char"         = 'char' !W _
-"class"        = 'class' !W _
-"const"        = 'const' !W _
-"continue"     = 'continue' !W _
-"default"      = 'default' !W _
-"do"           = 'do' !W _
-"double"       = 'double' !W _
-"else"         = 'else' !W _
-"enum"         = 'enum' !W _
-"extends"      = 'extends' !W _
-"false"        = 'false' !W _
-"final"        = 'final' !W _
-"finally"      = 'finally' !W _
-"float"        = 'float' !W _
-"for"          = 'for' !W _
-"goto"         = 'goto' !W _
-"if"           = 'if' !W _
-"implements"   = 'implements' !W _
-"import"       = 'import' !W _
-"instanceof"   = 'instanceof' !W _
-"int"          = 'int' !W _
-"interface"    = 'interface' !W _
-"long"         = 'long' !W _
-"native"       = 'native' !W _
-"new"          = 'new' !W _
-"null"         = 'null' !W _
-"package"      = 'package' !W _
-"private"      = 'private' !W _
-"protected"    = 'protected' !W _
-"public"       = 'public' !W _
-"return"       = 'return' !W _
-"short"        = 'short' !W _
-"static"       = 'static' !W _
-"strictfp"     = 'strictfp' !W _
-"super"        = 'super' !W _
-"switch"       = 'switch' !W _
-"synchronized" = 'synchronized' !W _
-"this"         = 'this' !W _
-"throw"        = 'throw' !W _
-"throws"       = 'throws' !W _
-"transient"    = 'transient' !W _
-"true"         = 'true' !W _
-"try"          = 'try' !W _
-"void"         = 'void' !W _
-"volatile"     = 'volatile' !W _
-"while"        = 'while' !W _
 
 KEYWORD
 	= "abstract"
@@ -207,9 +140,9 @@ Annotations = {
 }
 
 Annotation = {
-    "@"
+  "@"
 	name: QualifiedName
-	("(" $value(ElementValuePairList/ElementValue) ")")?
+	("(" value: (ElementValuePairList/ElementValue) ")")?
 	#Annotation
 }
 
@@ -289,7 +222,6 @@ StaticImportDeclation = {
 } ";"
 
 PackageName = QualifiedName { "." '*' #WildCardName }?
-
 
 // type
 TypeDeclaration
@@ -413,6 +345,7 @@ VariableDeclaration = {
 	(anno: AModifiers)?
 	type: Type
 	VarDecl
+	#VariableDeclaration
 }
 
 VarDecl
@@ -794,18 +727,18 @@ Expressions = {
 }
 
 AssignmentExpression =
-  { left: UnaryExpression "=" right: Expression #AssignExpr }
-  { left: UnaryExpression "*=" right: Expression #MulAssign }
-  { left: UnaryExpression "/=" right: Expression #DivAssign }
-  { left: UnaryExpression "%=" right: Expression #ModAssign }
-  { left: UnaryExpression "+=" right: Expression #AddAssign }
-  { left: UnaryExpression "-=" right: Expression #SubAssign }
-  { left: UnaryExpression "<<=" right: Expression #LShiftAssign }
-  { left: UnaryExpression ">>=" right: Expression #RShiftAssign }
-  { left: UnaryExpression ">>>=" right: Expression #LRShiftAssign }
-  { left: UnaryExpression "&=" right: Expression #BitwiseAndAssign }
-  { left: UnaryExpression "^=" right: Expression #BitwiseXorAssign }
-  { left: UnaryExpression "|=" right: Expression #BitwiseOrAssign }
+  / { left: UnaryExpression "=" right: Expression #AssignExpr }
+  / { left: UnaryExpression "*=" right: Expression #MulAssign }
+  / { left: UnaryExpression "/=" right: Expression #DivAssign }
+  / { left: UnaryExpression "%=" right: Expression #ModAssign }
+  / { left: UnaryExpression "+=" right: Expression #AddAssign }
+  / { left: UnaryExpression "-=" right: Expression #SubAssign }
+  / { left: UnaryExpression "<<=" right: Expression #LShiftAssign }
+  / { left: UnaryExpression ">>=" right: Expression #RShiftAssign }
+  / { left: UnaryExpression ">>>=" right: Expression #LRShiftAssign }
+  / { left: UnaryExpression "&=" right: Expression #BitwiseAndAssign }
+  / { left: UnaryExpression "^=" right: Expression #BitwiseXorAssign }
+  / { left: UnaryExpression "|=" right: Expression #BitwiseOrAssign }
   / ConditionalExpression
 
 ConstantExpression = ConditionalExpression
@@ -1033,7 +966,7 @@ NAME = !DIGIT !KEYWORD W+
 Constant = Literal
 
 Literal =
-	FloatLiteral
+	/ FloatLiteral
   / DoubleLiteral
 	/ LongIntegerLiteral
   / IntegerLiteral
@@ -1101,7 +1034,7 @@ HEX_ESCAPE     = '\\' 'u'+ HEXDIGIT HEXDIGIT HEXDIGIT HEXDIGIT
 /* Example */
 
 // The traditional "Hello, world!" program can be written in Java
-example TypeDeclaration&File '''
+example TypeDeclaration, File '''
 class HelloWorldApp {
     public static void main(String[] args) {
         System.out.println("Hello World!"); // Prints the string to the console.
@@ -1197,9 +1130,11 @@ example Expression '''
 1+2-3*4%5
 '''
 
-example Expression '''
+example AssignmentExpression '''
 x = x + 1
 '''
+
+example AssignmentExpression x += 1
 
 example Expression '''
 x = x | 1

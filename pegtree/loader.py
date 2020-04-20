@@ -14,8 +14,10 @@ from pegtree.terminal import DefaultConsole as console
 
 BuiltIn_NonTerminal = {
     'W': PRange('_', 'AZaz09'),
-    '!W': PNot(PRange('_', 'AZaz09')),
+    'LF': POre(PChar('\r\n'), PChar('\n')),
+    'EOF': PNot(PAny()),
     '_': PMany(PRange(' \t', '')),
+    '__': PMany(PRange(' \t\r\n', '')),
 }
 
 

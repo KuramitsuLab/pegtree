@@ -216,7 +216,7 @@ def colorTree(t):
 
 # parse command
 
-def sample(options, conv=None):
+def sample(options):
     files = os.listdir(Path(__file__).parent / 'grammar')
     files.sort()
     for file in files:
@@ -224,7 +224,7 @@ def sample(options, conv=None):
             print(file)
 
 
-def show(options, conv=None):
+def tpeg(options):
     peg = load_grammar(options)
     print(peg)
     if '@@example' in peg:

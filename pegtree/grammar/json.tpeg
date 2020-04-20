@@ -9,7 +9,76 @@
  * Authors:
  *  K. Kuramitsu 
  */
+ 
+File = S* Expression S* !.
 
+/* Code Layout, Tokens */
+
+S = [ \t\n\r]
+"[" = '[' S*
+"]" = ']' S*
+"{" = '{' S*
+"}" = '}' S*
+"," = ',' S*
+":" = ':' S*
+
+Expression =
+    / String
+    / Number
+    / Object
+    / Array
+    / Null
+    / True
+    / False
+    / ObjectId
+
+Object = {
+   "{" 
+   ( Member ("," Member )* )? 
+   "}" 
+   #Object 
+}
+
+Member = { 
+   key: String 
+   ":" 
+   value: Expression 
+   #KeyValue 
+}
+
+Key = String
+
+ObjectId = 'ObjectId' '("' { ID #Symbol } '")'
+
+ID = [0-9a-z]+
+
+Array = {
+    "[" 
+    (Expression ("," Expression )* )? 
+    "]" 
+    #List 
+}
+
+String = '"' { 
+    (('\\"' / '\\\\' / !'"' .)*) 
+    #String 
+} '"' S*
+
+True = { 'true'  #True } S*
+
+False = { 'false' #False } S*
+
+Null = { 'null'  #Null } S*
+
+Number =
+   / { ('-'? INT FRAC EXP?) #Float } S*
+   / { ('-'? INT) #Int } S*
+
+INT = [0-9]+
+DIGIT = [0-9]
+FRAC = '.' DIGIT+
+EXP = [Ee] ('-' / '+')? DIGIT+
+	
 /* This is a JSON object: */
 
 example Object, Value '''
@@ -58,82 +127,7 @@ example Array, Value '''
 
 /* Here are three small JSON texts containing only values: */
 
-example String, Value "Hello world!" 
-example Number, Value 42
-example Number, Value 42.22
-example Value true
-example INT 42
- 
-File
-	= S* Value S* !.
-
-/* Code Layout, Tokens */
-
-S = [ \t\n\r]
-"[" = '[' S*
-"]" = ']' S*
-"{" = '{' S*
-"}" = '}' S*
-"," = ',' S*
-":" = ':' S*
-
-Expression
-	= Value
-
-Value
-	= String
-	/ Number
-	/ Object
-	/ Array
-	/ Null
-	/ True
-	/ False
-	/ ObjectId
-
-Object
-	= { "{" ( Member ("," Member )* )? "}" #Object }
-
-Member
-	= { key: String ":" value: Value #KV }
-
-Key
-	= String
-
-ObjectId 
-        = 'ObjectId' '("' { ID #Symbol } '")'
-
-ID
-        = [0-9a-z]+
-
-Array
-	= { "[" (Value ("," Value )* )? "]" #List }
-
-
-String
-	= '"' { (('\\"' / '\\\\' / !'"' .)*) #String } '"' S*
-
-True
-        = { 'true'  #True } S*
-
-False
-        = { 'false' #False } S*
-
-Null
-        = { 'null'  #Null } S*
-
-Number
-        = { ('-'? INT FRAC EXP?) #Float } S*
-        / { ('-'? INT) #Int } S*
-
-INT
-	= [0-9]+
-
-DIGIT
-	= [0-9]
-
-FRAC
-	= '.' DIGIT+
-
-EXP
-	= [Ee] ('-' / '+')? DIGIT+
-	
+example String, Expression "Hello world!" 
+example Number, Expression 42
+example Number, Expression 42.22
+example Expression true

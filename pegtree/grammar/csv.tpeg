@@ -22,13 +22,12 @@ File =
 	CommaSeparatedValue
 
 CommaSeparatedValue = {
-	$(Line)*
+	Line*
 	#CSV
 }
 
 Line = {
-	$(Value) 
-	(',' $(Value))* 
+	Value (',' Value)* 
 	( NEWLINE / !. ) 
 	#Line 
 }
@@ -37,7 +36,5 @@ Value =
 	'"' { ('""' / (!'"' .))* #Value } '"'
 	/ { (![,\r\n] .)* #Value }
 
-NEWLINE = 
-	'\r\n' 
-	/ '\n'
+NEWLINE = '\r\n' / '\n'
 
