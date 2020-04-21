@@ -550,7 +550,7 @@ const pNode = (pf: PFunc, tag: string, shift: number) => {
   }
 }
 
-const pEdge = (edge: string, pf: PFunc) => {
+const pEdge = (edge: string, pf: PFunc, shift: number) => {
   if (edge === '') {
     return pf;
   }
@@ -560,7 +560,7 @@ const pEdge = (edge: string, pf: PFunc) => {
     px.ptree = null;
     if (pf(px)) {
       if (px.ptree === null) {
-        px.ptree = new PTree(null, '', pos, px.pos, px.ptree)
+        px.ptree = new PTree(null, '', pos + shift, px.pos, px.ptree)
       }
       px.ptree = new PTree(prev, edge, -1, -1, px.ptree)
       return true;
