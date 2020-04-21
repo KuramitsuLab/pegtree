@@ -24,7 +24,7 @@ CODE = {
     },
     'ts': {
         'file': 'ts.txt',
-        'prefix': 'PAsm.p',
+        'prefix': 'p',
         'rule': '  {};',
         'pasm': PASM1 + PASM1_LEX + PASM1_VARGS,
     },
@@ -235,7 +235,7 @@ class PAsmGenerator(Generator):
     def Symbol(self, pe, step):
         sid = self.getsid(str(pe.params[0]))
         e = self.emit(pe.e, step)
-        return self.emitApply('Symbol', str(sid), e)
+        return self.emitApply('Symbol', e, str(sid))
 
     def Exists(self, pe, step):
         sid = self.getsid(str(pe.params[0]))
