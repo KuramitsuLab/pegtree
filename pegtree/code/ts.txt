@@ -1036,6 +1036,10 @@ export const quote = (s: string) => {
   return "'" + translate(s, ESCTBL) + "'"
 }
 
+const pRule = (peg: { [key: string]: PFunc }, name: string, e: PFunc) => {
+  peg[name] = e;
+}
+
 export type Parser = (inputs: string, options?: any) => ParseTree;
 
 export class PAsm {
