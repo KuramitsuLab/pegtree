@@ -345,6 +345,12 @@ def pasm(options):
     parsec(peg, **options)
 
 
+def pasmcc(options):
+    from pegtree.nezcc import parsec
+    peg = load_grammar(options)
+    parsec(peg, **options)
+
+
 def update(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git

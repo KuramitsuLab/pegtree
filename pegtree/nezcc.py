@@ -235,15 +235,15 @@ class PAsmGenerator(Generator):
     def Symbol(self, pe, step):
         sid = self.getsid(str(pe.params[0]))
         e = self.emit(pe.e, step)
-        return self.emitApply('Symbol', sid, e)
+        return self.emitApply('Symbol', str(sid), e)
 
     def Exists(self, pe, step):
         sid = self.getsid(str(pe.params[0]))
-        return self.emitApply('Exists', sid)
+        return self.emitApply('Exists', str(sid))
 
     def Match(self, pe, step):
         sid = self.getsid(str(pe.params[0]))
-        return self.emitApply('Match', sid)
+        return self.emitApply('Match', str(sid))
 
     def Scope(self, pe, step):
         e = self.emit(pe.e, step)

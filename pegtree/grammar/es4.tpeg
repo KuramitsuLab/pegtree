@@ -18,11 +18,11 @@ File = { ( __ SourceElement )* __ #Source }
 
 SPACE                           = [\t\v\f \u00A0\uFEFF]
 LINE_TERMINATOR_SEQUENCE        = '\n'
-                                / '\r\n'
-                                / '\r'
+   / '\r\n'
+   / '\r'
 LINE_TERMINATOR                 = [\n\r\u2028\u2029]
 COMMENT                         = MULTI_LINE_COMMENT
-                                / SINGLE_LINE_COMMENT
+   / SINGLE_LINE_COMMENT
 MULTI_LINE_COMMENT              = '/*' ( !'*/' . )* '*/'
 MULTI_LINE_COMMENT_SINGLE_LINE  = '/*' ( !( '*/' / LINE_TERMINATOR ) . )* '*/'
 SINGLE_LINE_COMMENT             = '//' ( !LINE_TERMINATOR . )*
@@ -35,9 +35,9 @@ _                               = ( SPACE / MULTI_LINE_COMMENT_SINGLE_LINE )*
 
 //Automatic Semicolon Insertion
 EOS                             = __ ';'
-                                / _ SINGLE_LINE_COMMENT? LINE_TERMINATOR_SEQUENCE
-                                / _ &'}'
-                                / __ EOF
+   / _ SINGLE_LINE_COMMENT? LINE_TERMINATOR_SEQUENCE
+   / _ &'}'
+   / __ EOF
 EOF                             = !.
 
 /* Keywords, Operator */
@@ -58,98 +58,52 @@ EOF                             = !.
 "^"          = '^' ![=]
 "|"          = '|' ![=]
 "="          = '=' ![=]
-"break"      = 'break' !W
-"case"       = 'case' !W
-"catch"      = 'catch' !W
-"continue"   = 'continue' !W
-"debugger"   = 'debugger' !W
-"default"    = 'default' !W
-"delete"     = 'delete' !W
-"do"         = 'do' !W
-"else"       = 'else' !W
-"finally"    = 'finally' !W
-"for"        = 'for' !W
-"function"   = 'function' !W
-"if"         = 'if' !W
-"in"         = 'in' !W
-"instanceof" = 'instanceof' !W
-"new"        = 'new' !W
-"return"     = 'return' !W
-"switch"     = 'switch' !W
-"this"       = 'this' !W
-"throw"      = 'throw' !W
-"try"        = 'try' !W
-"typeof"     = 'typeof' !W
-"var"        = 'var' !W
-"void"       = 'void' !W
-"while"      = 'while' !W
-"with"       = 'with' !W
-"class"      = 'class' !W
-"enum"       = 'enum' !W
-"export"     = 'export' !W
-"extends"    = 'extends' !W
-"import"     = 'import' !W
-"super"      = 'super' !W
-"implements" = 'implements' !W
-"interface"  = 'interface' !W
-"let"        = 'let' !W
-"package"    = 'package' !W
-"private"    = 'private' !W
-"protected"  = 'protected' !W
-"public"     = 'public' !W
-"static"     = 'static' !W
-"yield"      = 'yield' !W
-"get"        = 'get' !W
-"set"        = 'set' !W
-"undefined"  = 'undefined' !W
-"null"       = 'null' !W
-"true"       = 'true' !W
-"false"      = 'false' !W
 
-KEYWORD                         = "break"
-                                / "case"
-                                / "catch"
-                                / "continue"
-                                / "debugger"
-                                / "default"
-                                / "delete"
-                                / "do"
-                                / "else"
-                                / "finally"
-                                / "for"
-                                / "function"
-                                / "if"
-                                / "in"
-                                / "instanceof"
-                                / "new"
-                                / "return"
-                                / "switch"
-                                / "this"
-                                / "throw"
-                                / "try"
-                                / "typeof"
-                                / "var"
-                                / "void"
-                                / "while"
-                                / "with"
-                                / "class"
-                                / "enum"
-                                / "export"
-                                / "extends"
-                                / "import"
-                                / "super"
-                                / "implements"
-                                / "interface"
-                                / "let"
-                                / "package"
-                                / "private"
-                                / "protected"
-                                / "public"
-                                / "static"
-                                / "yield"
-                                / "null"
-                                / "true"
-                                / "false"
+KEYWORD = 
+    / "break"
+    / "case"
+    / "catch"
+    / "continue"
+    / "debugger"
+    / "default"
+    / "delete"
+    / "do"
+    / "else"
+    / "finally"
+    / "for"
+    / "function"
+    / "if"
+    / "in"
+    / "instanceof"
+    / "new"
+    / "return"
+    / "switch"
+    / "this"
+    / "throw"
+    / "try"
+    / "typeof"
+    / "var"
+    / "void"
+    / "while"
+    / "with"
+    / "class"
+    / "enum"
+    / "export"
+    / "extends"
+    / "import"
+    / "super"
+    / "implements"
+    / "interface"
+    / "let"
+    / "package"
+    / "private"
+    / "protected"
+    / "public"
+    / "static"
+    / "yield"
+    / "null"
+    / "true"
+    / "false"
 
 /* Program */
 
@@ -347,18 +301,18 @@ DebuggerStatement = { "debugger" EOS  #JSDebuggerStatement }
 
 Expression                      = AssignmentExpression (^ { __ ',' __ AssignmentExpression #Comma })*
 AssignmentExpression            = { left: LeftHandSideExpression __ op: {addAssignmentOperator} __ right: AssignmentExpression #Assign }
-                                / ConditionalExpression
+   / ConditionalExpression
 addAssignmentOperator           = '='
-                                / '*='
-                                / '/='
-                                / '%='
-                                / '+='
-                                / '-='
-                                / '<<='
-                                / '>>' ('=' / '>=')
-                                / '&='
-                                / '^='
-                                / '|='
+   / '*='
+   / '/='
+   / '%='
+   / '+='
+   / '-='
+   / '<<='
+   / '>>' ('=' / '>=')
+   / '&='
+   / '^='
+   / '|='
 
 ConditionalExpression           = LogicalOrExpression (cond:^ { __ op: '?' __ then: AssignmentExpression __ ':' __ else: AssignmentExpression #IfExpr })*
 LogicalOrExpression             = LogicalAndExpression (left:^ { __ op: '||' __ right: LogicalAndExpression #Infix })*
@@ -368,37 +322,37 @@ BitwiseXorExpression            = BitwiseAndExpression (left:^ { __ op: "^" __ r
 BitwiseAndExpression            = EqualityExpression (left:^ { __ op: "&" __ right: EqualityExpression #Infix })*
 EqualityExpression              = RelationalExpression (left:^ { __ op: addEqualityOperator __ right: RelationalExpression #Infix })*
 addEqualityOperator             = '==' '='?
-                                / '!=' '='?
+   / '!=' '='?
 RelationalExpression            = ShiftExpression (left:^ { __ op: addRelationalOperator __ right: ShiftExpression #Infix })*
 addRelationalOperator           = '<' '='?
-                                / '>' '='?
-                                / "instanceof"
-                                / "in"
+   / '>' '='?
+   / "instanceof"
+   / "in"
 
 ShiftExpression                 = AdditiveExpression (left:^ { __ op: addShiftOperator __ right: AdditiveExpression #Infix })*
 addShiftOperator                = "<<"
-                                / '>>' ('>' / !'=' )
+   / '>>' ('>' / !'=' )
 
 AdditiveExpression              = MultiplicativeExpression (left:^ { __ op: ("+" / "-") __ right: MultiplicativeExpression #Infix })*
 MultiplicativeExpression        = UnaryExpression (left:^ { __ op: ("*" / "/" / "%") __ right: UnaryExpression #Infix })*
 UnaryExpression                 = PostfixExpression
-                                / { op: addUnaryOperator __ expr: UnaryExpression #Unary }
+   / { op: addUnaryOperator __ expr: UnaryExpression #Unary }
 addUnaryOperator                = '++'
-                                / '--'
-                                / '+'
-                                / '-'
-                                / '~'
-                                / "!"
-                                / "delete"
-                                / "void"
-                                / "typeof"
+   / '--'
+   / '+'
+   / '-'
+   / '~'
+   / "!"
+   / "delete"
+   / "void"
+   / "typeof"
 PostfixExpression               = { expr: LeftHandSideExpression _ op: addPostfixOperator #Postfix }
-                                / LeftHandSideExpression
+   / LeftHandSideExpression
 addPostfixOperator              = '++'
-                                / '--'
+   / '--'
 
 LeftHandSideExpression          = CallOrMemberExpression
-                                / NewExpression
+   / NewExpression
 
 addArgumentList                 = AssignmentExpression ( __ ',' __ AssignmentExpression )*
 addMemberOperator               = '.' __ name: IdentifierName
@@ -406,23 +360,23 @@ addIndexOperator                = '[' __ param: Expression __ ']'
 addCallOperator                 = param: Arguments
 
 CallOrMemberExpression          = PrimaryExpression (recv:^  { __ addCallOperator #ApplyExpr }
-                                                   / recv:^ { __ addMemberOperator #GetExpr }
-                                                   / recv:^ { __ addIndexOperator #IndexExpr } )*
+                      / recv:^ { __ addMemberOperator #GetExpr }
+                      / recv:^ { __ addIndexOperator #IndexExpr } )*
 Arguments                       = { '(' __ ( addArgumentList __ )? ')' #List }
 
 NewExpression                   = MemberExpression
-                                / { "new" __ NewExpression #JSNew }
+   / { "new" __ NewExpression #JSNew }
 NewExpressionWithArgs           = { "new" __ MemberExpression __ Arguments #JSNew }
 MemberExpression                = PrimaryExpression (recv:^ { __ addMemberOperator #GetExpr })*
 
 PrimaryExpression               = ThisExpression
-                                / '(' __ Expression __ ')'
-                                / Literal
-                                / ArrayLiteral
-                                / ObjectLiteral
-                                / FunctionExpression
-                                / NewExpressionWithArgs
-                                / Identifier
+   / '(' __ Expression __ ')'
+   / Literal
+   / ArrayLiteral
+   / ObjectLiteral
+   / FunctionExpression
+   / NewExpressionWithArgs
+   / Identifier
 ThisExpression                  = "this" { #ThisExpr }
 
 /* ArrayLietral */
@@ -440,8 +394,8 @@ PropertyAssignment              = { key: PropertyName __ ':' __ value: Assignmen
 //                              / { "get" __ PropertyName __ '(' __ ')' __ FunctionBody #GetterProperty }
 //                              / { "set" __ PropertyName __ '(' __ Identifier __ ')' __ FunctionBody #SetterProperty }
 PropertyName                    = StringLiteral
-                                / NumericLiteral
-                                / IdentifierName
+   / NumericLiteral
+   / IdentifierName
 
 /* Identifier */
 
