@@ -592,7 +592,7 @@ def pFold(edge, pf, tag, shift):
     else:
         def match_fold2(px):
             pos, prev = popPTree(px)
-            px.ptree = PTree(None, edge, 0, -pos, px.ptree)
+            px.ptree = PTree(None, edge, -1, -1, px.ptree)
             if pf(px):
                 px.ptree = PTree(prev, tag, pos, px.pos, px.ptree)
                 return True
