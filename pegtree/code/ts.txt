@@ -575,8 +575,8 @@ const pFold = (edge: string, pf: PFunc, tag: string, shift: number) => {
       const pos = px.pos
       var pt = px.ptree;
       const prev = pt ? pt.prev : null;
-      pt = pt ? (prev ? new PTree(null, pt.tag, pt.epos, pt.epos, pt.child) : pt) : null;
-      px.ptree = new PTree(null, edge, pos, -pos, pt);
+      pt = pt ? (prev ? new PTree(null, pt.tag, pt.spos, pt.epos, pt.child) : pt) : null;
+      px.ptree = new PTree(null, edge, -1, -1, pt);
       if (pf(px)) {
         px.ptree = new PTree(prev, tag, pos, px.pos + shift, px.ptree);
         return true;
@@ -836,7 +836,7 @@ export class ParseTree {
   urn_: string;
   subs_: ParseTree[];
 
-  public constructor(tag: string, inputs: string, spos = 0, epos = -1, urn = '(unknown source)') {
+  public constructor(tag: string, inputs: string='', spos = 0, epos = -1, urn = '(unknown source)') {
     this.tag_ = tag
     this.inputs_ = inputs
     this.spos_ = spos
@@ -871,6 +871,15 @@ export class ParseTree {
 
   public get(key: string | number): ParseTree {
     if (typeof key === 'string') {
+      if(key.indexOf(',') > 0) {
+        const keys = key.split(',')
+        for(const k of keys) {
+          if(this.has(k)) {
+            key = k
+            break
+          }
+        }
+      }
       const t = (this as any)[key];
       return (t instanceof ParseTree) ? t as ParseTree : this.newEmpty();
     }
@@ -891,6 +900,22 @@ export class ParseTree {
       (this as any)[key] = t;
     }
   }
+
+  public get2(key: number | string, key2: number | string, perror = (s:string)=>{}) {
+    const e = this.get(key)
+    if (!e.isEmpty()) {
+      return e
+    }
+    const e2 = this.get(key2)
+    if (!e2.isEmpty()) {
+      return e2
+    }
+    //this.perror(pt, 'UndefinedParseTree')
+    perror(`${key},${key2}`)
+    return e2
+  }
+
+
 
   public getNodeSize() {
     return this.subs_.length;
@@ -931,6 +956,23 @@ export class ParseTree {
     return this.get(key).getToken();
   }
 
+  public trim(shift=0, end_shift=0): ParseTree {
+    if(shift!==0) {
+      const pos = this.spos_ + shift
+      if(0<= pos && pos < this.inputs_.length) {
+        this.spos_ = pos
+      }
+    }
+    if (end_shift !== 0) {
+      const pos = this.epos_ + end_shift
+      if (0 <= pos && pos < this.inputs_.length) {
+        this.epos_ = pos
+      }
+    }
+    return this
+  }
+
+
   public toString() {
     const sb: string[] = [];
     this.strOut(sb);
@@ -947,6 +989,7 @@ export class ParseTree {
       node.strOut(sb);
     }
     for (const key of this.keys()) {
+      c += 1;
       sb.push(` ${key} = `);
       (this as any)[key].strOut(sb);
     }
@@ -1036,18 +1079,15 @@ export const quote = (s: string) => {
   return "'" + translate(s, ESCTBL) + "'"
 }
 
+export type Parser = (inputs: string, options?: any) => ParseTree;
+
 const pRule = (peg: { [key: string]: PFunc }, name: string, e: PFunc) => {
   peg[name] = e;
 }
 
-export type Parser = (inputs: string, options?: any) => ParseTree;
-
 export class PAsm {
 
-  public static pRule = (peg: { [key: string]: PFunc }, name: string, e: PFunc) => {
-    peg[name] = e;
-  }
-
+  public static pRule = pRule;
   public static pEmpty = pEmpty;
   public static pFail = pFail;
   public static pAny = pAny;
@@ -1130,35 +1170,19 @@ export class PAsm {
   }
 }
 
-export abstract class ParseTreeVisitor<T> {
-  private methodMap: any = {}
-  protected getAcceptMethod(pt: ParseTree): string {
-    const tag = pt.getTag();
-    const method = this.methodMap[tag];
-    if (!method) {
-      const newmethod = `accept${tag}`;
-      this.methodMap[tag] = newmethod;
-      return newmethod;
-    }
-    return method;
-  }
-  protected visit(pt: ParseTree): T {
-    const method = this.getAcceptMethod(pt);
-    if (method in this) {
-      const ty = (this as any)[method](pt);
-      return ty;
-    }
-    return this.undefinedParseTree(pt);
-  }
-  protected abstract undefinedParseTree(pt: ParseTree): T;
-}
 
 //-------------------------------------------------------------- 
 //import { PAsm, ParseTree } from 'pegtree';
 
 export const generate = PAsm.generate;
 
-export const PEG = (peg?: any) => {
+
+//-------------------------------------------------------------- 
+//import { PAsm, ParseTree } from 'pegtree';
+
+export const generate = PAsm.generate;
+
+export const TPEG = (peg?: any) => {
   if (peg === undefined) {
     peg = {}
   }

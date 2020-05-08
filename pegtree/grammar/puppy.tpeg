@@ -1,6 +1,5 @@
 /**
  * Puppy Grammar
- *
  * Authors:
  *   Kimio Kuramitsu (https://github.com/kkuramitsu/)
  */
@@ -30,25 +29,21 @@ __           = ( S / '\n' / BLOCKCOMMENT / LINECOMMENT )*
 SPC          = ( S / BLOCKCOMMENT / LINECOMMENT )+
 
 BLOCKCOMMENT = '/*' ( !'*/' . )* '*/'
-             / '(*' ( !'*)' . )* '*)'
 LINECOMMENT  = [#＃] ( !LF . )*
 
 EOL          = _ LF (_ LF)*
 INDENT       = '\n' [ \t　]+
 
-
 Statement = 
     / ClassDecl
     / ImportDecl
+    / FromImportDecl
     / FuncDecl
-    / IfStmt
-    / ForStmt
-    / WhileStmt
-    / Return 
-    / Pass 
-    / Break 
-    / Continue
-    / VarDecl
+    / IfStatement
+    / ForStatement
+    / WhileStatement
+    / ControlStatement 
+    / AssignmentStatement
     / Expression
 
 Block = {
@@ -59,20 +54,20 @@ Block = {
     #Block
 }
 
-BlockStmt = {
-    Statement
-    #Block
-}
-
 /* import */
 
 ImportDecl = {
-    ('import' S) name: Name 
-    (('as' S) alias: Name)?
+    "import" 
+    name: Name 
+    ("as" alias: Name)?
     #ImportDecl
-} / {
-    ('from' S) name: Name 
-    ('import' S) names: ({ Name (',' _ Name)* } / {'*' _})
+}
+
+FromImportDecl = {
+    "from" 
+    name: Name 
+    "import"
+    names: ({ Name (',' _ Name)* } / {'*' _})
     #FromDecl
 }
 
@@ -87,41 +82,56 @@ class Ball(Circle):
 ClassDecl = {
     'class' S _ 
     name: Name 
-    ('(' _ extends: Name ')' _)? ':' _
-    (Block / BlockStmt)
+    ("(" extends: Name ")")? ":"
+    (Block / Statement)
     #ClassDecl
 }
 
 /* 関数定義 */
 
-example FuncDecl, Statement '''
-def succ(x):
+example Statement '''
+@clicked(A)
+def succ(x: int):
     #hoge
     return x+1
 '''
 
 FuncDecl = {
-    'def' S _ 
+    (deco: Decorator)?
+    (async: "async")?
+    "def" 
     name: Name 
     params: FuncParams ":"
-    body: (Block / BlockStmt)
+    body: (Block / Statement)
     #FuncDecl
 }
 
+Decorator = {
+    '@'
+    name: Name
+    ("(" params: Arguments ")")? __
+    #Decorator
+}
+
 FuncParams = {
-    "(" FuncParam? ( "," __ FuncParam )* (__ ")" / CloseP)
+    "(" FuncParam? ( "," __ FuncParam )* __ ")"
     #FuncParam
 }
 
 FuncParam = {
     name: Name 
-    ( ":" type: Name)?
+    ( ":" type: Type)?
+    ( "=" value: Expression)?
     #Param
 }
 
-Lambda = {
-    'lambda' 
-    (S _ params: LambdaParams)? ":"
+example Lambda lambda: print(1)
+example Lambda lambda x: print(x)
+example Lambda lambda x,y: print(x,y)
+
+LambdaExpression = {
+    "lambda" 
+    (params: LambdaParams)? ":"
     body: (Block / Expression)
     #FuncExpr
 }
@@ -131,32 +141,33 @@ LambdaParams = {
     #Param
 }
 
-example Lambda lambda: print(1)
-example Lambda lambda x: print(x)
-example Lambda lambda x,y: print(x,y)
+ControlStatement =
+    / ReturnStatement
+    / BreakStatement
+    / ContinueStatement
+    / PassStatement
+    / YieldStatement
 
-Return = {
-    'return' 
-    (!W _ expr: Expression)?
+ReturnStatement = {
+    "return"
+    (expr: (Expressions / Expression) )?
     #Return
 } 
 
-Yield = { 'yield' _ #Yield } 
-Pass =  { 'pass' _ #Pass }
-Break = { 'break' _ #Break }
-Continue = { 'continue' _ #Continue }
+YieldStatement = { "yield" #Yield } 
+PassStatement =  { "pass" #Pass }
+BreakStatement = { "break" #Break }
+ContinueStatement = { "continue" #Continue }
 
 /* if文 */
 
 example Statement '''
 if A == 1 :
     print(A)
-    #hoge
-    print(A, B)
-    A = Ball(跳ね返る)
+    A = Ball()
 else:
     print(A, B)
-
+    
     A = 2
 '''
 
@@ -171,29 +182,32 @@ else :
     D
 '''
 
-IfStmt = {
-    ('if' !W) _ 
+IfStatement = {
+    "if" 
     cond: Expression ":"
-    then: (Block / BlockStmt)
-    (elif: ElifBlock)?
-    (
-        (@match(INDENT) / LF)
-        'else' !W _  ":"
-        else: (Block / BlockStmt)
-    )?
-    #IfStmt
+    then: (Block / Statement)
+    (elif: ElifStatements)?
+    (else: ElseStatement)?
+    #If
 }
 
-ElifBlock = {
-    ElifStmt+
+ElifStatements = {
+    ElifStatement+
 }
 
-ElifStmt = {
+ElifStatement = {
     (@match(INDENT) / LF)
-    ('elif' !W) _ 
+    "elif" 
     cond: Expression ":"
-    then: (Block / BlockStmt)
-    #ElifStmt
+    then: (Block / Statement)
+    #Elif
+}
+
+ElseStatement = {
+    (@match(INDENT) / LF)
+    "else" ":"
+    (Block / Statement)
+    #Else
 }
 
 /* for文 (* *) */
@@ -204,33 +218,40 @@ for x in [1,2,3]:
     print(x+1)
 '''
 
-ForStmt = {
-    ('for' !W) _ 
+ForStatement = {
+    "for" 
     each: Name 
-    ('in' !W) _ 
+    "in" 
     list: Expression ":"
-    body: (Block / BlockStmt)
-    #ForStmt
+    body: (Block / Statement)
+    (else: ElseStatement)?
+    #For
 }
 
-WhileStmt = {
-    ('while' !W) _ 
+WhileStatement = {
+    "while"
     cond: Expression ":"
-    body: (Block / BlockStmt)
-    #WhileStmt
+    body: (Block / Statement)
+    (else: ElseStatement)?
+    #While
 }
 
-/* var */
+/* Assignment */
 
-example VarDecl,Statement A = 1
-example VarDecl,Statement A += 1
+AssignmentStatement =
+    / MultiAssignment
+    / VarDecl
+    / Assignment
+    / SelfAssignment
 
-VarDecl = {
-    left: LeftHand
+example Statement a,b = b,a
+
+MultiAssignment = {
+    left: { LeftHand ("," LeftHand)+ }
     "=" 
-    right: Expression
-    #VarDecl
-} / SelfAssign
+    right: (Expressions / Expression)
+    #MultiAssignment
+}
 
 LeftHand =
     Name (
@@ -238,33 +259,54 @@ LeftHand =
     	/ { recv:^ "[" index: Expression "]" #IndexExpr }
     )*
 
-SelfAssign = {
+Expressions = {
+    Expression ("," Expression)+ 
+    #Tuple
+}
+
+example Statement a = 1
+example Statement a[0] = 1
+example Statement A += 1
+
+VarDecl = {
+    (anno: Decorator)?
+    (type: VarType)?
+    left: Name
+    "=" 
+    right: Expression
+    #VarDecl
+}
+
+VarType = { 'const'/'let'/'var' } !W _
+
+Assignment = {
+    left: LeftHand
+    ":"? "=" 
+    right: Expression
+    #Assignment
+}
+
+SelfAssignment = {
     left: LeftHand
     name: SelfAssignOp
     right: Expression
-    #SelfAssign
+    #SelfAssignment
 }
 
 SelfAssignOp = {
     ('<<' / '>>' / '**' / '//' / [+=*/%&|^＋＝＊／％＆｜＾×÷]) ('='/'＝')
 } _
 
-/* Reserved */
-
 /* Expression */
 
 example Expression not 1 == 2
 example Expression not 1 == 2 and 1 > 3
 
-// Expression = Operator ( 
-//     (then:^ { 'if' !W _ cond: Expression 'else' !W _ else: Expression #IfExpr })
-//     / (left:^ { "=" right: Expression #AssignExpr})
-// )?
-
 Expression = Operator {
     then:^  
-    'if' !W _ cond: Expression 
-    'else' !W _ else: Expression #IfExpr 
+    "if" cond: Expression 
+    "else" else: Expression 
+    #IfExpr 
 }?
 
 BUGS = [)\]} ）］｝　]*
@@ -282,7 +324,7 @@ AND = 'and' !W / '&&' / '＆＆'
 NotExpr =
 	{ NOT _ NotExpr #Not } / EqExpr
 
-NOT = ('not' !W _) / '!' / '！'
+NOT = 'not' !W / '!' / '！'
 
 EqExpr =
 	SumExpr (left:^ { name: { EQ #Name } _ right: SumExpr #Infix })*
@@ -295,7 +337,7 @@ EQ =
 	/ '<'  !'<' / '＜' !'＜'
 	/ '>'  !'>' / '＞' !'＞'
     / '=' !'='  / '＝' !'＝'
-    / ('in' S)
+    / 'in' !W
 
 SumExpr =
 	ProdExpr (left:^ { name: { SUM #Name } _ right: ProdExpr #Infix })*
@@ -319,11 +361,11 @@ PRE = [+\-~＋ー〜]
 
 SuffixExpr =
 	Primary (
-	    recv:^ { "." name: Name "(" params: Arguments (__ ")" / err: CloseP) #MethodExpr }
+	    recv:^ { "." name: Name "(" params: Arguments __ ")" #MethodExpr }
 	    / recv:^ { "." name: Name #GetExpr }
-	    / name:^ { "(" params: Arguments (__ ")" / err: CloseP)  #ApplyExpr }
-        / recv:^ { "[" (left: Expression)? ":" (right: Expression)? ("]" / err: CloseS) #Slice }
-	    / recv:^ { "[" index: Expression ("]" / err: CloseS) #IndexExpr }
+	    / name:^ { "(" params: Arguments __ ")"  #ApplyExpr }
+        / recv:^ { "[" (left: Expression)? ":" (right: Expression)? "]" #Slice }
+	    / recv:^ { "[" index: Expression "]" #IndexExpr }
 	)*
 
 example Expression a[1:2]
@@ -333,19 +375,19 @@ example Expression a[:2]
 Arguments = {
 	( !(NAME _ '=') Expression)? 
     ( "," __ !(NAME _ '=') Expression )*
-    KeywordArgument?
+    NamedArguments?
     #Arguments
 }
 
-KeywordArgument = {
+NamedArguments = {
     ("," __ )?
-    Argument ( "," __ Argument )*
+    NamedArgument ( "," __ NamedArgument )*
     #Data
 }
 
-Argument = {
+NamedArgument = {
     name: Name
-    "=" _ 
+    "=" 
     value: Expression
     #KeyValue
 }
@@ -367,26 +409,24 @@ example Primary, Expression '''
 '''
 
 Primary =
-  /	GroupExpr
-  / ListExpr
-  / DataExpr
-  / Lambda
-  / Constant
-  / Name
+    / NLExpr
+    / GroupExpr
+    / ListExpr
+    / DataExpr
+    / Constant
+    / Name
 
-GroupExpr = { "(" Expression ("," __ Expression)*  (__ ")" / CloseP) #Tuple }
+NLExpr = '(*' _ { (!(S* '*)') .)+ #NLExpr } S* '*)' _
 
-ListExpr = { "[" (Expression ("," __ Expression)* )? ","?  (__ "]"/CloseS) #List }
+GroupExpr = { "(" Expression ("," __ Expression)*  __ ")" #Tuple }
 
-DataExpr = { "{" KeyValue ("," __ KeyValue)* ","? (__ "}"/CloseB) #Data }
+ListExpr = { "[" (Expression ("," __ Expression)* )? ","?  __ "]" #List }
+
+DataExpr = { "{" (KeyValue ("," __ KeyValue)*)? ","? __ "}" #Data }
 
 DELIM = [.:+\-*/%<>=!(){}[\],\n]
 
-CloseP = { !")" (&DELIM / EOF) #RecoverP }
-CloseS = { !"]" (&DELIM / EOF) #RecoverS }
-CloseB = { !"}" (&DELIM / EOF) #RecoverB }
-
-example GroupExpr （1, (1）= 
+example GroupExpr （1, (1）)= 
 example GroupExpr (1,(2))= 
 
 KeyValue = {
@@ -414,7 +454,10 @@ _ParamType = {^ "[<" (Type ("," Type)*)? ">]" #ParamType }
 
 /* Name, Identifier */
 
-Name = Identifier / IdentifierLFP
+Name = 
+    / Identifier 
+    / Defined
+    / UIdentifier
 
 NAME = [A-Za-z_] W*
 
@@ -423,19 +466,11 @@ Identifier = {
     #Name
 } _
 
-IdentifierLFP = {
-    (HIRA / KATA / KANJI/ '_')+ W*
-    #NameOrLFP
-} _
+Defined = '「' { (!'」' .)+ #Name } '」'
 
-LFPSymbol = {
-    (HIRA / KATA / KANJI)+
-    #LFPSymbol
-} _
-
-LFKeyValue = {
-    (HIRA / KATA / KANJI)+
-    #LFKeyValue
+UIdentifier = {
+    (KATA / KANJI / HIRA / '_')+ W*
+    #UName
 } _
 
 W = [A-Za-z0-9_]
@@ -490,11 +525,12 @@ LongString =
     / '""' { '"' ( ESCAPE / ![\\"] . / !'"""' '"' )* '"' #MultiString } '""' _
 
 StringExpr = 
-    / { '"' STRING* '"' #String } _
-    / { DQ ZSTRING* DQ #ZString } _
+    / { '"' STRING* '"' #QString } _
+    / DQ { ZSTRING* #ZString } DQ _
+
 CharExpr = 
-    / { '\'' CHAR* '\'' #Char } _
-    / { SQ ZCHAR* SQ #ZChar } _
+    / { '\'' CHAR* '\'' #QString } _
+    / SQ {  ZCHAR* #ZChar } SQ _
 
 SQ = ['’‘＇]
 DQ = ["”“＂]
@@ -509,6 +545,10 @@ ESCAPE =
     / '\\' [0-7] [0-7]
     / '\\' [0-7]
 	/ '\\' [uU] HEX HEX HEX HEX
+
+/* Number,Unit */
+
+Number = FloatExpr / IntExpr
 
 IntExpr = {
 	(HEXADECIMAL / BINARY / DECIMAL )
@@ -537,32 +577,18 @@ FRACTION =
 EXPONENT =
 	[eE] [+\-]? !'_' DIGIT+
 
-/* Number,Unit */
-
-Number = FloatExpr / IntExpr
-
 /* Const */
 
 TrueExpr  = { [Tt] 'rue' #TrueExpr } _
 FalseExpr = { [Ff] 'alse' #FalseExpr } _
 NullExpr  = { ('None' / 'null') #Null } _
 
-/* Indent-based Code Layout */
-
-
 /* Character */
-
-C  =
-    / HIRA
-    / KATA
-    / KANJI
-    / MARK
-    / [ａ-ｚＡ-Ｚ０-９]
 
 HIRA = [ぁ-ん]
 KATA = [ァ-ヶ]
 KANJI = [㐀-䶵一-龠々〇〻ー]
-MARK = [ー]
+TENIWOHA = [はがもをとにへまか]
 
 //W     = [ァ-ヶ㐀-䶵一-龠々〇〻Ａ-Ｚー]
 //DIGIT = [０-９]
@@ -596,7 +622,7 @@ example Source '''
 a=1;b=1
 '''
 
-example Expression ”Hello World“
-example Expression Circle(0, hoge, hoge=1)
 example Source if a = b and b = c: pass
 
+example Expression (* 考える *)
+example Expression しきい値
