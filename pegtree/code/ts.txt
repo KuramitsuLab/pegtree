@@ -1176,12 +1176,6 @@ export class PAsm {
 
 export const generate = PAsm.generate;
 
-
-//-------------------------------------------------------------- 
-//import { PAsm, ParseTree } from 'pegtree';
-
-export const generate = PAsm.generate;
-
 export const TPEG = (peg?: any) => {
   if (peg === undefined) {
     peg = {}
