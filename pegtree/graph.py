@@ -1,16 +1,20 @@
 from pegtree.pasm import ParseTree
+
 try:
   from graphviz import Digraph
   is_graphviz_avaiable = True
 except ModuleNotFoundError:
   is_graphviz_avaiable = False
 
+
 class GenId(object):
   def __init__(self):
     self.c = 0
+
   def gen(self):
-    self.c+=1
+    self.c += 1
     return self.c
+
 
 def draw_node(g, t, c):
   nid = c.gen()
@@ -19,9 +23,9 @@ def draw_node(g, t, c):
   es = []
   for i, child in enumerate(t):
     es.append((child.spos_, child, i))
-    for key in t.keys():
-      child = t.get(key)
-      es.append((child.spos_, child, key))
+  for key in t.keys():
+    child = t.get(key)
+    es.append((child.spos_, child, key))
   es.sort()
   if len(es) == 0:
     childid = f'c{nid}'
@@ -34,6 +38,7 @@ def draw_node(g, t, c):
       g.edge(nodeid, childid, label=f'{edge}')
   return nodeid
 
+
 def draw_graph(ptree: ParseTree, name='G'):
   if is_graphviz_avaiable == False:
     print('Install graphviz FIRST')
@@ -45,7 +50,7 @@ def draw_graph(ptree: ParseTree, name='G'):
   #g.view()
   return g
 
-def Graphviz(parser):
-  return lambda s: draw_graph(parser(s))
-
-
+def Viz(tree_or_parser):
+  if isinstance(tree_or_parser, ParseTree):
+    return draw_graph(tree_or_parser)
+  return lambda s: draw_graph(tree_or_parser(s))
