@@ -237,9 +237,9 @@ class TPEGLoader(object):
     @classmethod
     def fileName(cls, urn, file):
         if file.startswith('CJDIC'):
-            file = file.replace('CJDIC', os.environ.get('CJDIC', 'cjdic'))
-            return Path(file)
-        return Path(urn).absolute().parent / file
+            file = file.replace('CJDIC', os.environ.get('CJDIC', '__unknown__'))
+            return None if '__unknown__' in file else Path(file) 
+        return Path(urn).parent / file
 
     @classmethod
     def choice(cls, urn, es, n, fset):
@@ -247,13 +247,14 @@ class TPEGLoader(object):
         for e in es:
             filename = str(e)[1:-1]
             file = TPEGLoader.fileName(urn, filename)
+            if file is None:
+                continue
             try:
                 with file.open(encoding='utf-8_sig') as f:
                     ss = [x.strip('\r\n') for x in f.readlines()]
                     ds |= fset(ss, n)
             except:
-                if not filename.startswith('CJDIC'):
-                    print(f'File Not Found: {file}')
+                print(f'can\'t read: {filename} {file}')
         choice = [PChar(x) for x in sorted(ds, key=lambda x: len(x))[::-1]]
         return POre.new(*choice)
 
