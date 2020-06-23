@@ -238,7 +238,7 @@ class TPEGLoader(object):
     def fileName(cls, urn, file):
         if file.startswith('CJDIC'):
             file = file.replace('CJDIC', os.environ.get('CJDIC', '__unknown__'))
-            return None if '__unknown__' in file else Path(file) 
+            return None if '__unknown__' in file else Path(file)
         return Path(urn).parent / file
 
     @classmethod
@@ -321,8 +321,8 @@ def load_grammar(peg, file_or_text, **options):
         f = file_or_text.open(encoding=options.get('encoding', 'utf-8_sig'))
         data = f.read()
         f.close()
-        ptree = TPEGParser(data, options.get('urn', file_or_text))
         basepath = str(file_or_text)
+        ptree = TPEGParser(data, basepath)
     else:
         if 'basepath' in options:
             basepath = options['basepath']
@@ -343,7 +343,7 @@ def findpath(paths, file_or_text):
     for p in paths:
         path = Path(p) / file_or_text
         if path.is_file():
-            return path.resolve()
+            return path.absolute()
     raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), file_or_text)
 
 GrammarDB = {}
