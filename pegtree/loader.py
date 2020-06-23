@@ -239,7 +239,7 @@ class TPEGLoader(object):
         if file.startswith('CJDIC'):
             file = file.replace('CJDIC', os.environ.get('CJDIC', 'cjdic'))
             return Path(file)
-        return Path(urn).parent / file
+        return Path(urn).absolute().parent / file
 
     @classmethod
     def choice(cls, urn, es, n, fset):

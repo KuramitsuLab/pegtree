@@ -1,8 +1,5 @@
 // Utilities from Python3 Porting
-import {
-    PAsm, ParseTree, PFunc, Parser,
-    quote, keyRange
-} from './pasm';
+import { PAsm, ParseTree, PFunc, Parser, quote, keyRange } from './pasm';
 import { TPEG } from './tpeg';
 
 class PExpr {
@@ -829,16 +826,6 @@ class TPEGLoader {
         }
         return new PRange(chars.join(''), ranges.join(''))
     }
-
-    // def Ref(self, t):
-    // name = str(t)
-    // if name in this.peg:
-    //     return Action(this.peg.newRef(name), 'NT', (name,), t.getpos4())
-    // if name[0].isupper() || name[0].islower() || name.startswith('_'):
-    //     logger('warning', t, f'undefined nonterminal {name}')
-    // this.peg.add(name, EMPTY)
-    // return this.peg.newRef(name)
-    // return pChar(name[1: -1]) if name.startswith('"') else char1(name)
 
     Name(t: ParseTree) {
         const name = str(t);
