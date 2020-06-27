@@ -27,6 +27,8 @@ Chunk =
     / Ten
     / Symbol
 
+
+
 // Group
 
 Group = {
@@ -223,10 +225,6 @@ Adjective =
     / DictAdj _Adjective
     / PatAdj _Adjective
 
-AdjectiveH1 =
-    / GoodAdj !'め' _Adjective
-    / Not _Adjective
-
 // 形容詞: 美し 大き
 
 DictAdj = { 
@@ -234,20 +232,27 @@ DictAdj = {
     #Adj 
 }
 
-// 効率良い　青白い
+// おいしい　美味しい　馴れ馴れしい
 PatAdj = { 
-    KANJI ADJ / KANJI KANJI ADJ
+    PATADJ
     #PAdj 
 }
+
+PATADJ =
+    (KANJI/HIRA) (!'し' (KANJI/HIRA))* 'し' &(ADJ_CHECK/EOF)
 
 ADJ_CHECK = [さげかくけいめ] / 'そう' / '過ぎ' / 'すぎ'
 
 _Adjective =
-    / {^ {'過ぎ' / 'すぎ'} #Too } _Verb1
+    / {^ {'過ぎ' / 'すぎ'} #Verb1 } _Verb1
     / {^ {'さ' !'れ' / 'げ' !__V1 } #Noun } _NHNoun?
-    / {^ {'そう'} #Like } _NHNoun? 
-    / {^ {'め'} #More } _Verb1
+    / {^ {'そう'} #Noun } _NHNoun? 
+    / {^ {'め'} #Verb1 } _Verb1
     / _MoodNA 
+
+AdjectiveH1 =
+    / GoodAdj !'め' _Adjective
+    / Not _Adjective
 
 GoodAdj = { 'よ' #Good }
 Not = { 'な' #Not }
@@ -719,7 +724,7 @@ _NounNA =
     / {^ 'な' #Become} _VerbRA5
     / {^ {'な' &[しさく] NH [しさく] } #No } _NHNoun?   // 単語なし+の
     / {^ {'ながら'  } #Though } _NHNoun?   // 単語なし+の
-    / {^ {'な'} (&ADWORD / ![いくか]) #Adj } _Base? // 正確な
+    / {^ {'な'} (&ADWORD / ![いくか]) #NAdj } _Base? // 正確な
 
 _BaseDE =
     / { {'でしょう' / 'だろう'} #WouldBe } _Base?

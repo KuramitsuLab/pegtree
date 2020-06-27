@@ -937,6 +937,18 @@ class ParseTree(list):
             return s.decode('utf-8') if isinstance(s, bytes) else s
         return self.get(key).getToken() if self.has(key) else default_token
 
+    def substring(self, start=None, end=None):
+        if start is None:
+            if end is None:
+                return self.getToken()
+            s = self.inputs_[end.epos_:self.epos_]
+        else:
+            if end is None:
+                s = self.inputs_[self.spos_: start.spos_]
+            else:
+                s = self.inputs_[start.epos_:end.spos_]
+        return s.decode('utf-8') if isinstance(s, bytes) else s
+
     def __str__(self):
         s = self.inputs_[self.spos_:self.epos_]
         return s.decode('utf-8') if isinstance(s, bytes) else s

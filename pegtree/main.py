@@ -268,7 +268,8 @@ def parse(options, conv=None):
             start = getstart(peg, options)
             while True:
                 s = readlines(color('Blue', start) + bold(' <<< '))
-                print(tdump(parser(s, urn='(stdin')))
+                tree = parser(s, urn='(stdin)')
+                print(tdump(tree))
         except (EOFError, KeyboardInterrupt):
             pass
     elif len(inputs) == 1:

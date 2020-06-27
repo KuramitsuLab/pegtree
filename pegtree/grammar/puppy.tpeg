@@ -37,7 +37,8 @@ Statement =
     / IfStatement
     / ForStatement
     / WhileStatement
-    / ControlStatement 
+    / ControlStatement
+    / TryStatement 
     / AssignmentStatement
     / { Expression #Expression }
 
@@ -46,6 +47,13 @@ Block = {
         @symbol(INDENT) (Statement (";" Statement)* ";"? / _ &EOL)
         (@match(INDENT) (Statement (";" Statement)* ";"? / _ &EOL) )*
     )
+    #Block
+}
+
+SingleBlock = {
+    Statement 
+    (";" Statement)* 
+    ";"? _ &EOL
     #Block
 }
 
@@ -98,7 +106,7 @@ FuncDecl = {
     (async: "async")?
     "def" 
     name: Name 
-    params: FuncParams ":"
+    params: FuncParams ("->" type: Type)? ":"
     body: (Block / Statement)
     #FuncDecl
 }
@@ -184,7 +192,7 @@ else :
 IfStatement = {
     "if" 
     cond: Expression ":"
-    then: (Block / Statement)
+    then: (Block / SingleBlock)
     (elif: ElifStatements)?
     (else: ElseStatement)?
     #If
@@ -198,14 +206,14 @@ ElifStatement = {
     (@match(INDENT) / LF)
     "elif" 
     cond: Expression ":"
-    then: (Block / Statement)
+    then: (Block / SingleBlock)
     #Elif
 }
 
 ElseStatement = {
     (@match(INDENT) / LF)
     "else" ":"
-    (Block / Statement)
+    (Block / SingleBlock)
     #Else
 }
 
@@ -222,7 +230,7 @@ ForStatement = {
     each: Names 
     "in" 
     list: Expression ":"
-    body: (Block / Statement)
+    body: (Block / SingleBlock)
     (else: ElseStatement)?
     #For
 }
@@ -230,9 +238,37 @@ ForStatement = {
 WhileStatement = {
     "while"
     cond: Expression ":"
-    body: (Block / Statement)
+    body: (Block / SingleBlock)
     (else: ElseStatement)?
     #While
+}
+
+TryStatement = {
+    "try" ":"
+    body: (Block / SingleBlock)
+    (except: ExceptStatements)?
+    (else: ElseStatement)?
+    (finally: FinallyStatement)?
+    #If
+}
+
+ExceptStatements = {
+    ExceptStatement+
+}
+
+ExceptStatement = {
+    (@match(INDENT) / LF)
+    "except" 
+    (cond: Name ("as" Name)?)? ":"
+    body: (Block / SingleBlock)
+    #Except
+}
+
+FinallyStatement = {
+    (@match(INDENT) / LF)
+    "finally" ":"
+    (Block / SingleBlock)
+    #Finally
 }
 
 /* Assignment */
@@ -452,8 +488,6 @@ ForExpr = {
     #ForExpr
 }
 
-
-
 DELIM = [.:+\-*/%<>=!(){}[\],\n]
 
 example GroupExpr （1, (1）)= 
@@ -657,3 +691,15 @@ example Expression '''
 example Expression [* x, [0], 表示する *]
 example Expression [0] * 3
 example Expression print(*ns)
+
+example Statement '''
+try: A; A2
+except B as e:
+    B
+except C as e:
+    C
+else:
+    D
+finally:
+    E
+'''

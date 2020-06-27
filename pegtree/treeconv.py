@@ -190,13 +190,20 @@ def qtree(t, fmt='\\Tree {}'):
     s = ' '.join(sb)
     return s if fmt is None else fmt.format(s)
 
+import pegtree.cj as cj 
+def cjdump(tree):
+    s = repr(tree)
+    tokens = cj.tokenize(tree)
+    return s + '\n' + repr(tokens)
 
 def treedump(options, dump):
-    ext = options.get('ext')
+    ext = options.get('format')
     if ext == 'dot':
         return dot
     if ext == 'qtree':
         return qtree
     if ext == 'synttree' or ext == 'syntree':
         return synttree
+    if ext == 'cj':
+        return cjdump
     return dump
