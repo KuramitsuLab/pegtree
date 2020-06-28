@@ -352,6 +352,23 @@ def pasmcc(options):
     parsec(peg, **options)
 
 
+def cjtoken(options, conv=None):
+    import pegtree.cj as cj
+    peg = load_grammar(options)
+    parser = generator(options)(peg, **options)
+    inputs = options['inputs']
+    for file in options['inputs']:
+        with open(file) as f:
+            for line in f.readlines():
+                if line.startswith('#'): continue 
+                line = line.replace('\n', '')
+                print(line)
+                tree = parser(line)
+                print(repr(tree))
+                for token in cj.tokenize(tree):
+                    print(repr(token))
+                print()
+
 def update(options):
     try:
         # pip3 install -U git+https://github.com/KuramitsuLab/pegpy.git

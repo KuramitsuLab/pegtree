@@ -7,7 +7,7 @@
 
 Sentence = {
     (Chunk IGNORED? / Unknown )* EOS
-    #Sentense
+    #CJ
 }
 
 packrat = ''

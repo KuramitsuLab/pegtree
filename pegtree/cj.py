@@ -12,25 +12,7 @@ def parse(text):
   return getParser()(text)
 
 VerbType = {
-    'VerbKA5': 'VK5',
-    'VerbSA5': 'VS5',
-    'VerbTA5': 'VT5',
-    'VerbNA5': 'VN5',
-    'VerbWA5': 'VW5',
-    'VerbRA5': 'VR5',
-    'VerbMA5': 'VM5',
-    'VerbBA5': 'VB5',
-    'VerbGA5': 'VG5',
     'Verb1': 'V1',
-    'PVerbKA5': 'VK5',
-    'PVerbSA5': 'VS5',
-    'PVerbTA5': 'VT5',
-    'PVerbNA5': 'VN5',
-    'PVerbWA5': 'VW5',
-    'PVerbRA5': 'VR5',
-    'PVerbMA5': 'VM5',
-    'PVerbBA5': 'VB5',
-    'PVerbGA5': 'VG5',
     'PVerb1': 'V1',
     'Do': 'V',
 }
@@ -40,120 +22,126 @@ def verbType(s):
 
 VerbForm = {
   'VK5': {
-      1: 'か',
-      2: 'き',
-      0: 'い',
-      3: 'く',
-      4: 'け',
-      5: 'こ',
+      'A': 'か',
+      'I': 'き',
+      'T': 'い',
+      'U': 'く',
+      'E': 'け',
+      'O': 'こ',
   },
   'VS5': {
-      1: 'さ',
-      2: 'し',
-      0: 'し',
-      3: 'す',
-      4: 'せ',
-      5: 'そ',
+      'A': 'さ',
+      'I': 'し',
+      'T': 'し',
+      'U': 'す',
+      'E': 'せ',
+      'O': 'そ',
   },
   'VT5': {
-      1: 'た',
-      2: 'ち',
-      0: 'っ',
-      3: 'つ',
-      4: 'て',
-      5: 'と',
+      'A': 'た',
+      'I': 'ち',
+      'T': 'っ',
+      'U': 'つ',
+      'E': 'て',
+      'O': 'と',
   },
   'VN5': { # 死
-      1: 'な',
-      2: 'に',
-      0: 'ん',
-      3: 'ぬ',
-      4: 'ね',
-      5: 'の',
+      'A': 'な',
+      'I': 'に',
+      'T': 'ん',
+      'U': 'ぬ',
+      'E': 'ね',
+      'O': 'の',
   },
   'VM5': { # 読
-      1: 'ま',
-      2: 'み',
-      0: 'ん',
-      3: 'む',
-      4: 'め',
-      5: 'も',
+      'A': 'ま',
+      'I': 'み',
+      'T': 'ん',
+      'U': 'む',
+      'E': 'め',
+      'O': 'も',
   },
   'VR5': {  # 切
-      1: 'ら',
-      2: 'り',
-      0: 'っ',
-      3: 'る',
-      4: 'れ',
-      5: 'ろ',
+      'A': 'ら',
+      'I': 'り',
+      'T': 'っ',
+      'U': 'る',
+      'E': 'れ',
+      'O': 'ろ',
   },
   'VW5': {  # 笑
-      1: 'わ',
-      2: 'い',
-      0: 'っ',
-      3: 'う',
-      4: 'え',
-      5: 'お',
+      'A': 'わ',
+      'I': 'い',
+      'T': 'っ',
+      'U': 'う',
+      'E': 'え',
+      'O': 'お',
   },
   'VG5': {  # 防ぐ
-      1: 'が',
-      2: 'ぎ',
-      0: 'い',
-      3: 'ぐ',
-      4: 'げ',
-      5: 'ご',
+      'A': 'が',
+      'I': 'ぎ',
+      'T': 'い',
+      'U': 'ぐ',
+      'E': 'げ',
+      'O': 'ご',
   },
   'VB5': {  # 遊ぶ
-      1: 'ば',
-      2: 'び',
-      0: 'ん',
-      3: 'ぶ',
-      4: 'べ',
-      5: 'ぼ',
+      'A': 'ば',
+      'I': 'び',
+      'T': 'ん',
+      'U': 'ぶ',
+      'E': 'べ',
+      'O': 'ぼ',
   },
   'V1': { #過ぎ
-    1: '',
-    2: '',
-    0: '',
-    3: 'る',
-    4: 'れ',
-    5: 'よ',
-    'N': '',
+    'A': '',
+    'I': '',
+    'T': '',
+    'U': 'る',
+    'E': 'れ',
+    'O': 'よ',
   },
-  'V': {  # 行動
-      1: 'し',
-      2: 'し',
-      0: 'し',
-      3: 'する',
-      4: 'すれ',
-      5: 'しよ',
-      'N': '',
+  'VS': {  # 行動
+      'A': 'し',
+      'I': 'し',
+      'T': 'し',
+      'U': 'する',
+      'E': 'すれ',
+      'O': 'しよ',
+  },
+  'VZ': {  # 論じる
+      'A': 'じ',
+      'I': 'じ',
+      'T': 'じ',
+      'U': 'ずる',
+      'E': 'ずれ',
+      'O': 'ぜよ',
   },
   'A': {  # 美し
-      1: 'く',
-      2: '',
-      0: '',
-      3: 'い',
-      4: 'けれ',
-      5: '',
+      'A': 'く',
+      'I': '',
+      'T': '',
+      'U': 'い',
+      'E': 'けれ',
+      'O': '',
   },
   'P': {  # しま
-      1: 'せん',
-      2: '',
-      0: 'し',
-      3: 'す',
-      4: '',
-      5: '',
+      'A': 'せん',
+      'I': '',
+      'T': 'し',
+      'U': 'す',
+      'E': '',
+      'O': '',
   }
 }
 
 Mood = {
-    'not': (1, 'な', 'A'),
-    'base': (3, ''),
-    'if': (4, 'ば'),
-    'polite': (2, 'ま', 'P'),
-    'noun': (2, ''),
-    'past': (0, 'た'),
+    'not': ('A', 'な', 'A'),
+    'base': ('U', ''),
+    'if': ('E', 'ば'),
+    'polite': ('I', 'ま', 'P'),
+    'noun': ('I', ''),
+    'past': ('T', 'た'),
 }
 
 
@@ -242,7 +230,9 @@ CJTagMethods = {
   'Vi5': 'acceptVerb5X',
   'Vt5': 'acceptVerb5X',
   'Vd5': 'acceptVerb5X',
+  'VB': 'acceptVerb5X',
   'VS': 'acceptVerbDo',
+  'VZ': 'acceptVerbDo',
   'VSx': 'acceptVerbDoX',
   'Object': 'acceptArgument',
 }
@@ -287,6 +277,18 @@ class Tokenizer(object):
     print('FIXME', repr(node))
     return Chunk(node.getToken(), 'U', node)
 
+  def acceptTen(self, node: ParseTree):
+    return Chunk(node.getToken(), 'T')
+
+  def acceptEOS(self, node: ParseTree):
+    return Chunk(node.getToken(), 'EOS')
+
+  def acceptEmpty(self, node: ParseTree):
+    return Chunk('', 'N')
+
+  def acceptExpression(self, node: ParseTree):
+    return Chunk(node.getToken(), 'NC', node)
+
   def acceptBase(self, node: ParseTree):
     #print('FIXME', repr(node))
     return self.visit(node[0])
@@ -298,13 +300,24 @@ class Tokenizer(object):
     return self.append(node, '@not')
 
   def acceptAd(self, node: ParseTree):
-    return Chunk(node.getToken(), 'AD')
+    return Chunk(node.getToken(), 'M')
 
   def acceptAdj(self, node: ParseTree):
     return Chunk(node.getToken(), 'A')
 
+  def acceptAdjN(self, node: ParseTree):
+    return Chunk(node.getToken(), 'AN')
+
+  def acceptNotOrAdj(self, node: ParseTree):
+    chunk = self.append(node, '@not')
+    chunk.append('@adj')
+    return chunk
+
   def acceptNoun(self, node: ParseTree):
     return Chunk(node.getToken(), 'N')
+
+  def acceptSNoun(self, node: ParseTree):
+    return Chunk(node.getToken(0), 'NR')
 
   def acceptArgument(self, node):
     chunk = self.visit(node[0])
@@ -336,14 +349,18 @@ class Tokenizer(object):
     chunk.pos = 'VSx'
     return chunk
 
-
   def acceptVerb(self, node):
+    if len(node) == 0:
+      print('FIXME', repr(node))
     base = node[0]
     chunk = self.visit(base)
     if chunk.isVerb():
       return chunk
-    return Chunk(base.getToken(), verbType(base.getTag()))
+    chunk.pos = 'VS'
+    return chunk
 
+  def acceptPolite(self, node: ParseTree):
+    return self.append(node, '@polite')
 
   def acceptPast(self, node: ParseTree):
     return self.append(node, '@past')
@@ -352,7 +369,13 @@ class Tokenizer(object):
     return self.append(node, '@passive')
 
   def acceptCan(self, node: ParseTree):
-    return self.append(node, '@can')
+    chunk = self.append(node, '@can')
+    if chunk.pos == 'N':
+      chunk.pos = 'VS'
+    return chunk
+
+  def acceptWould(self, node: ParseTree):
+    return self.append(node, '@would')
 
   def acceptMay(self, node: ParseTree):
     return self.append(node, '@may')
@@ -360,11 +383,33 @@ class Tokenizer(object):
   def acceptMust(self, node: ParseTree):
     return self.append(node, '@must')
 
+  def acceptShould(self, node: ParseTree):
+    return self.append(node, '@should')
+
+  def acceptTry(self, node: ParseTree):
+    return self.append(node, '@try')
+
   def acceptVerb1(self, node: ParseTree):
     return Chunk(node.getToken(), verbType(node.getTag()))
 
   def acceptIf(self, node: ParseTree):
     return self.append(node, '@@if')
+
+  def acceptWhile(self, node: ParseTree):
+    return self.append(node, '@@while')
+
+  def acceptEvenIf(self, node: ParseTree):
+    return self.append(node, '@@evenif')
+
+  def acceptAfter(self, node: ParseTree):
+    return self.append(node, '@@after')
+
+  def acceptConjunction(self, node: ParseTree):
+    return Chunk(node.getToken(), 'C')
+
+  def acceptThat(self, node: ParseTree):
+    return Chunk(node.getToken(), 'C')
+
 
 
 def tokenize(text_or_tree):
