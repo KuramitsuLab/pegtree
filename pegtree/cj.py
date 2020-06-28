@@ -159,19 +159,22 @@ def format(prefix, pos, *moods):
         s = format(s, mood[2])
   return s
 
+def isHira(s):
+  return len(s) == 1 and ord('あ') <= ord(s) <= ord('ん')
 
 class Chunk(object):
   def __init__(self, base, pos, extra=None):
     self.base = base
     self.pos = pos
+    self.token = base
     self.extra = extra
 
   def data(self):
     if isinstance(self.extra, list) or isinstance(self.extra, tuple):
-      return (format(self.base, self.pos), self.pos, *self.extra)
+      return (format(self.base, self.pos), self.base, self.pos, *self.extra)
     if self.extra is not None:
-      return (format(self.base, self.pos), self.pos, self.extra)
-    return (format(self.base, self.pos), self.pos)
+      return (format(self.base, self.pos), self.base, self.pos, self.extra)
+    return (format(self.base, self.pos), self.base, self.pos)
 
   def __repr__(self):
     return repr(self.data())
@@ -201,12 +204,21 @@ class Chunk(object):
     if self.isN():
       if a.pos == 'N':  # ('寄り', 'N') ('道', 'N')
         a.base = self.base + a.base
+        a.token = self.token + a.token
         return a
-      if a.pos == 'V':  # ('道', 'N') ('', 'V')
+      if a.pos == 'VS' or a.pos == 'VSx':  # ('道', 'N') ('', 'V')
         a.base = self.base + a.base
+        a.token = self.token + a.token
+        a.pos = 'VS'
         return a
       if a.pos == 'A':  # ('青', 'N') ('白い', 'A')
         a.base = self.base + a.base
+        a.token = self.token + a.token
+        return a
+    if self.pos == 'N':
+      if isHira(self.base):  # ('お', 'N') ('どろく', 'A')
+        a.base = self.token + a.base
+        a.token = self.token + a.token
         return a
     return None
 
@@ -248,7 +260,6 @@ def verb(s, *moods):
     else:
       prefix += token.base
   return format(prefix, 'V', *moods)
-
 
 
 class Tokenizer(object):
@@ -359,6 +370,9 @@ class Tokenizer(object):
     chunk.pos = 'VS'
     return chunk
 
+  def acceptCommand(self, node: ParseTree):
+    return self.append(node, '@command')
+
   def acceptPolite(self, node: ParseTree):
     return self.append(node, '@polite')
 
@@ -420,7 +434,9 @@ def tokenize(text_or_tree):
   tokenizer = Tokenizer()
   ts = []
   for node in tree.getSubNodes():
+    s = node.getToken()
     token = tokenizer.visit(node)
+    token.token = s
     if len(ts)>0:
       cat = ts[-1].concat(token)
       if cat is not None: ts[-1] = cat; continue

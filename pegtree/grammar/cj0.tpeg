@@ -24,17 +24,6 @@ Chunk =
   / Expression _ _Noun?
   / Unknown
 
-/* Parenthesis */
-
-Parenthesis = 
-  / { '「' { (!'」' .)* }  '」' #SNoun }
-  / { [(（] { (![)）] .)* } [)）] #SNoun }
-  / { '『' { (!'』' .)* } '』' #SNoun }
-  / { '【' { (!'】' .)* } '】' #SNoun }
-  / { '《' { (!'》' .)* } '》' #SNoun }
-  / { '[[' { (!']]' .)* } ']]' #SNoun }
-  / { '{{' { (!'}}' .)* } '}}'#SNoun }
-  / { '&quot;' { (!'&quot;' .)* } '&quot;' #SNoun }
 
 
 // 接続詞, 連体詞, 副詞
@@ -56,64 +45,121 @@ CADJ = [黒高青難長鋭鈍重醜酸酷遠遍遅速近辛軽赤賢貴豪角薄
 K = KANJI/KATA
 H = HIRA
 C = KANJI/HIRA/KATA
-D = (!(CADJ HPADJc) K)*
+D = (!(CADJ _HADJc) K)*
 HEAD = (C D*)
 
 //HEAD1 = K* H1? H1? 
-H1 = (NH1 !(PVERB1c __HVERB1w) H)
+H1 = (NH1 !(_HVERB1w) H)
 NH1 = !([かさたなまらわぐば] 'れ') !'でき'   // この並びは五段活用
 
-K1 = (!KSTART K)
-KSTART = K (_HVERBw / H _HVERBw)
-
 /* Pattern */
+KEOF = K / EOF
+K1 = (!S1 K)
+_H1 = _HVERB5w / _HVERB1w / _HADJw 
+S1 = K (_H1 / H _H1)
+
+C2 = (!S2 C)
+S2 = C (_H1 / H _H1)
+
+Pattern = 
+  / { C K* (!_HPADJ H)* _HPADJ &_HADJc #PAdj } _Adjective
+  / { #Empty } _NounVerb 
+  / { C K1* ( &(H _H1) H)? #PNoun } (_Pattern / _Noun)
+  / { #Empty } _Noun
+  / { C K* C2* ( &(H _H1) H)? #PPNoun } (_Pattern / _Noun?)
+
+_Pattern =
+  / &KEOF
+  / _Verb 
+  / { &_HVERB1c #PVerb1} (_AmVerb1 / _Verb1Noun) 
+  / {^ &_HADJc #PAdj} _Adjective 
 
 // 書く　赤く が区別できない
-Pattern =
-    / { C K* (!HADJPAT H)* HADJPAT &HPADJc #PAdj } _Adjective
-    / { K* H1? H1? H1? PVERB1c &__HVERB1w #PVerb1 } (_AmVerb1 / _Verb1)
+Pattern2 =
+    / { C K* (!_HPADJ H)* _HPADJ &_HADJc #PAdj } _Adjective
+    / { K* H1? H1? H1? _HVERB1c &__HVERB1w #PVerb1 } (_AmVerb1 / _Verb1)
     / { K K1* #Noun } ( _Verb　/ _Noun / EOF)
-    / { HEAD (!HPADJw H)* #PPAdj } _Adjective
+    / { HEAD (!_HADJw H)* #PPAdj } _Adjective
     / { #Empty } (_NounVerb / _Noun)
-    / { HEAD (!_HVERBw H)? #PNoun } _Verb
-    / { HEAD (!_HVERBw H)* #PPNoun } _Verb
+    / { HEAD (!_HVERB5w H)? #PNoun } _Verb
+    / { HEAD (!_HVERB5w H)* #PPNoun } _Verb
     / { HEAD (!POSTNOUN H)* #PPNoun } (_Verb/_Noun?)
 
 /* 形容詞のパターン */
 
-// 素人くさい あぶらっこい　つめたい
-HADJPAT = 'し' / 'っぽ' / 'ぼった' / 'っこ' / 'た'
-HPADJc = [さげめくいか]
-HPADJw = 
-    / 'い' !__HVERBT _PSURU
+// 形容詞パターン 素人くさい あぶらっこい　つめたい
+_HPADJ = 'し' / 'っぽ' / 'ぼった' / 'っこ' / 'た'
+_HADJc = [さげめくいか]
+_HADJw = 
+    / 'い' !(__HVERB5T/__HVERB5I) KEOF
     / 'く' ( [てなすし] )  // 大きくなる, 大きくする, 大きくして
-    / 'さ' !'れ' ( POSTNOUNc / POSTNOUNw / EOF )
-    / 'め' ( POSTNOUNc / POSTNOUNw / PVERB1w / EOF )
+    / 'さ' !'れ' ( _HNOUNc / _HNOUNw / EOF )
+    / 'め' !__HVERB5E (_HVERB1w / EOF )
     / 'かった'
     / 'そう'
     / 'すぎ'
 
+_HVERB1w = _HVERB1c __HVERB1w
+//_HVERB1c = [いえきけぎせてげじめびべりれね]
+_HVERB1c = [いえきけしせちてみめりれにねぎげじぜびべ]
+__HVERB1w =  // 高めた 落ちる　(勝ちますと区別つかない)
+  / 'る'  
+  / 'た' // 
+  / 'て'
+  / 'られ'
+  / _HNAIw
+  / 'ま' // せん
+
+_HVERB5w = 
+  // / 'し' !'い' (__HVERB5I / __HVERB5T / _HNAIw / 'よ' )
+  // / 'す' ('れば'/'る')  // VS
+  // / 'せ' ([ずぬ]) 
+  / [いっ] __HVERB5T // VK5, VW5
+  / 'ん' __HVERB5D // VN5,VM5,
+  / 'え' !__HVERB1w __HVERB5E
+  / 'く' !(_HNAIw/'なる'/[すし]) __HVERB5U   // 赤くとの衝突
+  / [かさたまらわがば] __HVERB5A // カ行
+  / [きしちみりいぎび] __HVERB5I // ます
+  / [くすつむるうぐぶ] !'る' __HVERB5U // く
+  / [けせてめれえげべ] __HVERB5E // ます
+  / [こそともろおごぼ] __HVERB5O // ます
+
+__HVERB5A = _HNAIw / 'れ' / 'さ' / 'ず'
+__HVERB5I = KEOF / 'ま' / 'やす' / 'にく' / 'つつ' / __HVERB1w
+__HVERB5T = 'た' / 'て'
+__HVERB5D = 'だ' / 'で'
+__HVERB5U = KEOF / PSURUc / PSURUw 
+__HVERB5E = 'ば' / 'と' / __HVERB1w / CMD / KEOF
+__HVERB5O = 'う'
+
+_HNAIw = 
+  / 'ない'
+  / 'なく'
+  / 'なかった'
+  / 'なければ'
+
+
+
 
 _PSURU = PSURUc / PSURUw / KANJI / EOF
 
-
-POSTNOUN = POSTNOUNVERBw / POSTNOUNw / POSTNOUNc
+POSTNOUN = POSTNOUNVERBw / _HNOUNw / _HNOUNc
 
 POSTNOUNVERBw =
-  / 'し' !'い' (PNAIw / 'ま' / 'て' / 'ろ')
+  / 'し' !'い' (_HNAIw / 'ま' / 'て' / 'ろ')
   / 'する'
   / 'すれば'
 
-POSTNOUNc = [はがもをのなだでとにへ] !'ん'
+_HNOUNc = [はがもをのなだでとにへ] ![んっ]
 
-POSTNOUNw =
+_HNOUNw =
     / 'より'
     / 'まで'
-    / 'か' ('どうか' / '否か' / 'ら' / 'ぎり')
+    / 'か' ('どうか' / '否か' / 'ら' / 'と'/ 'ぎり')
     / 'のみ'
     / 'ばかり'
     / 'さえ'
-    / 'し' ('か' / PNAIw)
+    / 'し' ('か' / _HNAIw)
     / 'する'
     / 'こそ'
 
@@ -128,71 +174,9 @@ PSURUw = // 赤い
 
 PSURUc = [なとか] // 赤い
 
-PNAIw = 
-  / 'ない'
-  / 'なく'
-  / 'なかった'
-  / 'なければ'
-
-_HVERBw = 
-  / 'し' !'い' (__HVERBI / __HVERBT / PNAIw / 'よ' )
-  / 'せず' // VS 行動せず  探さず
-  / 'する' / 'すれば'  // VS
-  / 'せよ' // VS, VS5 
-  / [いっ] __HVERBT // VK5, VW5
-  / 'ん' __HVERBD // VN5,VM5,
-  / 'か' __HVERBA // カ行
-  / 'き' __HVERBI
-  / 'く' !(PNAIw/'なる'/[すし]) __HVERBU   // 赤くとの衝突
-  / 'け' __HVERBE
-  / 'こ' __HVERBO
-  / 'さ' __HVERBA
-  / 'す' __HVERBU
-  / 'せ' __HVERBE
-  / 'そ' __HVERBO
-  / 'た' __HVERBA  // た行
-  / 'ち' __HVERBI
-  / 'つ' __HVERBU
-  / 'て' __HVERBE
-  / 'と' __HVERBO
-  / 'ま' __HVERBA
-  / 'み' __HVERBI
-  / 'む' __HVERBU
-  / 'め' __HVERBE
-  / 'も' __HVERBO
-  / 'ら' __HVERBA
-  / 'り' __HVERBI
-  / 'る' __HVERBU
-  / 'れ' __HVERBE
-  / 'ろ' __HVERBO
-  / 'わ' __HVERBA
-  / 'う' __HVERBU
-  / 'え' !__HVERB1w __HVERBE
-  / 'お' __HVERBO
-  / 'ば' __HVERBA
-  / 'び' __HVERBI
-  / 'ぶ' __HVERBU
-  / 'べ' __HVERBE
-  / 'ぼ' __HVERBO
-
-PVERB1w = PVERB1c __HVERB1w
-PVERB1c = [いえきぎけげじせてめびべりれね]
-__HVERB1w =  // 高めた 落ちる　(勝ちますと区別つかない)
-  / 'る'  
-  / 'た' // 
-  / 'て'
-  / 'られ'
-  / PNAIw
-  / 'ま' // せん
 
 
-__HVERBA = PNAIw / 'れ' / 'さ' / 'ず'
-__HVERBI = 'ま' / 'やす' / 'にく' / 'つつ' / K
-__HVERBT = 'た' / 'て'
-__HVERBD = 'だ' / 'で'
-__HVERBU = K / PSURUc / PSURUw / EOF
-__HVERBE = 'ば' / 'と' / [！!] / EOF
-__HVERBO = 'う'
+
 
 Unknown = {
     (!K .)+
@@ -201,11 +185,12 @@ Unknown = {
 
 /* _Adjective */
 
-_Adjective =
-    / {^ '過ぎ' / 'すぎ' #Verb1 } _Verb1
+_Adjective =   // 使用し過ぎ　と重なる
+//    / {^ '過ぎ' / 'すぎ' #Verb1 } _Verb1
+//    / {^ 'そう' #Noun } _Noun? 
     / {^ 'さ' !'れ' #Noun } _Noun?
-    / {^ 'そう' #Noun } _Noun? 
-    / {^ 'め' #Noun } _Verb1
+    / {^ 'め' #PVerb1 } _Verb1
+    / {^ 'め' #Noun } _Noun?
     / {^ 'かった' #Past } _Past
     / _MoodNA 
 
@@ -257,12 +242,12 @@ ARGU =
   / 'より' OF
   / 'まで' OF
   / 'へ' OF
-  / 'か' ('どうか' / '否か' / 'ら' / 'ぎり')? OF
+  / 'か' ('どうか' / '否か' / 'ら' / 'と' / 'ぎり')? OF
   / 'だけ' OF
   / 'のみ' OF
   / 'ばかり' OF
   / 'さえ' OF
-  / 'し' ('か' / PNAIw)
+  / 'し' ('か' / _HNAIw)
   / 'こそ' OF
   / 'なら' (('ば'/'では') OF)?
 
@@ -286,6 +271,10 @@ _Verb1 = // 過ぎ　述べ　視　でき
     / _VerbT // て
     / _VerbI　// て
 
+_Verb1Noun = // 過ぎ　述べ　視　でき
+    / _Verb1
+    / {^ #Noun } _Noun  // 
+
 _VerbNA5 = // 切
     / {^ 'な' #VR5 } _VerbA  // ない
     / {^ 'に' #VR5 } _VerbI  // ながら
@@ -305,6 +294,7 @@ _VerbRA5 = // 切
     / {^ 'ろ' #VR5 } _VerbO  // う
 
 _Verb = 
+    / _VerbVS
     / {^ 'い' #Vi5 } _VerbT // #VK5@　#VW5@ #VG5@　た
     / {^ 'っ' #Vt5 } _VerbT // #VT5@ #VR5@ #VW5@ た
     / {^ 'ん' #Vd5 } _VerbD // #VN5@ #VM5@ #VB5@
@@ -321,7 +311,7 @@ _Verb =
     / {^ 'そ' #VS5 } _VerbO  // う
     / {^ 'た' #VT5 } _VerbA  // ない
     / {^ 'ち' #VT5 } _VerbI   // ながら
-    / {^ 'ち' #VT5 } _Noun?
+    / {^ 'ち' #Noun } _Noun?
     / {^ 'つ' #VT5 } _VerbU  // 
     / {^ 'て' #VT5 } _VerbE  // ば
     / {^ 'と' #VT5 } _VerbO  // う
@@ -392,7 +382,6 @@ _VerbI = // 書き+つつ  探し+つつ　
     / {^ ('にく' / 'がた' / 'づら') #Hard } _MoodNA //書きがたい
     / {^ 'がち' #Noun } _Noun? //休みがちだ
     / {^ ('つつ' / 'ながら') #While }
-    / &TEN
 
 _VerbIPolite =
     / {^ ('ます' / 'ましょう') #Base } _Polite _Base?
@@ -407,24 +396,28 @@ _Polite = {^ #Polite }
 _VerbT = // 書い+て   探し+て　
     / {^ 'た' NH #Want } _MoodNA   // 特例. 記録したい
     / {^ 'た' #Past } _Past?
-    / {^ 'てから' #After } _Noun?
-    / {^ 'て' (&'も' NH .) #EvenIf }
-    / {^ 'て' #Noun } _Noun
-    / {^ 'て' #And } _TryMood?
+    / {^ 'て' #Base } _VerbKUDASAI
 
 _VerbD = // 遊んだ   遊んで
     / {^ 'だ' #Past } _Past?
-    / {^ 'でから' #After } _Noun?
-    / {^ 'で' (&'も' NH .) #EvenIf }
-    / {^ 'で' #Noun } _Noun
-    / {^ 'で' IGNORED? #And } _TryMood?
+    / {^ 'で' #Base } _VerbKUDASAI
+
+_VerbKUDASAI =
+  / {^ 'ください'/'下さい' #Command } {^ #Polite} _Base?
+  / { 'から' #After } _Noun?
+  / {^ MO #EvenIf }
+  / _VerbIPolite 
+  / {^ #Noun } (&KEOF / _Noun)  // 翔んで埼玉
+  / {^ #And } _TryMood?
+
+_CommandPolite = {^ 'ください'/'下さい' #Polite } _Base?
 
 _VerbU = _Base? // 書く　探す
 
 _VerbE = // 書け+ば  探せ+ば
     / {^ 'ば' #If }
-    / {^ #Can } _Verb1
-    / {^ CMD? #Command }
+    / {^ CMD #Command }
+    / {^ #PVerb1 } _Verb1Noun
 
 _VerbO = // 書こ+う　探そ+う
     / {^ 'う' #Will } _Base?
@@ -461,6 +454,18 @@ _TryMood =
     // / _Exist                 // 笑ってある 
     // / Come                  // 笑ってくる
     // / {^ &HIRA #Now } _Verb1    // 笑ってる (口語)
+
+/* Parenthesis */
+
+Parenthesis = 
+  / { '「' { (!'」' .)* }  '」' #SNoun }
+  / { [(（] { (![)）] .)* } [)）] #SNoun }
+  / { '『' { (!'』' .)* } '』' #SNoun }
+  / { '【' { (!'】' .)* } '】' #SNoun }
+  / { '《' { (!'》' .)* } '》' #SNoun }
+  / { '[[' { (!']]' .)* } ']]' #SNoun }
+  / { '{{' { (!'}}' .)* } '}}'#SNoun }
+  / { '&quot;' { (!'&quot;' .)* } '&quot;' #SNoun }
 
 /* Expression */
 
