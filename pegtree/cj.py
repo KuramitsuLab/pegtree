@@ -280,13 +280,16 @@ class Tokenizer(object):
     return '' if s == '' else '+'+s
 
   def append(self, node: ParseTree, anno):
-    chunk = self.visit(node[0])
+    if len(node) == 0:
+      chunk = Chunk(node.getToken(), 'U', [node])
+    else:
+      chunk = self.visit(node[0])
     chunk.append(anno)
     return chunk
 
   def acceptUnknown(self, node: ParseTree):
     print('FIXME', repr(node))
-    return Chunk(node.getToken(), 'U', node)
+    return Chunk(node.getToken(), 'U', [node])
 
   def acceptTen(self, node: ParseTree):
     return Chunk(node.getToken(), 'T')
@@ -298,7 +301,7 @@ class Tokenizer(object):
     return Chunk('', 'N')
 
   def acceptExpression(self, node: ParseTree):
-    return Chunk(node.getToken(), 'NC', node)
+    return Chunk(node.getToken(), 'NC', [node])
 
   def acceptBase(self, node: ParseTree):
     #print('FIXME', repr(node))
@@ -337,7 +340,11 @@ class Tokenizer(object):
 
   def acceptVerb5(self, node):
     token = node.getToken(0) if len(node)>0 else node.getToken()
-    return Chunk(token, node.getTag())
+    tag = node.getTag()
+    if tag == 'VR5' and token[-1] == 'す':
+      tag = 'VS'
+      token = token[:-1]
+    return Chunk(token, tag)
 
   def acceptVerb5X(self, node):
     chunk = self.visit(node[0])
@@ -381,6 +388,9 @@ class Tokenizer(object):
 
   def acceptBeen(self, node: ParseTree):
     return self.append(node, '@passive')
+
+  def acceptMake(self, node: ParseTree):
+    return self.append(node, '@make')
 
   def acceptCan(self, node: ParseTree):
     chunk = self.append(node, '@can')
