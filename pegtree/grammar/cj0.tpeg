@@ -10,17 +10,16 @@
 */
 
 Sentence = {
-    (Chunk IGNORED?)* EOS
+    (Chunk)* EOS
     #CJ
 }
 
-IGNORED = ('ください' / 'です' / 'でした')
 EOS = [。．.\n]? EOF
 
 Chunk =
-  / { CONJ #Conjunction } TEN
   / {TEN #Ten }
   / Character
+  / Dictionary
   / Pattern
   / Parenthesis _Noun?
   / { [。．.\n] #EOS}
@@ -34,7 +33,65 @@ Unknown = {
 
 // 接続詞, 連体詞, 副詞
 
+
+/* Dictionary */
+
 CONJ = @choice('cjdic/CONJ.txt', 'CJDIC/CONJ.txt')
+
+Dictionary =
+    / { CONJ #Conjunction } TEN
+    / { VERB #Verb } (_Verb / _Verb1)
+
+VERB =
+    / 'したが'
+    / 'がんばれ'
+
+/* てにをは */
+HKAw =
+    / 'か' _HSA5
+    / 'かえ' / 'かざ' / 'かさ'
+
+HGAw =
+    / 'がんばれ' / 'がんば' / 'がめ' / 'がえ'
+
+HNAw =
+    / 'な' _HRA5
+    / 'ながれ' / 'なお'
+
+HHAw =
+    / 'は' _HRA5
+    / 'はら' / 'はや' / 'はから' / 'はな' / 'はず'
+    / 'はか' / 'はだか' / 'はま' / 'はさ' / 'はじめ'
+    / 'はたら' / 'はこ' / 'はね' / 'はて'
+
+HTOw =
+    / 'と' _HRA5 
+    / 'とば' / 'とお' / 'とど' / 'とどま' / 'とめ'
+
+HNIw =
+    / 'に' __HVERB1w
+    / 'にが' 
+
+HHEw =
+    / 'へ' _HRA5
+    / 'へら' / 'へつら'
+
+HYAw =
+    / 'や' (_HRA5 / _HKA5)
+    / 'やぶ' / 'やめ'
+
+HDEw =
+    / 'で' __HVERB1w
+    / 'へら' / 'へつら'
+
+HMOw =
+    / 'も' _HTA5 
+    / 'もら' / 'もど' / 'もとめ' / 'もれ'
+
+_HKA5 = [かきいくけこ]
+_HSA5 = [さしすせそ]
+_HTA5 = [たちっつてと]
+_HRA5 = [らりっるれろ]
 
 /* Character */
 
@@ -67,6 +124,8 @@ S1 = K _H1 // 日本語わかち書き
 
 C2 = (!S2 C)
 S2 = C (_H1 / H _H1)  // 明かす 明かさない あかす
+
+
 
 Pattern = 
   / { C K* (!_HPADJ H)* _HPADJ &_HADJc #PAdj } _Adjective
@@ -216,7 +275,7 @@ _Noun =
   / {^ 'でしょう' / 'だろう' #VB }　{^ #Would } 
   / {^ 'です' / 'だ' !'け' #VB }
   / {^ ARGU #Argument }
-  / {^ 'な' !('っ'/ 'し'/'い'/'く') #AdjN}
+  / {^ !HNAw 'な' !('っ'/ 'し'/'い'/'く') #AdjN}
 
 NOUNTAIL =
   / '置き' / 'おき' // 1日おき
@@ -228,15 +287,19 @@ NOUNTAIL =
   / 'さ' ![せれ]
 
 ARGU = 
-  / [はがものをや]
-  / 'に' ('ついて'/'関して'/'より'/ 'よって')?　OF
-  / 'と' OF
-  / 'で' 'は'? OF
+  / 'を'
+  / !HHAw 'は'
+  / !HGAw 'が'
+  / !HMOw 'も'
+  / !HYAw 'や'
+  / !HNIw 'に' ('ついて'/'関して'/'より'/ 'よって')?　OF
+  / !HTOw 'と' OF
+  / !HDEw 'で' 'は'? OF
+  / !HHEw 'へ' OF
   / 'の' (('よう'/'とおり'/'通り') 'に'?)?
   / 'から' OF
   / 'より' OF
   / 'まで' OF
-  / 'へ' OF
   / ('から' / 'かぎり') OF
   / 'か' ('どうか' / '否か' / [とのをに] / MO / TEN ) OF
   / 'だけ' OF
@@ -269,7 +332,7 @@ _Verb1 = // 過ぎ　述べ　視　でき
 
 _Verb1Noun = // 過ぎ　述べ　視　でき
     / _Verb1
-    / {^ #Noun } _Noun  // 
+    / {^ #Noun } (_Noun)?  // 
 
 _VerbNA5 = // 切
     / {^ 'な' #VR5 } _VerbA  // ない
@@ -297,53 +360,53 @@ _Verb =
     / {^ 'か' #VK5 } _VerbA // 書
     / {^ 'き' #VK5 } _VerbI
     / {^ 'き' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'き' #Noun } _Noun?
+    / {^ 'き' #Noun } (_Noun)?
     / {^ 'く' #VK5 } _VerbU
     / {^ 'け' #VK5 } _VerbE
     / {^ 'こ' #VK5 } _VerbO
     / {^ 'さ' #VS5 } _VerbA  // ない
     / {^ 'し' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'し' #Noun } _Noun?
+    / {^ 'し' #Noun } (_Noun)?
     / {^ 'す' #VS5 } _VerbU  // 達すと
     / {^ 'せ' #VS5 } _VerbE  // ば
     / {^ 'そ' #VS5 } _VerbO  // う
     / {^ 'た' #VT5 } _VerbA  // ない
     / {^ 'ち' #VT5 } _VerbI   // ながら
     / {^ 'ち' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'ち' #Noun } _Noun?
+    / {^ 'ち' #Noun } (_Noun)?
     / {^ 'つ' #VT5 } _VerbU  // 
     / {^ 'て' #VT5 } _VerbE  // ば
     / {^ 'と' #VT5 } _VerbO  // う
     / {^ 'ま' #VM5 } _VerbA  // ない
     / {^ 'み' #VM5 } _VerbI // ながら
     / {^ 'み' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'み' #Noun } _Noun?
+    / {^ 'み' #Noun } (_Noun)?
     / {^ 'む' #VM5 } _VerbU  // 
     / {^ 'め' #VM5 } _VerbE  // ば
     / {^ 'も' #VM5 } _VerbO  // う
     / {^ 'ら' #VR5 } _VerbA  // ない
     / {^ 'り' #VR5 } _VerbI  // ながら
     / {^ 'り' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'り' #Noun } _Noun?
+    / {^ 'り' #Noun } (_Noun)?
     / {^ 'る' #VR5 } _VerbU  // 
     / {^ 'れ' #VR5 } _VerbE  // ば
     / {^ 'ろ' #VR5 } _VerbO  // う
     / {^ 'わ' #VW5 } _VerbA  // ない
     / {^ 'い' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'い' #Noun } _Noun?
+    / {^ 'い' #Noun } ( _Noun)?
     / {^ 'う' #VW5 } _VerbU  // 
     / {^ 'え' #VW5 } _VerbE  // ば
     / {^ 'お' #VW5 } _VerbO  // う
     / {^ 'が' #VG5 } _VerbA  // ない
     / {^ 'ぎ' #VG5 } _VerbI  // ながら
     / {^ 'ぎ' &__HVERB1w #PVerb1 } _Verb1
-    / {^ 'ぎ' #Noun } _Noun?
+    / {^ 'ぎ' #Noun } (_Noun)?
     / {^ 'ぐ' #VG5 } _VerbU  // 
     / {^ 'げ' #VG5 } _VerbE  // ば
     / {^ 'ご' #VG5 } _VerbO  // う
     / {^ 'ば' #VB5 } _VerbA  // ない
     / {^ 'び' #VB5 } _VerbI 　// ながら
-    / {^ 'び' !__HVERB1w #Noun } _Noun?   //　+ 名詞
+    / {^ 'び' !__HVERB1w #Noun } ( _Noun)?   //　+ 名詞
     / {^ 'ぶ' #VB5 } _VerbU  // 
     / {^ 'べ' #VB5 } _VerbE  // ば
     / {^ 'ぼ' #VB5 } _VerbO  // う
