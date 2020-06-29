@@ -125,8 +125,6 @@ S1 = K _H1 // 日本語わかち書き
 C2 = (!S2 C)
 S2 = C (_H1 / H _H1)  // 明かす 明かさない あかす
 
-
-
 Pattern = 
   / { C K* (!_HPADJ H)* _HPADJ &_HADJc #PAdj } _Adjective
   / { K* #Noun } _NounVerb // 表現するの優先

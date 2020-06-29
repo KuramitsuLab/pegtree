@@ -4,8 +4,9 @@ from pegtree import ParseTree
 CJParser = None
 
 def getParser():
+  global CJParser
   if CJParser is None:
-    CJParser = pg.generate(pg.grammar('cj.tpeg'))
+    CJParser = pg.generate(pg.grammar('cj0.tpeg'))
   return CJParser
 
 def parse(text):
