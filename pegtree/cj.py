@@ -265,16 +265,20 @@ def verb(s, *moods):
 
 class Tokenizer(object):
   def visit(self, node):
-    tag = node.getTag()
-    if tag in CJTagMethods:
-      method = CJTagMethods[tag]
-    else:
-      method = f'accept{tag}'
-      CJTagMethods[tag] = method
-    if not hasattr(self, method):
-      method = 'acceptUnknown'
-      CJTagMethods[tag] = method
-    return getattr(self, method)(node)
+    try: 
+      tag = node.getTag()
+      if tag in CJTagMethods:
+        method = CJTagMethods[tag]
+      else:
+        method = f'accept{tag}'
+        CJTagMethods[tag] = method
+      if not hasattr(self, method):
+        method = 'acceptUnknown'
+        CJTagMethods[tag] = method
+      return getattr(self, method)(node)
+    except IndexError:
+      print('FIXME', node)
+      return self.acceptUnknown(node)
 
   def suffix(self, node, base):
     s = node.substring(None, base)
@@ -378,6 +382,18 @@ class Tokenizer(object):
     chunk.pos = 'VS'
     return chunk
 
+  def acceptEasy(self, node: ParseTree):
+    return self.append(node, '@easy')
+
+  def acceptHard(self, node: ParseTree):
+    return self.append(node, '@hard')
+
+  def acceptWant(self, node: ParseTree):
+    return self.append(node, '@want')
+
+  def acceptThen(self, node: ParseTree):
+    return self.append(node, '@then')
+
   def acceptCommand(self, node: ParseTree):
     return self.append(node, '@command')
 
@@ -386,6 +402,9 @@ class Tokenizer(object):
 
   def acceptPast(self, node: ParseTree):
     return self.append(node, '@past')
+
+  def acceptWill(self, node: ParseTree):
+    return self.append(node, '@will')
 
   def acceptBeen(self, node: ParseTree):
     return self.append(node, '@passive')
