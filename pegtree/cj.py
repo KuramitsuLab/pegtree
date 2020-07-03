@@ -126,6 +126,22 @@ VerbForm = {
       'E': 'けれ',
       'O': '',
   },
+    'AVK5': {
+      'A': 'か|く',
+      'I': 'き',
+      'T': 'い',
+      'U': 'く|い',
+      'E': 'け|けれ',
+      'O': 'こ',
+  },
+  'AVW5': {
+      'A': 'わ|く',
+      'I': 'い',
+      'T': 'っ',
+      'U': 'ふ|い',
+      'E': 'え|けれ',
+      'O': 'お',
+  },
   'P': {  # しま
       'A': 'せん',
       'I': '',
@@ -144,7 +160,6 @@ Mood = {
     'noun': ('I', ''),
     'past': ('T', 'た'),
 }
-
 
 def format(prefix, pos, *moods):
   m = moods[0] if len(moods) > 0 else 'base'
@@ -172,10 +187,10 @@ class Chunk(object):
 
   def data(self):
     if isinstance(self.extra, list) or isinstance(self.extra, tuple):
-      return (format(self.base, self.pos), self.base, self.pos, *self.extra)
+      return (format(self.base, self.pos), self.pos, *self.extra)
     if self.extra is not None:
-      return (format(self.base, self.pos), self.base, self.pos, self.extra)
-    return (format(self.base, self.pos), self.base, self.pos)
+      return (format(self.base, self.pos), self.pos, self.extra)
+    return (format(self.base, self.pos), self.pos)
 
   def __repr__(self):
     return repr(self.data())
@@ -225,29 +240,6 @@ class Chunk(object):
 
 
 CJTagMethods = {
-  'PNoun': 'acceptNoun',
-  'PAdj': 'acceptAdj',
-  'PVerb1': 'acceptVerb1',
-  'PPNoun': 'acceptNoun',
-  'PPAdj': 'acceptAdj',
-  'PPVerb1': 'acceptVerb1',
-  'VK5': 'acceptVerb5',
-  'VS5': 'acceptVerb5',
-  'VT5': 'acceptVerb5',
-  'VN5': 'acceptVerb5',
-  'VM5': 'acceptVerb5',
-  'VR5': 'acceptVerb5',
-  'VW5': 'acceptVerb5',
-  'VG5': 'acceptVerb5',
-  'VB5': 'acceptVerb5',
-  'Vi5': 'acceptVerb5X',
-  'Vt5': 'acceptVerb5X',
-  'Vd5': 'acceptVerb5X',
-  'VB': 'acceptVerb5X',
-  'VS': 'acceptVerbDo',
-  'VZ': 'acceptVerbDo',
-  'VSx': 'acceptVerbDoX',
-  'Object': 'acceptArgument',
 }
 
 def verb(s, *moods):
@@ -262,197 +254,40 @@ def verb(s, *moods):
       prefix += token.base
   return format(prefix, 'V', *moods)
 
-
 class Tokenizer(object):
   def visit(self, node):
-    try: 
-      tag = node.getTag()
-      if tag in CJTagMethods:
-        method = CJTagMethods[tag]
-      else:
-        method = f'accept{tag}'
-        CJTagMethods[tag] = method
-      if not hasattr(self, method):
-        method = 'acceptUnknown'
-        CJTagMethods[tag] = method
-      return getattr(self, method)(node)
-    except IndexError:
-      print('FIXME', node)
-      return self.acceptUnknown(node)
-
-  def suffix(self, node, base):
-    s = node.substring(None, base)
-    return '' if s == '' else '+'+s
-
-  def append(self, node: ParseTree, anno):
-    if len(node) == 0:
-      chunk = Chunk(node.getToken(), 'U', [node])
+    tag = node.getTag()
+    if tag == '':
+      return self.visit(node[0])
+    if tag.endswith('.') or len(node) == 0:
+      tag = tag.replace('.', '')
+      chunk = Chunk(node.getToken(), self.pos(tag))      
     else:
       chunk = self.visit(node[0])
-    chunk.append(anno)
+      if not tag.startswith('X'):
+        chunk.pos = self.pos(tag)
+    tags = tag.split('X')
+    if len(tags) > 0:
+      for meta in tags[1:]:
+        if meta == '':
+          meta = self.suffix2(node)
+        else:
+          meta = '@'+meta
+        chunk.append(meta)
     return chunk
 
-  def acceptUnknown(self, node: ParseTree):
-    print('FIXME', repr(node))
-    return Chunk(node.getToken(), 'U', [node])
+  def pos(self, tag):
+    if tag.startswith('X'): 
+      return 'N'
+    return tag.split('X')[0]
 
-  def acceptTen(self, node: ParseTree):
-    return Chunk(node.getToken(), 'T')
+  def suffix2(self, node):
+    if len(node) > 0:
+      base = node[0]
+      s = node.substring(None, base)
+      return s
+    return ''
 
-  def acceptEOS(self, node: ParseTree):
-    return Chunk(node.getToken(), 'EOS')
-
-  def acceptEmpty(self, node: ParseTree):
-    return Chunk('', 'N')
-
-  def acceptExpression(self, node: ParseTree):
-    return Chunk(node.getToken(), 'NC', [node])
-
-  def acceptBase(self, node: ParseTree):
-    #print('FIXME', repr(node))
-    return self.visit(node[0])
-
-  def acceptAnd(self, node: ParseTree):
-    return self.append(node, '@@then')
-
-  def acceptNot(self, node: ParseTree):
-    return self.append(node, '@not')
-
-  def acceptAd(self, node: ParseTree):
-    return Chunk(node.getToken(), 'M')
-
-  def acceptAdj(self, node: ParseTree):
-    return Chunk(node.getToken(), 'A')
-
-  def acceptAdjN(self, node: ParseTree):
-    return Chunk(node.getToken(), 'AN')
-
-  def acceptNotOrAdj(self, node: ParseTree):
-    chunk = self.append(node, '@not')
-    chunk.append('@adj')
-    return chunk
-
-  def acceptNoun(self, node: ParseTree):
-    return Chunk(node.getToken(), 'N')
-
-  def acceptSNoun(self, node: ParseTree):
-    return Chunk(node.getToken(0), 'NR')
-
-  def acceptArgument(self, node):
-    chunk = self.visit(node[0])
-    chunk.append(self.suffix(node, node[0]))
-    return chunk
-
-  def acceptVerb5(self, node):
-    token = node.getToken(0) if len(node)>0 else node.getToken()
-    tag = node.getTag()
-    if tag == 'VR5' and token[-1] == 'す':
-      tag = 'VS'
-      token = token[:-1]
-    return Chunk(token, tag)
-
-  def acceptVerb5X(self, node):
-    chunk = self.visit(node[0])
-    if chunk.isVerb():
-      return chunk
-    token = node.getToken(0)
-    return Chunk(token, node.getTag())
-
-  def acceptVerbDo(self, node):
-    if len(node) == 0:
-      return Chunk('', 'VS')
-    chunk = self.visit(node[0])
-    chunk.pos = 'VS'
-    return chunk
-
-  def acceptVerbDoX(self, node):
-    if len(node) == 0:
-      return Chunk('', 'VSx')
-    chunk = self.visit(node[0])
-    chunk.pos = 'VSx'
-    return chunk
-
-  def acceptVerb(self, node):
-    if len(node) == 0:
-      print('FIXME', repr(node))
-    base = node[0]
-    chunk = self.visit(base)
-    if chunk.isVerb():
-      return chunk
-    chunk.pos = 'VS'
-    return chunk
-
-  def acceptEasy(self, node: ParseTree):
-    return self.append(node, '@easy')
-
-  def acceptHard(self, node: ParseTree):
-    return self.append(node, '@hard')
-
-  def acceptWant(self, node: ParseTree):
-    return self.append(node, '@want')
-
-  def acceptThen(self, node: ParseTree):
-    return self.append(node, '@then')
-
-  def acceptCommand(self, node: ParseTree):
-    return self.append(node, '@command')
-
-  def acceptPolite(self, node: ParseTree):
-    return self.append(node, '@polite')
-
-  def acceptPast(self, node: ParseTree):
-    return self.append(node, '@past')
-
-  def acceptWill(self, node: ParseTree):
-    return self.append(node, '@will')
-
-  def acceptBeen(self, node: ParseTree):
-    return self.append(node, '@passive')
-
-  def acceptMake(self, node: ParseTree):
-    return self.append(node, '@make')
-
-  def acceptCan(self, node: ParseTree):
-    chunk = self.append(node, '@can')
-    if chunk.pos == 'N':
-      chunk.pos = 'VS'
-    return chunk
-
-  def acceptWould(self, node: ParseTree):
-    return self.append(node, '@would')
-
-  def acceptMay(self, node: ParseTree):
-    return self.append(node, '@may')
-
-  def acceptMust(self, node: ParseTree):
-    return self.append(node, '@must')
-
-  def acceptShould(self, node: ParseTree):
-    return self.append(node, '@should')
-
-  def acceptTry(self, node: ParseTree):
-    return self.append(node, '@try')
-
-  def acceptVerb1(self, node: ParseTree):
-    return Chunk(node.getToken(), verbType(node.getTag()))
-
-  def acceptIf(self, node: ParseTree):
-    return self.append(node, '@@if')
-
-  def acceptWhile(self, node: ParseTree):
-    return self.append(node, '@@while')
-
-  def acceptEvenIf(self, node: ParseTree):
-    return self.append(node, '@@evenif')
-
-  def acceptAfter(self, node: ParseTree):
-    return self.append(node, '@@after')
-
-  def acceptConjunction(self, node: ParseTree):
-    return Chunk(node.getToken(), 'C')
-
-  def acceptThat(self, node: ParseTree):
-    return Chunk(node.getToken(), 'C')
 
 
 

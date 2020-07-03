@@ -23,12 +23,12 @@ H = HIRA
 C = KANJI/HIRA/KATA
 
 Chunk =
-  / {TEN #Ten }
+  / {TEN #CT }
   / Character
   // Dictionary
   / Pattern
   // Parenthesis _Nend?
-  / { [。．.\n] #EOS}
+  / { [。．.\n] #CEOS }
   // Expression _ _Nend?
   / Unknown
 
@@ -42,7 +42,7 @@ Unknown = {
 // な行は死ぬのみ
 
 Character =
-    / { CVERB1 #Verb1 } _Verb1
+    / { CVERB1 #V1 } _Verb1
     / { [死し] #VN5 } _VerbNA5
 
 CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい] &__V1START
@@ -50,16 +50,16 @@ CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐ�
 /* Pattern */
 
 Pattern =
-  / { H? K* #Noun } (_Kend / _HPattern) 
+  / { H? K* #N } (_Kend / _HPattern) 
 
-_HPattern = K / {^ H #Noun} (_Kend)
+_HPattern = K / EOF / {^ H #N. } (_Kend)
 
 /* ひらがな */
 
 _HPATTEN = _Kend
 
 _Kend = 
-  / _NendHA / _NendDA / _KendDE
+  / _NendHA / _NendWO / _NendDA / _KendDE
   / _KendNN / _KendTTU 
   / _KendI / _KendU / _KendE / _KendO
   / _KendKA / _KendKI / _KendKU / _KendKE / _KendKO
@@ -80,13 +80,28 @@ _Adj =
   / _AdjSA //赤さ
   / _AdjME //赤め
 
+_Nai =
+  / {^ 'い' #X} _Vend?
+  / {^ 'く' #Xthen } __KendKU?
+  / {^ 'かった' #Xpast } _Pend?
+
 /* あ行 */
+
+_VerbWA5 =
+  / {^ 'っ' #VW5 } _VerbT　//　笑い
+  / {^ 'い' #VW5 } _VerbI　//　笑い
+  / _KendWA
+  / _KendU
+  / _KendE
+  / _KendO
 
 _KendI = 
     / {^ 'い' #Vt5 } _VerbT   // 書いた
-    / {^ 'い' #VW5 } _VerbIn　//　笑い
+    / {^ 'い' #VW5 } _VerbI　//　笑い
+    / {^ 'い' #A } _Vend
+    / {^ 'い' #NA. } _Nend? // 赤い @NA 形容詞かも知れない
 
-_AdjI = {^ 'い' #Base} // 赤い
+_AdjI = {^ 'い' #A } _Vend? // 赤い
 
 _KendU = {^ 'う' #VW5 } _VerbU  // 笑う
 _KendE = {^ 'え' #VW5 } _VerbE  // 笑えば
@@ -94,31 +109,39 @@ _KendO = {^ 'お' #VW5 } _VerbO  // 笑おう
 
 /* か行 */
 
+_VerbKA5 =
+  / {^ 'か' #VK5 } _VerbA  // 書かない
+  / {^ 'い' #VK5 } _VerbT   // 書いた
+  / {^ 'く' #VK5 } _VerbU // 書く, 赤く
+  / _KendKI
+  / _KendKE
+  / _KendKO
+
 _KendKA =
     / {^ 'か' #VK5 } _VerbA  // 書かない
     / _AdjKA
     / _VendKA
-_AdjKA = {^ 'かった' #Past} _Pend?
+_AdjKA = {^ 'かった' #Xpast} _Pend?
 _NendKA =
-    / {^ 'かも' ('知れ'/'しれ') ('ない'/'ません'/'ず') #May}
-    / {^ 'から' !_HPATTEN (_NO)? #Argument }
-    / { 'か' (DOUKA / !KA_V !_HPATTEN) #Whether } _Nend?
+    / {^ 'かも' ('知れ'/'しれ') ('ない'/'ません'/'ず') #Xmay}
+    / {^ 'から' !_HPATTEN (_NO)? #X }
+    / { 'か' (DOUKA / !KA_V !_HPATTEN) #Xwhether } _Nend?
 
 _VendKA = _NendKA
 DOUKA = TEN? ('どうか' / '否か') TEN?
 
 _KendKI = {^ 'き' #VK5 } _VerbIn
 _KendKU = 
-  / {^ 'く' #PAdj } __KendKU
+  / {^ 'く' #AXthen } __KendKU
   / {^ 'く' #AVK5 } _VerbU // 書く, 赤く
 
 _AdjKU = 
-  / {^ 'く' #PAdj } __KendKU
+  / {^ 'く' #AXthen } __KendKU
   / {^ 'く' #A } _VerbU // 書く, 赤く
 
 __KendKU = 
-    / {^ 'な' #Not } _Adj // 赤くない
-    / {^ 'な' #Become } _VerbRA5 // 赤くなる
+    / {^ 'な' #Xnot } _Nai // 赤くない
+    / { 'な' #VR5 } _VerbRA5 // 赤くなる
 
 _KendKE = {^ 'け' #VK5 } _VerbE
 _KendKO = {^ 'こ' #VK5 } _VerbO
@@ -126,26 +149,26 @@ _KendKO = {^ 'こ' #VK5 } _VerbO
 /* さ　*/
 
 _KendSA =
-    / {^ 'さ' #VS5 } _VerbA  // ない
     / _NendSA
+    / {^ 'さ' #VS5 } _VerbA  // ない
     / _AdjSA
 
 _NendSA =
-    / {^ 'さ' #VS } {^ 'れ' #Been } _Verb1 
-    / {^ 'さ' #VS } {^ 'せ' #Make } _Verb1
+    / {^ 'され' #VSXpassive } _Verb1 
+    / {^ 'させ' #VSXmake } _Verb1
 
-_AdjSA = {^ 'さ' ![れせ] #Noun } _Nend?
+_AdjSA = {^ 'さ' ![れせ] #N. } _Nend?
 
 _KendSI =
-    / {^ 'し' &__V1START #PVerb1 } _Verb1  
     / _AdjSI
     / _NendSI
+    / {^ 'し' &__V1START #V1. } _Verb1  
 
-_AdjSI = {^ 'し'  #PAdj} _Adj // 美味しい
+_AdjSI = {^ 'し'  #A. } _Adj // 美味しい
 
 _NendSI = // 例　したりし
     / {^ 'し' #VS } (_VerbA / _VerbT / _VerbI / 'よ' _VerbO)
-    / {^ 'し' [よろ] #VS } {^ CMD? #Command } _Vend?
+    / {^ 'し' [よろ] #VS } {^ CMD? #Xdo } _Vend?
     / {^ 'し' #Noun } _Nend?
 
 _KendSU = 
@@ -154,17 +177,17 @@ _KendSU =
 
 _NendSU = 
   / {^ 'する' #VS } _VerbU  // サ変
-  / {^ 'す' #VS } ('れ' _VerbE / _Should) 
+  / {^ 'す' #VS } ('れ' _VerbE) 
 
 _KendSE =
-  / {^ 'せ' #VK5 } _VerbE
   / _NendSE
+  / {^ 'せ' #VS5 } _VerbE
 
 _NendSE = 
-  / {^ 'せよ' #VS } {^ CMD? #Command } _Vend?
-  / {^ 'せず' / 'せぬ' #Noun } _Nend?
+  / {^ 'せよ' #VS } {^ CMD? #Xdo } _Vend?
+  / {^ 'せず' / 'せぬ' #NXnot. } _Nend?
 
-_KendSO = {^ 'そ' #VK5 } _VerbO
+_KendSO = {^ 'そ' #VS5 } _VerbO
 
 /* たちつてと */
 
@@ -177,14 +200,14 @@ _KendTO =
   / _VendTO
 
 _NendTO =
-  / {^ 'と' (_HA/_MO/!TO_V) #Argument }
+  / {^ 'と' (_HA/_MO/!TO_V) #X }
 
 _VendTO =
-  / {^ IF #If } _EvenIf?
+  / {^ IF #Xif } _EvenIf?
   / _NendTO
 
 IF = 'とき' / '時' / '場合'
-_EvenIf = {^ _MO #EvenIf }
+_EvenIf = {^ _MO #Xeven }
 
 /* なにぬねの　*/
 
@@ -201,15 +224,15 @@ _KendNA =
     / _NendNA
 
 _NendNA = 
-  / {^ 'な' #PAdj} _Adj
-  / {^ 'な' !NA_V /*!(_Iw)*/ #AdjN} // 立派な
+  / {^ 'な' #AXnot. } _Adj
+  / {^ 'な' !NA_V /*!(_Iw)*/ #AN. } // 立派な
 
 _KendNI =
   / {^ 'に' #VN5 } _VerbI  // ながら
   / _NendNI
 
 _NendNI = 
-  / {^ 'に' !TO_V (_HA/_MO)? #Argument }
+  / {^ 'に' !TO_V (_HA/_MO)? #X }
 _VendNI = _NendNI
 
 _KendNU = {^ 'ぬ' #VN5 } _VerbU  // 
@@ -220,14 +243,14 @@ _KendNO =
   / _NendNO
 
 _NendNO = 
-  {^ 'の' !NO_V (_HA/_MO/_GA/'を')? #Argument }
+  {^ 'の' !NO_V (_HA/_MO/_GA/'を')? #X }
 
-_VendNO = { 'の' #That} _Nend
+_VendNO = { 'の' #CXthat} _Nend
 
 /* はひふへほ */
 
-_NendHA = {^ 'は' !HA_V !_HPATTEN #Argument }
-_NendHE = {^ 'へ' (_NO / !HE_V !_HPATTEN) #Argument }
+_NendHA = {^ 'は' !HA_V !_HPATTEN #X }
+_NendHE = {^ 'へ' (_NO / !HE_V !_HPATTEN) #X }
 
 /* まみむめも　*/
 
@@ -237,20 +260,20 @@ _KendMU = {^ 'む' #VM5 } _VerbU  //
 _KendME =
     / {^ 'め' #VM5 } _VerbE  // ば
     / _AdjME
-_AdjME = {^ 'め' #Noun } _Nend? //　高め
+_AdjME = {^ 'め' #NXadj. } _Nend? //　高め
 
 _KendMO =
   / {^ 'も' #VM5 } _VerbO  // う
   / _NendMO
 
 _NendMO =
-  / {^ 'も' !MO_V !_HPATTEN #Argument }
+  / {^ 'も' !MO_V !_HPATTEN #X }
 _VendMO = _NendMO
 
 /* やゆよ */
-_NendYA = {^ 'や' !YA_V !_HPATTEN #Argument }   // や
-_NendYU = {^ 'ゆえ' !_HPATTEN (_NI/_NO)? #Argument }   // ゆえ
-_NendYO = {^ 'より' !_HPATTEN #Argument }   // より
+_NendYA = {^ 'や' !YA_V !_HPATTEN #X }   // や
+_NendYU = {^ 'ゆえ' !_HPATTEN (_NI/_NO)? #X }   // ゆえ
+_NendYO = {^ 'より' !_HPATTEN #Xthan }   // より
 
 /* らりすれろ */
 
@@ -266,7 +289,7 @@ _KendRA =
     / {^ 'ら' #VR5 } _VerbA  // ない
     / _NendRA 
 
-_NendRA = {^ 'らし' #Sound } _Adj 
+_NendRA = {^ 'らし' #A. } _Adj 
 _VendRA = _NendRA
 
 _KendRI = {^ 'り' #VR5 } _VerbIn  // ながら
@@ -277,7 +300,8 @@ _KendRO = {^ 'ろ' #VR5 } _VerbO  // う
 /* わ行 */
 
 _KendWA = {^ 'わ' #VW5 } _VerbA  // ない
-_NendWO = {^ 'を' !_HPATTEN #Argument }
+
+_NendWO = {^ 'を' !_HPATTEN #X }
 
 /* がぎぐげご */
 
@@ -285,8 +309,8 @@ _KendGA =
     / {^ 'が' #VG5 } _VerbA  // 防がない
     / _NendGA
 
-_NendGA = {^ 'が' !GA_V !_HPATTEN #Argument } // 防が
-_VendGA = { 'が' !GA_V !_HPATTEN #Conjunction }
+_NendGA = {^ 'が' !GA_V !_HPATTEN #X } // 防が
+_VendGA = { 'が' !GA_V !_HPATTEN #C }
 
 _KendGI = {^ 'ぎ' #VG5 } _VerbIn  // 防ぎ
 _KendGU = {^ 'ぐ' #VG5 } _VerbU  // 防ぐ
@@ -302,12 +326,12 @@ _KendZI =
 
 _KendZU =
     / {^ 'ずる' #VZ } _VerbU  // サ変
-    / {^ 'ず' #VZ } ('れ' _VerbE / _Should) 
+    / {^ 'ず' #VZ } ('れ' _VerbE) 
 
 _KendZE =
-    / {^ 'ぜ' &__V1START #PVerb1 } _Verb1
-    / {^ 'ぜよ' #VZ } {^ CMD? #Command } _Vend?
-    / {^ 'ぜず' / 'ぜぬ' #Noun } _Nend?
+    / {^ 'ぜ' &__V1START #V1. } _Verb1
+    / {^ 'ぜよ' #VZXdo } _Vend?
+    / {^ 'ぜず' / 'ぜぬ' #NXnot. } _Nend?
 
 /* ばびぶべぼ */
 
@@ -320,26 +344,32 @@ _KendBO = {^ 'ぼ' #VB5 } _VerbO  // 遊ぼう
 /* で */
 
 _VendDA =
-  / {^ 'だろう' #VB }　{^ #Would } _Vend?
+  / {^ 'だろう' #Xwould } _Vend?
 
 _NendDA = 
-  / _VendDA
-  / {^ 'だった' #VB }　{^ #Past } _Pend?
-  / {^ 'だ' !DA_V !_HPATTEN  #VB } _Vend? // だせる
+  / {^ 'だろう' #XbeXwould } _Vend?
+  / {^ 'だった' #XbeXpast }　_Pend?
+  / {^ 'だ' !DA_V !_HPATTEN  #Xbe } _Vend? // だせる
 
 _KendDE = // LIMIT 茹でたまご
-  / {^ 'で' &__V1START #PVerb1 } _Verb1
+  / {^ 'で' !'な' &__V1START #V1. } _Verb1
   / _NendDE
 
 _NendDE =
-  / {^ 'でき' #Can } _Verb1
-  / _VendDE  
+  / {^ 'でき' #Xcan } _Verb1
+  / {^ 'でした' #XbeXpast } _Pend?
+  / {^ 'でしょう' #XbeXwould } _Vend? 
+  / {^ 'でな' #XbeXnot }　_Nai 
+  / {^ 'で' #X } {'あ' #Xbe } _VerbRA5
+  / {^ !SUNOUN 'です' #Xbe }　_Vend? 
+  / {^ 'で' !DE_V !_HPATTEN OF #X }
 
 _VendDE = 
-  / {^ 'でした' #VB }　{^ #Past } _Pend?
-  / {^ 'でしょう' #VB }　{^ #Would } _Vend? 
-  / {^ 'です' #VB }　_Vend? // だせる _Vend?
-  / {^ 'で' !DE_V !_HPATTEN OF #Argument }
+  / {^ 'でしょう' #Xwould } _Vend? 
+  / !SUNOUN 'です'　_Vend? 
+  / {^ 'で' !DE_V !_HPATTEN OF #X }
+
+SUNOUN = 'すべて' / 'すっ' / 'すこやか'
 
 /* 促音 */
 
@@ -349,88 +379,105 @@ _KendNN = {^ 'ん' #Vd5 } _VerbD // で
 /* 活用 */
 
 _Verb1 = // 過ぎ　述べ　視　でき
-    / {^ 'る' #Base } _VerbU  // 
-    / {^ 'れ' #Verb } _VerbE  // ば
-    / {^ 'られ' #Been } _Verb1 // 述べられています
-    / {^ 'よ' #Verb } _VerbO  // う
+    / {^ 'る' } _VerbU  // 
+    / {^ 'れ' } _VerbE  // ば
+    / {^ 'られ' #Xpassive } _Verb1 // 述べられています
+    / {^ 'よ' } _VerbO  // う
     / _VerbA  // ない
     / _VerbT // て
     / _VerbI　// て
 
 _Verb1n = // 過ぎ　述べ　視　でき
     / _Verb1
-    / {^ #Noun } (_Nend)?  // 
+    / {^ #N. } (_Nend)?  // 
 
 _VerbA = // 書か+ない   探さ+ない
-    / {^ 'な' #Not } _Adj
-    / {^ 'ず' #Noun } _Nend?
-    / {^ 'さ'? 'せ' #Make } _Verb1
-    / {^ 'れ' #Been } _Verb1 
+    / {^ 'な' #Xnot } _Nai
+    / {^ 'ず' #NXnot. } _Nend?
+    / {^ 'さ'? 'せ' #Xmake } _Verb1
+    / {^ 'れ' #Xpassive } _Verb1 
 
 _VerbI = // 書き+つつ  探し+つつ　
-    / &'ま' _VerbIP
-    / {^ 'た' #Want } _Adj   // 書きたい
-    / {^ ('やす' / 'よ' ) #Easy } _Adj  // 書きやすい
-    / {^ ('にく' / 'がた' / 'づら') #Hard } _Adj //書きがたい
-    / {^ 'がち' #Noun } _Nend? //休みがちだ
-    / {^ ('つつ' / 'ながら') #While }
-    / {^ &__V1START #PVerb1 } _Verb1
+    / _VerbIP
+    / {^ 'た' #Xwant } _Adj   // 書きたい
+    / {^ ('やす' / 'よ' ) #Xeasy } _Adj  // 書きやすい
+    / {^ ('にく' / 'がた' / 'づら') #Xhard } _Adj //書きがたい
+    / {^ 'がち' #N. } _Nend? //休みがちだ
+    / {^ ('つつ' / 'ながら') #Xwhile }
+    / {^ &__V1START #V1. } _Verb1
 
 _VerbIn = // 書き+つつ  探し+つつ　
     / _VerbI
-    / {^ #Noun } (_Nend)?
+    / {^ #N. } (_Nend)?
 
-_VerbIP =
-    / {^ ('ます' / 'ましょう') #Base } _Polite _Vend?
-    / {^ 'ません' #Not } _Polite _Vend?
-    / {^ 'ましたら' #If } _Polite
-    / {^ 'ました' #Past } _Polite _Pend?
-    / {^ 'ましても' #EvenIf } _Polite
-    / {^ 'まして' #And } _Polite
-
-_Polite = {^ #Polite }
+_VerbIP = 'ま' __VerbIP
+__VerbIP = 
+    / {^ ('す' / 'しょう') #Xpolite } _Vend?
+    / {^ 'せん' #XnotXpolite } _Vend?
+    / {^ 'したら' #XifXplite } 
+    / {^ 'した' #XpastXplite } _Pend?
+    / {^ 'しても' #XevenXplite } 
+    / {^ 'して' #XandXpolite }
 
 _VerbT = // 書い+て   探し+て　
-    / {^ 'た' #Want } _Adj   // 特例. 記録したい
-    / {^ 'た' /*!_TAHw*/ #Past } _Pend?  // !たてる
-    / {^ 'て' #Base } _VerbKUDASAI
-
-// たえる　たてる・ためる・たれる　たおすたたく
-//_TAHw = [えおせただてめれ]  
+    / {^ 'た' #Xwant } _Adj   // 特例. 記録したい
+    / {^ 'た' !TA_V #Xpast } _Pend?  // !たてる
+    / {^ 'て' #Xthen } __VerbTD
 
 _VerbD = // 遊んだ   遊んで
-    / {^ 'だ' #Past } _Pend?
-    / {^ 'で' #Base } _VerbKUDASAI
+    / {^ 'だ' #Xpast } _Pend?
+    / {^ 'で' #Xthen } __VerbTD
 
-_VerbKUDASAI =
-  / {^ KUDASAI #Command } {^ #Polite} _Vend?
-  / {^ _MO #EvenIf }
+__VerbTD =
+  / {^ KUDASAI #XdoXpolite } _Vend?
+  / {^ _MO #Xeven }
   / _VerbIP 
-  / {^ #Noun } (&NSTART / _Nend)  // 翔んで埼玉
-  // {^ #And } _TryMood?
+  / {^ 'あ' #Xnow } _Verb1 // 笑ってある
+  / {^ 'な' #Xnot } _Adj // 笑ってある
+  / {^ 'み' #Xtry } _Verb1 // 笑ってみる
+  / {^ 'みせ' #Xtry } _Verb1 // 笑ってみる
+  / {^ 'お' #Xdone } _VerbKA5    // 笑っておく
+  / {^ 'い' #Xnow } _Verb1 // 笑っている, 
+  / {^ [いゆ] #Xgoing } _VerbKA5  // 増加していく
+  / {^ 'や' #X } _VerbRA5    // 笑ってやる
+  / {^ 'くれ' #X } _Verb1    // 笑ってくれる
+  / {^ 'もら' #Xget } _VerbWA5    // 笑ってもらう
+  / {^ 'しま' #X } _VerbWA5    // 笑ってしまう
+  / {^ 'ほし' #Xwant } _Adj    // 笑ってほしい
+  / {^ #Xnow } _Verb1 // 笑ってる (口語)
+  / {^ #N. } (&NSTART / _Nend)  // 翔んで埼玉
+  / {^ #Xthen }
+
+//飲んで いらっしゃる
+//励まして くださる
+//これで ございます
+//応援して いただく
+//運んで あげる
+//送って さしあげる
 
 KUDASAI = 'ください'/'下さい'
 
 _VerbU = &VEND _Vend? // 書く　探す
 
 _VerbE = // 書け+ば  探せ+ば
-    / {^ 'ば' #If }
-    / {^ CMD #Command }
-    / {^ #PVerb1 } _Verb1n
+    / {^ 'ば' #Xif }
+    / {^ CMD #Xdo }
+    / {^ #V1. } _Verb1n
 
 _VerbO = // 書こ+う　探そ+う
-    / {^ 'う' #Will } _Vend?
+    / {^ 'う' #Xletus } _Vend?
 
-_Should = 
-    {^ ('べき' / 'べし' / 'はず' ) #Should } _Nend?
+// _Should = 
+//     {^ ('べき' / 'べし' / 'はず' ) #Xshould } _Nend?
 
 _Nend =
-  / _NendHA // は
-  / _NendGA // が
-  / _NendMO // も
   / _NendDA // だ
   / _NendDE // で
+  / _NendGA // が
+  / _NendHA // は
+  / _NendMO // も
   / _NendNI // に
+  / _NendNO // に
   / _NendTO // と
   / _NendKA // か
   / _NendSA // 勤勉さ
@@ -443,12 +490,17 @@ _Nend =
   / _NendYO // よう
 
 _Vend =
-  / _VendKA // するか
-  / _VendTO // すると
   / _VendDA // するだろう
   / _VendDE // するでしょう
-  / _VendRA // するらしい
   / _VendGA // が
+  / _VendKA // するか
+  / _VendMO
+  / _VendNI
+  / _VendNO
+  / _VendTO // すると
+  / _VendRA // するらしい
+  / {^ 'べき' #Xshould } (NSTART / _Nend )
+
   // / {^ 'に' ('違い'/'ちがい') ('ない' / 'ありません') #Must } _Vend?
   // / {^ 'しかありません' #Only }
   // / { 'が' #Conjunction }
@@ -459,8 +511,8 @@ _Vend =
   // / { 'こと' / 'の'　#That } _Nend?
 
 _Pend =
-  / {^ 'り' #Noun } (_Nend)
-  / {^ 'な'? 'ら' 'ば'? #If } 
+  / {^ 'り' #N. } (_Nend)
+  / {^ 'な'? 'ら' 'ば'? #Xif } 
   / _Vend
 
 // パターン
@@ -565,6 +617,10 @@ HA_V = /* は*/
     // / 'はら' / 'はや' / 'はから' / 'はな' / 'はず'
     // / 'はか' / 'はだか' / 'はま' / 'はさ' / 'はじめ'
     // / 'はたら' / 'はこ' / 'はね' / 'はて' / 'はめ' 
+
+TA_V = [えおせただてめれ]
+// たえる　たてる・ためる・たれる　たおすたたく
+//_TAHw = [えおせただてめれ]  
 
 TO_V = /* と */
     / _HRA5 
