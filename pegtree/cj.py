@@ -293,7 +293,11 @@ class Tokenizer(object):
 
 def tokenize(text_or_tree):
   if not isinstance(text_or_tree, ParseTree):
-    tree = getParser()(text_or_tree)
+    try:
+      tree = getParser()(text_or_tree)
+    except RecursionError:
+      print('FIXME(RecursionError)', text_or_tree)
+      return []
   else:
     tree = text_or_tree
   tokenizer = Tokenizer()

@@ -42,17 +42,17 @@ Unknown = {
 // な行は死ぬのみ
 
 Character =
-    / { CVERB1 #V1 } _Verb1
+    / { CVERB1 &__V1START #V1 } _Verb1
     / { [死し] #VN5 } _VerbNA5
 
-CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい] &__V1START
+CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい]
 
 /* Pattern */
 
 Pattern =
   / { H? K* #N } (_Kend / _HPattern) 
 
-_HPattern = K / EOF / {^ H #N. } (_Kend)
+_HPattern = NSTART / {^ H #N. } (_Kend / _HPattern)
 
 /* ひらがな */
 
@@ -169,7 +169,7 @@ _AdjSI = {^ 'し'  #A. } _Adj // 美味しい
 _NendSI = // 例　したりし
     / {^ 'し' #VS } (_VerbA / _VerbT / _VerbI / 'よ' _VerbO)
     / {^ 'し' [よろ] #VS } {^ CMD? #Xdo } _Vend?
-    / {^ 'し' #Noun } _Nend?
+    / {^ 'し' #N. } _Nend?
 
 _KendSU = 
   / _NendSU
@@ -385,7 +385,7 @@ _Verb1 = // 過ぎ　述べ　視　でき
     / {^ 'よ' } _VerbO  // う
     / _VerbA  // ない
     / _VerbT // て
-    / _VerbI　// て
+    / _VerbI0　// て  再帰なし
 
 _Verb1n = // 過ぎ　述べ　視　でき
     / _Verb1
@@ -393,21 +393,25 @@ _Verb1n = // 過ぎ　述べ　視　でき
 
 _VerbA = // 書か+ない   探さ+ない
     / {^ 'な' #Xnot } _Nai
-    / {^ 'ず' #NXnot. } _Nend?
     / {^ 'さ'? 'せ' #Xmake } _Verb1
     / {^ 'れ' #Xpassive } _Verb1 
+    / {^ 'ず' &NSTART #NXnot. } _Nend?
 
-_VerbI = // 書き+つつ  探し+つつ　
+_VerbI0 = // 書き+つつ  探し+つつ　再帰なし
     / _VerbIP
     / {^ 'た' #Xwant } _Adj   // 書きたい
     / {^ ('やす' / 'よ' ) #Xeasy } _Adj  // 書きやすい
     / {^ ('にく' / 'がた' / 'づら') #Xhard } _Adj //書きがたい
     / {^ 'がち' #N. } _Nend? //休みがちだ
     / {^ ('つつ' / 'ながら') #Xwhile }
+
+_VerbI = // 書き+つつ  探し+つつ　
+    / _VerbI0
     / {^ &__V1START #V1. } _Verb1
 
 _VerbIn = // 書き+つつ  探し+つつ　
     / _VerbI
+    / {^ &__V1START #V1. } _Verb1
     / {^ #N. } (_Nend)?
 
 _VerbIP = 'ま' __VerbIP
@@ -587,7 +591,8 @@ NSUFFIX =
 OF = ('の' / _MO / 'を' / 'に')?
 
 __V1START =  // 高めた 落ちる　(勝ちますと区別つかない)
-    / [るたてま]
+    / [るたて]
+    / 'ま' [すしせ]
     / 'られ'
     / NAIw
 
