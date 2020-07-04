@@ -6,36 +6,38 @@
 */
 
 Sentence = {
-    (Chunk)* EOS
+    (Chunk _?)* EOS
     #CJ
 }
 
 EOS = [。．.\n]? EOF
 EOF = !.
 
-TEN = [、，,：　 \n]
+_ = [　 ]*
+TEN = [、，,：]
 KANJI = [㐀-䶵一-龠々〇〻ーご]
 KATA = [ァ-ヶー・]
 HIRA = [ぁ-ん]
+ALNUM = [a-zA-Z0-9]
+JALNUM = [ａ-ｚＡ-Ｚ０-９]
 CMD = [！!]
-K = KANJI/KATA
+
+K = KANJI/KATA/JALNUM
 H = HIRA
 C = KANJI/HIRA/KATA
 
 Chunk =
   / {TEN #CT }
+  / Parenthesis
+  / Number / Symbol
+  / Onomatopoeia
   / Character
   // Dictionary
   / Pattern
-  // Parenthesis _Nend?
   / { [。．.\n] #CEOS }
   // Expression _ _Nend?
   / Unknown
 
-Unknown = {
-    (!K .)+
-    #Unknown
-}
 
 /* Character */
 // いる　一段動詞はパターンマッチできない
@@ -46,19 +48,34 @@ Character =
     / { [死し] #VN5 } _VerbNA5
 
 CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい]
+//CNA = [恣稀別希妙歪素朧更嫌縦罪酷厭密徒闌端酣初俄切邪変乙主雑暇露粋艷楽急俗顕や雅生純義円重]
+
+/* Onomatopoeia オノマトペ語彙　*/
+
+Onomatopoeia = &H _Onomatopoeia _Kend?
+
+_Onomatopoeia = 
+  / { @scope(@symbol(PAT2w) @match(PAT2w)) #NM }
+  / { @scope(@symbol(PAT3w) @match(PAT3w)) #NM }
+
+PAT2w = H C
+PAT3w = H C C
 
 /* Pattern */
 
-Pattern =
-  / { H? K* #N } (_Kend / _HPattern) 
+Pattern = { H? K* #N } (_Ten / _Kend / _HPattern) 
 
-_HPattern = &NSTART / {^ H #N. } (_Kend / _HPattern)
+_Ten = {^ TEN #NM }
+
+_HPattern = !H / &NSTART / {^ H #N. } ( _Kend / _HPattern)
 
 /* ひらがな */
 
 _HPATTEN = _Kend
 
-_Kend = 
+_Kend = &H _KendH
+
+_KendH = 
   / _NendHA / _NendWO / _NendDA / _KendDE
   / _KendNN / _KendTTU 
   / _KendI / _KendU / _KendE / _KendO
@@ -126,7 +143,7 @@ _AdjKA = {^ 'かった' #Xpast} _Pend?
 _NendKA =
     / {^ 'かも' ('知れ'/'しれ') ('ない'/'ません'/'ず') #Xmay}
     / {^ 'から' !_HPATTEN (_NO)? #X }
-    / { 'か' (DOUKA / !KA_V !_HPATTEN) #Xwhether } _Nend?
+    / { 'か' (DOUKA / !KA_V !_HPATTEN &NEND ) #Xwhether } _Nend?
 
 _VendKA = _NendKA
 DOUKA = TEN? ('どうか' / '否か') TEN?
@@ -135,12 +152,12 @@ _KendKI = {^ 'き' #VK5 } _VerbIn
 _KendKU = 
   / {^ 'くさ' #A. } _Adj // 蒼くさい
   / {^ 'く' #AXthen } __KendKU
-  / {^ 'く' #AVK5 } _VerbU // 書く, 赤く
+  / {^ 'く' #AVK5Xthen } _VerbU // 書く, 赤く
 
 _AdjKU = 
   / {^ 'くさ' #A. } _Adj
   / {^ 'く' #AXthen } __KendKU
-  / {^ 'く' #A } _VerbU // 書く, 赤く
+  / {^ 'く' #AXthen } _VerbU // 書く, 赤く
 
 __KendKU = 
     / {^ 'な' #Xnot } _Nai // 赤くない
@@ -204,7 +221,7 @@ _KendTO =
   / _VendTO
 
 _NendTO =
-  / {^ 'と' (_HA/_MO/!TO_V) #X }
+  / {^ 'と' (_HA / _MO / _NO / !TO_V ) #X }
 
 _VendTO =
   / {^ IF #Xif } _EvenIf?
@@ -229,15 +246,18 @@ _KendNA =
 
 _NendNA = 
   / {^ 'な' #AXnot. } _Adj
-  / {^ 'な' &(NSTART/NA_V)  #AN. } // 立派な
+  / {^ 'な' &NSTART !NA_V  #AN. } // 立派な
 
 _KendNI =
   / {^ 'に' #VN5 } _VerbI  // ながら
   / _NendNI
 
 _NendNI = 
-  / {^ 'に' !TO_V (_HA/_MO)? #X }
-_VendNI = _NendNI
+  / {^ 'に' !NI_V (_HA/_MO)? #X }
+
+_VendNI =
+  / {^ 'に' (_HA/_MO) #X}
+  / {^ 'に' #NM. }
 
 _KendNU = {^ 'ぬ' #VN5 } _VerbU  // 
 _KendNE = {^ 'ね' #VN5 } _VerbE  // ば
@@ -305,7 +325,7 @@ _KendRO = {^ 'ろ' #VR5 } _VerbO  // う
 
 _KendWA = {^ 'わ' #VW5 } _VerbA  // ない
 
-_NendWO = {^ 'を' !_HPATTEN #X }
+_NendWO = {^ 'を'  #X }
 
 /* がぎぐげご */
 
@@ -356,7 +376,7 @@ _VendDA =
 _NendDA = 
   / {^ 'だろう' #XbeXwould } _Vend?
   / {^ 'だった' #XbeXpast }　_Pend?
-  / {^ 'だ' !DA_V !_HPATTEN  #Xbe } _Vend? // だせる
+  / {^ 'だ' !DA_V !_HPATTEN  &VEND #Xbe } _Vend? // だせる
 
 _KendDE = // LIMIT 茹でたまご
   / {^ 'で' !'な' &__V1START #V1. } _Verb1
@@ -487,19 +507,23 @@ _Nend =
   / _NendDE // で
   / _NendGA // が
   / _NendHA // は
+  / _NendHE
+  / _NendKA // か
   / _NendMO // も
+  / _NendNA // に
   / _NendNI // に
   / _NendNO // に
-  / _NendTO // と
-  / _NendKA // か
+  / _NendRA // 彼らしい
   / _NendSA // 勤勉さ
   / _NendSI // 使用しろ
   / _NendSU // 使用す
   / _NendSE // 使用せよ
-  / _NendRA // 彼らしい
+  / _NendTO // と
+  / _NendWO // を
   / _NendYA // や
   / _NendYU // ゆえ
   / _NendYO // よう
+
 
 _Vend =
   / _VendDA // するだろう
@@ -545,12 +569,12 @@ NOUN =
 
 NTAIL =
   / '置き' / 'おき' // 1日おき
-  / 'ごと' 
+  / 'ごと' / 'びと'
   / 'さま' / 'さん' / 'ちゃん'
   / 'たち' 
   / 'ずくめ' / 'だらけ' / 'ばかり'
   / 'など' / 'がら'
-  / 'さ' ![せれ]
+
 
 _HNCONJ =
     / 'だ' ('った'/'ろ'/ ![けせ])
@@ -612,13 +636,13 @@ _Iw = [いく] / 'かった' / 'ければ'
 
 KA_V = /*か*/
     / _HSA5
-    / [えざさ] // かえ　かざ　かさ
+    / [えざさせ] // かえ　かざ　かさ かせる
 
 GA_V = /*が*/
     / 'え' // がえ
 
 NA_V = /*な*/
-    / _HRA5
+    / _HRA5 
     / [がお] //'なが' / 'なお'
 
 NO_V = /*な*/
@@ -638,7 +662,8 @@ TA_V = [えおせただてめれ]
 
 TO_V = /* と */
     / _HRA5 
-    / [ばおどめ] // 'とば' / 'とお' / 'とど' / 'とどま' / 'とめ'
+    / [おけめばど] // 'とば' / 'とお' / 'とど' / 'とどま' / 'とめ' / 'とけ'
+
 
 NI_V = /*に*/
     / __V1START
@@ -673,3 +698,42 @@ _MO = !('もっと'/'もう'/'もし') 'も'
 _NI = 'に'
 _GA = 'が'
 
+/* Symbols */
+
+Parenthesis = 
+  / POPEN _Parenthesis _Nend?
+  / { '「' (!'」' .)+ '」' #NS } _Nend?
+  / '『' {  (!'』' .)+  #N } '』' _Nend?
+  / '[[' {  (!']]' .)+  #NL } ']]' _Nend?
+  / '$' {  (!'$' !C .)+ #NM } '$' _Nend?
+
+_Parenthesis =　
+  / { H+ #NR } PCLOSE // ルビー
+  / { KATA+ #NR } PCLOSE // ルビー
+  / { (ALNUM/' ')+ #NE } PCLOSE // 英訳
+  / { (!PCLOSE . )+ #NP } PCLOSE //
+
+POPEN = [(（《]
+PCLOSE = [)）》]
+
+/* Symbol */
+
+Symbol = { [A-Za-z_] [A-Za-z0-9_]* #NI } _Nend?
+
+/* Number */
+
+D = [.,0-9０-９]
+
+Number = &D _Number _Nend?
+_Number = 
+  / { (D+ _ '年' _) (D+ _ '月' _)? (D+ _ '日')? #NDate }
+  / { (D+ _ '月' _) (D+ _ '日')? #NDate }
+  / { (D+ _ '時' _) (D+ _ '分')? #NTime }
+  / { D+ #NN } {^ UNIT #NU}? 
+
+UNIT = KATA+
+
+Unknown = {
+    (!K .)*
+    #Unknown
+}

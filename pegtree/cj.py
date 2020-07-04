@@ -232,20 +232,20 @@ class Chunk(object):
         a.base = self.base + a.base
         a.token = self.token + a.token
         return a
-      if a.pos == 'VS' or a.pos == 'VSx':  # ('道', 'N') ('', 'V')
-        a.base = self.base + a.base
-        a.token = self.token + a.token
-        a.pos = 'VS'
-        return a
-      if a.pos == 'A':  # ('青', 'N') ('白い', 'A')
-        a.base = self.base + a.base
-        a.token = self.token + a.token
-        return a
-    if self.pos == 'N':
-      if isHira(self.base):  # ('お', 'N') ('どろく', 'A')
-        a.base = self.token + a.base
-        a.token = self.token + a.token
-        return a
+      # if a.pos == 'VS' or a.pos == 'VSx':  # ('道', 'N') ('', 'V')
+      #   a.base = self.base + a.base
+      #   a.token = self.token + a.token
+      #   a.pos = 'VS'
+      #   return a
+      # if a.pos == 'A':  # ('青', 'N') ('白い', 'A')
+      #   a.base = self.base + a.base
+      #   a.token = self.token + a.token
+      #   return a
+    # if self.pos == 'N':
+    #   if isHira(self.base):  # ('お', 'N') ('どろく', 'A')
+    #     a.base = self.token + a.base
+    #     a.token = self.token + a.token
+    #     return a
     return None
 
 
@@ -263,6 +263,19 @@ def verb(s, *moods):
     else:
       prefix += token.base
   return format(prefix, 'V', *moods)
+
+class ChunkChecker(object):
+  def visit(self, chunk):
+    method = f'accept{chunk.pos}'
+    if hasattr(self, method):
+      return getattr(self, method)(chunk)
+    return chunk
+
+  def acceptNA(self, chunk):
+    w = chunk.base
+    if len(w) == 2 and w[0] not in CNA:
+      chunk.pos = 'N'
+    return chunk
 
 class Tokenizer(object):
   def visit(self, node):
@@ -298,8 +311,125 @@ class Tokenizer(object):
       return s
     return ''
 
+# 一文字形容動詞は以下の者に限る
+CNA = "恣稀別希妙歪素朧更嫌縦罪酷厭密徒闌端酣初俄切邪変乙主雑暇露粋艷楽急俗顕や雅生純義円重"
 
 
+## AKV5
+CVK5 = "轟哭欠梳惹動利暴続塞放聴覗だ発巻め働履葺従効磨裂焼衝敷麾引炊鋤砕戦釈布佩傾曵飽で" +\
+    "挽急叩蠢掻な湧いこ索卷於耀背斎た響舂肯劈乾疼浮訊づ漉泣お頂咲書除俯拱つぬ灼と轢拓牽" +\
+    "わ画割附涌抄ど置聞扱戴届捲や輝穿招説か敲掃搗向破渇省空驚し繙頷瞬ひ咳沸靡描就跪眩す曳弾" +\
+    "貫透抱呻碎若碾呟誘点撒焚嘆導嘶裁せ懐鳴吹う歩蒔逝明ゆ播赴む妬舁あ如溶噴拭囁啼撞好" +\
+    "喚剥研抜退築付ま着往嘯措の堰蠕躓閃基突てき開欺解吐は捌厭結行さざびふぶ"
+# CVK5のうち、形容詞の末尾になりうるもの
+CADJT = "せゆなましか眩すむいあおう好さ明わやとだこ若たきど"
+
+ADJT = ("ぶあつ,きつ,厳つ,いかつ,ごつ,手あつ,あつ,がめつ,むしあつ,てあつ,どぎつ,ねつ,"+\
+    "うぶ,けぶ,にぶ,しぶ").split(',')
+
+VK5T = ("ことか,いただ,あば,さしお,ささや,引っぱた,あが,とめお,みが,わなな,みむ,うすず," +\
+    "くじ,すすりな,ひっか,かしず,ばらま,伸びゆ,かたむ,しのびな,さっぴ,すてお,引きさ," +\
+    "けむにま,もれき,のびゆ,すだ,囁や,とど,むせびな,うわむ,吹雪,ひきさ,渦ま,もど,装束," +\
+    "すえお,ひざまず,取りま,はばた,いだ,たちゆ,つたえき,羽ばた,しだ,さば,彷徨,おちゆ," +\
+    "しりぞ,ぼや,ききお,かわ,くみし,なげ,とりま,ひら,はた,くど,うず,見えす,引っか,ゆが," +\
+    "みちゆ,言いお,かず,ひもと,しゃうぞ,みえす,くだ,ふりむ,とめゆ,すりむ,もが,点頭,振りま," +\
+    "うご,一皮む,そむ,こころゆ,ほっと,えが,ボヤ,うつむ,ひっぱた,うずま,ある,さかま,はじ," +\
+    "きず,ほど,はたら,とりお,たた,あおむ,つぶや,まばた,水漬,かがや,いなな,いきま,息ま," +\
+    "しご,とどろ,戦慄,のぞ,ゆわ,おもむ,ちりし,まね,さてお,いいお,心ゆ,あざむ,すぎゆ,ひとかわむ," +\
+    "しばた,しょっぴ,擦りむ,つまず,ふりし,うなず,でむ,おどろ,さうぞ,きりさ,ふりま").split(',')
+
+# AVW5T = ['と', 'ちゃ', 'お', 'る', '憂', 'ま', 'じな', 'ぶ', 'ひろ', 'な', 'だ',
+#          'おも', 'きな', 'が', 'らか', 'ど', 'ご', 'も', 'あら', 'つら', '労', 'たら',
+#          'かよ', 'しょ', 'うた', 'ば', 'おそ', 'たか', 'から', 'らな', '煩', 'ら', 'がな',
+#          'もな', 'ふる', 'ともな', 'す', 'く', 'そ', 'のろ', 'ぎな', 'よ', 'ゆ', 'あ', 'た',
+#          'くら', '臭', 'ちか', 'や', 'とな', 'おお', 'ぐ', 'い', 'こ', 'かな', 'ろ', 'ょ',
+#          'しな', 'わ', 'うば', 'か', 'くろ', 'たたか', 'ゃ']
+
+# 確実にワ行５段活用の語尾
+VW5T = ['ぐな', 'いともな', 'けお', '商', 'めあ', '損な', '買', '倣', '云', '慕',
+        'にな', '合', '杓', '撓', '習', '篩', 'ゃく', '宣', '漂', 'いと', '購', '補',
+        'かば', 'あがな', 'るま', '適', '傭', 'げつら', '誘', '逆ら', '扱', 'おとな',
+        '構', '訪', '匂', 'ねが', '飼', '償', '培', 'うろ', '集', 'しま', '向', '追',
+        '狙', '諾', '思', '患', '喪', 'まど', '行', '疑', 'まと', '詛', '向か', '吸',
+        'さよ', '願', 'はら', 'らそ', '逢', '巣く', '揮', '養', '沿', '冀', '蔽', 'つくろ',
+        'そろ', 'たま', '謳', 'のい', '諂', 'やま', '喰', '縫', 'かたら', '失', '腹ば',
+        '違', '渫', '掬', 'きお', 'せお', '粧', 'じま', '歌', '安ら', 'ちあ', 'であ',
+        '立あ', '誓', '競', '幾', 'きわ', 'づか', '贖', '賑わ', '払', '敬', '蹲', '弄',
+        'かが', 'つちか', '謂', '憩', '衒', '闘', 'らが', '映ろ', '呪', '窺', 'よろ',
+        'なら', '伝', '洗', '戦', '揃', '争', 'うらな', 'ゆた', '担', 'くま', 'へつら',
+        'もら', 'つど', '装', '奪', 'てが', '味わ', 'ぎわ', 'さそ', 'あきな', '攫', 'たぐ',
+        '庇', 'こな', '拭', '面くら', '会', 'まが', 'つが', '謡', '笑', '遇', '繕', 'した',
+        '問', '使', 'さら', '覆', '賜', '計ら', '休ら', '振る', '伴', 'やと', 'れそ', 'みま',
+        'はから', 'ちそ', '支', 'じら', 'みあ', '匿', '嫌', '整', 'くる', 'きか', 'たが',
+        '纏', 'ねら', 'まご', '襲', 'もや', '結', '潤', '祝', 'つた', '浚', '伺', '這', 'ふ',
+        'おぎな', 'いこ', 'くば', '似かよ', 'きあ', 'ちま', '負', '濯', '酔', '語ら', 'りあ',
+        'まかな', '交', '糾', 'ぬぐ', 'いら', 'いあ', '震', 'きそ', 'まよ', 'むか', '調',
+        'そぐ', 'わら', 'むく', '惑', 'じわ', '綯', '添', '犒', '給', 'い煩', 'すく',
+        'かこ', 'よそ', '言', 'てら', 'つか', '住ま', '弔', '唄', '乞', 'いわ', 'けあ',
+        '出あ', '食ら', '斎', 'むら', 'だよ', 'ねあ', '救', 'そお', 'らば', '奮', '被',
+        'びか', 'ざな', '恋', '詠', '祓', 'ずら', '希', '狂', 'めら', 'すま', 'べな',
+        'にかよ', 'つろ', '食', '喰ら', '粉', '舞', 'かま', 'つだ', 'れあ', 'しら', '賄',
+        '随', 'おぶ', '荷な', 'んくら', '迷', '報', 'やしな', 'ちが', 'さから', 'しあ',
+        'きら', 'ぱら', '逐', 'びあ', 'のおも', '遣', '遭', '叶', '拾', '遵', 'は', '囲',
+        '唱', 'ぎら', '抗', 'すら', 'ぬ', '想', 'りそ', '雇', '従', '行な', 'あた', '躇',
+        'の', 'にお', 'るお', 'からか', '占', '通', 'じゃ', 'にあ', '紛', 'うしな', '能',
+        '拐', '厭', '鎧', '貰', '請', 'まじな', 'じあ', '候', '曰']
+
+# 形容詞かワ行５段活用か判定できないが、形容詞としない
+AVW5T = ['憂', 'ともな', 'ひろ', 'おも', 'らか', 'あら', '労', 'たら',
+         'かよ', 'しょ', 'うた', 'おそ', 'から', '煩',
+         'ふる', 'ともな', 'のろ',
+         'くら', '臭', 'ちか', 'おお', 'うば', 'くろ', 'たたか']
+
+def setpos(c: Chunk, pos):
+  c.pos = pos
+  return c
+
+def normalize(chunk):
+  if chunk.pos == 'AN':
+    w = chunk.base
+    if len(w) == 2 and w[0] not in CNA:
+      chunk.pos = 'N'
+  if chunk.pos == 'AVK5':
+    w = chunk.base
+    if len(w) == 1 and w in CVK5:
+      return setpos(chunk, 'VK5')
+    tc = w[-1]
+    if tc == 'つ' or tc == 'ぶ':
+      for tail in ADJT:
+        if w.endswith(tail): return setpos(chunk,'A')
+      return setpos(chunk, 'VK5')
+    if tc in CVK5 and tc not in CADJT:
+      return setpos(chunk, 'VK5')
+    for tail in VK5T:
+      if w.endswith(tail):
+        return setpos(chunk, 'VK5')
+    return setpos(chunk, 'A')
+  if chunk.pos == 'NA':
+    w = chunk.base[:-1]
+    for tail in VW5T:
+      if w.endswith(tail):
+        return setpos(chunk, 'N')
+    for tail in AVW5T:
+      if w.endswith(tail):
+        return setpos(chunk, 'N')
+    chunk.base = w
+    return setpos(chunk, 'A')
+  return chunk
+
+
+def concat2(c: Chunk, c2: Chunk):
+  c2.token = c.token + c2.token
+  return c2 
+
+def concat(c: Chunk, c2: Chunk):
+  # ぐいっと[('ぐい', 'NA'), ('っ', 'N', 'と')]
+  if c2.pos == 'N': 
+    w = c2.base
+    if len(w) == 1 and isHira(w):
+      c2.base = c.token + c2.base
+      return concat2(c, c2)
+  return c.concat(c2)
 
 def tokenize(text_or_tree):
   if not isinstance(text_or_tree, ParseTree):
@@ -314,12 +444,13 @@ def tokenize(text_or_tree):
   ts = []
   for node in tree.getSubNodes():
     s = node.getToken()
-    token = tokenizer.visit(node)
-    token.token = s
+    chunk = tokenizer.visit(node)
+    chunk.token = s
+    chunk = normalize(chunk)
     if len(ts)>0:
-      cat = ts[-1].concat(token)
+      cat = concat(ts[-1], chunk)
       if cat is not None: ts[-1] = cat; continue
-    ts.append(token)
+    ts.append(chunk)
   return ts
 
 
