@@ -474,8 +474,8 @@ def normalize(chunk):
   return chunk
 
 
-def isPrefix(c: Chunk):
-  return c.pos == 'N' and c.extra is None
+def isPrefix(c: Chunk, pos):
+  return c.pos == pos and c.extra is None
 
 def isComposable(c: Chunk):
   pos = c.pos
@@ -504,6 +504,13 @@ def concat(c: Chunk, c2: Chunk):
     c2.base = c.token + c2.base
     c2.append(f'@suffix({c2.token})')
     return concat2(c, c2)
+  # ルール1. 名詞NVは接続される
+  # [('もの', 'N'), ('ぐるわしい', 'A')]
+  if isPrefix(c, 'NV') and isComposable(c2):
+      #print('@concat', c.token, c2.token)
+      c2.base = c.token + c2.base
+      c2.append(f'@prefix({c.token})')
+      return concat2(c, c2)
   # ルール1. 名詞は接続される
   # [('もの', 'N'), ('ぐるわしい', 'A')]
   # if isPrefix(c) and isComposable(c2):
