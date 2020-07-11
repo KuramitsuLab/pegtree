@@ -60,8 +60,6 @@ Character =
 CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい]
 //CNA = [恣稀別希妙歪素朧更嫌縦罪酷厭密徒闌端酣初俄切邪変乙主雑暇露粋艷楽急俗顕や雅生純義円重]
 
-
-
 /* Onomatopoeia オノマトペ語彙　*/
 
 Onomatopoeia = &H _Onomatopoeia _Kend?
@@ -79,7 +77,7 @@ Pattern = { (H K* / K+) #N } (_Ten / _Kend / _HPattern)
 
 _Ten = {^ TEN #NM }
 
-_HPattern = !H / &NSTART / {^ H #N. } ( _Kend / _HPattern)
+_HPattern = !H / &NSTART / {^ H #N. } ( _Ten / _Kend / _HPattern)
 
 /* ひらがな */
 
@@ -112,6 +110,7 @@ _Nai =
   / {^ 'く' #Xthen } __KendKU?
   / {^ 'かった' #Xpast } _Pend
   / _AdjSA
+
 
 /* あ行 */
 
@@ -148,17 +147,20 @@ _VerbKA5 =
 _KendKA =
     / {^ 'か' #VK5 } _VerbA  // 書かない
     / _AdjKA
-    / _May {^ #Xbe }
-    / !('か' (KA_V/_HNEXT)) _NendKA
+    / &('か' _KARESV)
+    / _NendKA
 
 _AdjKA = {^ 'かった' #AXpast} _Pend?
 _NendKA =
-    / {^ 'から' (HA/_MO/_NO/!_HNEXT) #X }　　// 取りはから+う
+    / {^ 'から' #Xfrom } _Emph　　// 取りはから+う
+    / {^ 'かも' ('知れ'/'しれ') ('ない'/'ません'/'ず') #Xmay}
     / { 'か' (TEN DOUKA? / DOUKA ) #CXwhether } _Nend
 
-_May = {^ 'かも' ('知れ'/'しれ')? ('ない'/'ません'/'ず')? #Xmay}
+_VendKA =
+  / { 'から' #CXbecause } _Nend
+  / _NendKA
 
-_VendKA = _NendKA
+
 DOUKA = ('どうか' / '否か') TEN?
 
 _KendKI = {^ 'き' #VK5 } _VerbIn
@@ -179,7 +181,13 @@ __KendKU =
     / { 'な' #VR5 } _VerbRA5 // 赤くなる
 
 _KendKE = {^ 'け' #VK5 } _VerbE
-_KendKO = {^ 'こ' #VK5 } _VerbO
+
+_KendKO = 
+  / {^ 'こ' #VK5 } _VerbO
+  / _NendKO
+
+_NendKO =
+  / {^ 'こそ' #Xemph } _Emph
 
 /* さ　*/
 
@@ -232,33 +240,34 @@ _VerbDo =
   / {^ 'すれば' TEN? #VSXsetXif }
   / {^ 'し' 'て'? #VSXsetXthen }  //AをBとして、CをDとする
 
-
 /* たちつてと */
 
 _KendTA = {^ 'た' #VT5 } _VerbA  // ない
 _KendTI = {^ 'ち' #VT5 } _VerbIn
 _KendTU = {^ 'つ' #VT5 } _VerbU  // つける
 _KendTE = {^ 'て' #VT5 } _VerbE  // ば
+
 _KendTO =
   / {^ 'と' #VT5 } _VerbO  // う
   / _NendTO
+  / &('と' _TORESV)
+  / {^ 'と' #X } _Emph 
 
 _NendTO =
-  / {^ 'と' HA #X } {^ #Xdefine }
+  / {^ 'と' HA #X } {^ TEN #Xdefine }
   / {^ 'と' #NM. } _VerbDo
-  / {^ 'と' (_TOSUFFIX (HA / _MO / _NO)? / _TORESERVED / HA / _MO / _NO ) #X }
+  / {^ 'と' _TOSUFFIX? #X } _Emph
 
 _TOSUFFIX =
   / 'ともに'
   / 'として'
 
 _VendTO =
-  / { IF #NCXif } (TEN/_EvenIf/_Nend)
+  / { IF #NCXif } (TEN/ _Emph / _Nend)
   / { 'ところ' #NC } (TEN / _Nend)
-  / { 'と' (_TOSUFFIX) #NC } ( TEN / _Nend)
+  / { 'と' _TOSUFFIX?  #NC } TEN / _Emph
 
 IF = 'とき' / '時' / '場合'
-_EvenIf = {^ _MO #Xeven }
 
 /* なにぬねの　*/
 
@@ -276,7 +285,7 @@ _KendNA =
 
 _NendNA = 
   / {^ 'な' #AXnot. } _Adj
-  / {^ 'な' &NSTART !NA_V  #AN. } // 立派な
+  / {^ 'な' &NSTART !_NARESV  #AN. } // 立派な
 
 _KendNI =
   / {^ 'に' #VN5 } _VerbI  // ながら
@@ -284,7 +293,8 @@ _KendNI =
 
 _NendNI = 
   / {^ 'に' #NM. } _VerbDo
-  / {^ 'に' (_NISUFFIX (HA/_MO)? / (HA/_MO) / !NI_V !_HNEXT) #X }
+  / &('に' _NIRESV)
+  / {^ 'に' _NISUFFIX? #X } _Emph
 
 _NISUFFIX = 
   / 'ついて' / '対して' / 'とって'
@@ -296,7 +306,7 @@ _NISUFFIX =
   / '限り' / 'かぎり'
 
 _VendNI =
-  / {^ 'に' (HA/_MO) #X}
+  / {^ 'に' #X} _Emph
   / {^ 'に' #NM. }
 
 _KendNU = {^ 'ぬ' #VN5 } _VerbU  // 
@@ -304,11 +314,13 @@ _KendNE = {^ 'ね' #VN5 } _VerbE  // ば
     
 _KendNO =
   / {^ 'の' #VN5 } _VerbO  // う
+  / &('の' _NORESV )
   / _NendNO
 
 _NendNO = 
   / { 'のみ' #NSXonly } _Nend
-  / {^ 'の' !NO_V !_HNEXT (HA/_MO/_GA/'を')? #X }
+  / {^ 'の' &(HA/_MO/_GA/'を') #N. } _Nend
+  / {^ 'の' #X }
 
 _VendNO = 
   / { 'のみ' #CXonly } _Nend
@@ -316,8 +328,8 @@ _VendNO =
 
 /* はひふへほ */
 
-_NendHA = {^ 'は' !HA_V #X }
-_NendHE = {^ 'へ' (_NO / !HE_V　) #X }
+_NendHA = {^ 'は' !_HARESV #X }
+_NendHE = {^ 'へ' (_NO / !_HERESV　) #X }
 
 /* まみむめも　*/
 
@@ -338,9 +350,10 @@ _AdjME = {^ 'め' #NXadj. } _Nend //　高め
 
 _KendMO =
   / {^ 'も' #VM5 } _VerbO  // う
+  / &('も' _MORESV)
   / _NendMO
 
-_NendMO = {^ 'も' !MO_V !_HNEXT #X }
+_NendMO = {^ 'も' #X }
 _VendMO =
   / &MOSTART
   / { 'も' #CXeven }
@@ -348,7 +361,7 @@ _VendMO =
 MOSTART = 'も' [うしのっとち]
 
 /* やゆよ */
-_NendYA = {^ 'や' !YA_V !_HNEXT #X }   // や
+_NendYA = {^ 'や' !_YARESV #X }   // や
 _NendYU = {^ 'ゆえ' (_NI/_NO)? #X }   // ゆえ
 _NendYO = {^ 'より' #Xthan }   // より
 
@@ -384,10 +397,11 @@ _NendWO = {^ 'を'  #X }
 
 _KendGA =
     / {^ 'が' #VG5 } _VerbA  // 防がない
+    / &('が' _GARESV)
     / _NendGA
 
-_NendGA = {^ 'が' !GA_V !_HNEXT #X } // 防が
-_VendGA = { 'が' !GA_V #C }
+_NendGA = {^ 'が' #X } // 防が
+_VendGA = { 'が' #C }
 
 _KendGI = {^ 'ぎ' #VG5 } _VerbIn  // 防ぎ
 _KendGU = {^ 'ぐ' #VG5 } _VerbU  // 防ぐ
@@ -429,20 +443,21 @@ _VendDA =
 _NendDA = 
   / {^ 'だろう' #XbeXwould } _Vend
   / {^ 'だった' #XbeXpast }　_Pend
-  / {^ 'だ' !DA_V #Xbe } _Vend // だせる
+  / &('だ' _DARESV )
+  / {^ 'だ' #Xbe } _Vend
 
 _KendDE = // LIMIT 茹でたまご
   / {^ 'で' !'な' &_HV1 #V1. } _Verb1
   / _NendDE
 
 _NendDE =
-  / {^ 'でき' #Xcan } _Verb1
+  / {^ 'でき' #VSXcan } _Verb1n
   / {^ 'でした' #XbeXpast } _Pend?
   / {^ 'でしょう' #XbeXwould } _Vend 
   / {^ 'でな' #XbeXnot }　_Nai 
-  / {^ 'で' #X } {'あ' #Xbe } _VerbRA5
   / {^ 'です' #Xbe }　_Vend 
-  / {^ 'で' (HA/_MO/!DE_V) #X }
+  / &('で' _DERESV)
+  / {^ 'で' #X } _Emph
 
 _VendDE = 
   / {^ 'でしょう' #Xwould } _Vend
@@ -462,7 +477,6 @@ _Verb1 = // 過ぎ　述べ　視　でき
     / {^ 'れ' } _VerbE  // ば
     / {^ 'られ' #Xpassive } _Verb1 // 述べられています
     / {^ 'よ' } _VerbO  // う
-    // 'な' {^ #AV1Xnot } _Nai // 情けない
     / _VerbA  // ない
     / _VerbT // て
     / _VerbI0　// て  再帰なし
@@ -504,7 +518,7 @@ __VerbIP =
 
 _VerbT = // 書い+て   探し+て　
     / {^ 'た' #Xwant } _Adj   // 特例. 記録したい
-    / {^ 'た' !TA_V #Xpast } _Pend?  // !たてる
+    / {^ 'た' #Xpast } _Pend?  // !たてる
     / {^ 'て' #Xthen } __VerbTD
 
 _VerbD = // 遊んだ   遊んで
@@ -516,7 +530,7 @@ __VerbTD =
   / {^ _MO #Xeven }
   / _VerbIP 
   / {^ 'あ' #Xnow } _Verb1 // 笑ってある
-  / {^ 'な' #Xnot } _Adj // 笑ってある
+  / {^ 'な' #Xnot } _Adj // 笑ってない
   / {^ 'み' #Xtry } _Verb1 // 笑ってみる
   / {^ 'みせ' #Xtry } _Verb1 // 笑ってみる
   / {^ 'お' #Xdone } _VerbKA5    // 笑っておく
@@ -531,6 +545,8 @@ __VerbTD =
   / {^ #NV. } (&CSTART / _Nend)  // 翔んで埼玉
   / {^ #Xthen }
 
+KUDASAI = 'ください'/'下さい'
+
 //飲んで いらっしゃる
 //励まして くださる
 //これで ございます
@@ -538,7 +554,6 @@ __VerbTD =
 //運んで あげる
 //送って さしあげる
 
-KUDASAI = 'ください'/'下さい'
 
 _VerbU = _Vend // 書く　探す
 
@@ -550,10 +565,7 @@ _VerbE = // 書け+ば  探せ+ば
 _VerbO = // 書こ+う　探そ+う
     / {^ 'う' /*!_HNEXT*/ #Xletus } _Vend
 
-// _Should = 
-//     {^ ('べき' / 'べし' / 'はず' ) #Xshould } _Nend?
-
-_Nend = EOS / &H _NendH / {^ TEN #NM } / NSTART
+_Nend = EOS / &H _NendH / {^ TEN #NM } / &NSTART
 _NendH =
   / _NendDA // だ
   / _NendDE // で
@@ -561,6 +573,7 @@ _NendH =
   / _NendHA // は
   / _NendHE
   / _NendKA // か
+  / _NendKO // こそ
   / _NendMA // または、まで
   / _NendMO // も
   / _NendNA // に
@@ -577,9 +590,7 @@ _NendH =
   / _NendYU // ゆえ
   / _NendYO // よう
 
-
-_Vend = EOS / (&H _VendH) / NSTART
-//_Vtest = {^ &[はがをにもですせ] #Q } _Nend
+_Vend = &NSTART / &H _VendH　// 
 _VendH =
   / _VendDA // するだろう
   / _VendDE // するでしょう
@@ -590,7 +601,7 @@ _VendH =
   / _VendNO
   / _VendTO // すると
   / _VendRA // するらしい
-  / {^ 'べき' #Xshould } (NSTART / _Nend )
+  / {^ 'べき' #Xshould } _Nend
   // / {^ 'に' ('違い'/'ちがい') ('ない' / 'ありません') #Must } _Vend?
   // / {^ 'しかありません' #Only }
   // / { 'が' #Conjunction }
@@ -605,10 +616,27 @@ _Pend =
   / { ('ら' / 'なら') 'ば'? #CXif } 
   / _Vend
 
+/* 強調の助詞 */
+
+_Emph = 
+  / {^ HA #Xemph }
+  / {^ _MO #Xemph }
+  / {^ _NO #Xemph }
+  / {^ _GA #X }
+  / ''
+
+HA = 'は'
+_NO = 'の'
+_MO = !('も' ('っと'/[うしの])) 'も' 
+_NI = 'に'
+_GA = 'が'
+_TO = 'と'
+
+
 // パターン
 
-NSTART = !H / EOF / &H NOUN 
-CSTART = !H / EOF / &H (NOUN / VSTART)
+NSTART = !H / EOF / [おご] / NOUN
+CSTART = !H / EOF / [おご] / NOUN / ADVERB / VSTART
 
 VERB =
     / 'したが'
@@ -662,8 +690,177 @@ VSTART =  // '学び' なおす
   / 'かえ' / 'かれ' / 'くだ'
   / 'はな' / 'はか'
 
+//OF = ('の' / _MO / 'を' / 'に')?
 
-OF = ('の' / _MO / 'を' / 'に')?
+/* 助詞で始まるひらがな動詞 */
+
+RESERVED = 'きれい'
+
+_KURESV = !RESERVED _KUH
+_KUH /*く*/ = '' (_HSA5 / _HMA5 / _HA / _HWA5 / _HRA5)
+	/ 'れ' (_HV1)
+	/ 'さ' (_HA)
+	/ 'め' (_HV1)
+	/ 'ら' (_HSA5)
+	/ 'ま' (_HRA5)
+	/ 'る' ('し' _HA)
+	/ 'せ' (_HV1)
+	/ 'ろ' (_HWA5)
+	/ 'な' (_HRA5 / _HA)
+	/ 'し' (_HA)
+	/ 'く' (_HRA5)
+	/ 'り' ('かえ' _HRA5)
+	/ 'だ' (_HSA5 / _HKA5)
+	/ 'ね' (_HRA5)
+	/ 'ど' (_HA)
+	/ 'ず' (_HSA5)
+_IRESV = !RESERVED _IH
+_IH /*い*/ = 'れ' (_HV1)
+	/ '' (_HRA5 / _HSA5 / _HA / _HV1)
+	/ 'こ' (_HMA5 / 'め' _HV1)
+	/ 'だ' (_HSA5 / 'せ' _HV1)
+	/ 'な' (_HSA5 / _HMA5 / _HA)
+	/ 'つ' ('け' _HV1 / 'め' _HV1 / _HKA5)
+	/ 'あ' (_HWA5 / 'が' _HRA5 / 'わせ' _HV1 / 'わ' _HSA5 / 'げ' _HV1)
+	/ 'ま' ('く' _HRA5)
+	/ 'か' ('け' _HV1 / 'え' _HSA5)
+	/ 'た' (_HTA5 / 'て' _HV1)
+	/ 'し' (_HA)
+	/ 'き' (_HRA5)
+	/ 'づ' ('け' _HV1)
+	/ 'や' (_HRA5)
+	/ 'と' (_HRA5)
+	/ 'お' ('こ' _HSA5)
+_KARESV = !RESERVED _KAH
+_KAH /*か*/ = '' (_HTA5 / _HSA5 / _HMA5 / _HA / _HWA5 / _HRA5)
+	/ 'け' (_HV1)
+	/ 'え' ('せ' _HV1 / 'れ' _HV1 / _HSA5 / _HRA5 / _HV1)
+	/ 'し' (_HA)
+	/ 'せ' (_HV1)
+	/ 'か' (_HRA5)
+	/ 'れ' (_HV1)
+	/ 'わ' (_HRA5 / _HSA5 / 'れ' _HV1 / 'し' _HA)
+	/ 'ね' (_HV1)
+	/ 'め' (_HV1)
+	/ 'ま' (_HRA5 / 'し' _HA)
+	/ 'さ' ('な' _HRA5)
+	/ 'ぶ' (_HRA5)
+	/ 'ら' (_HWA5 / 'え' _HV1 / _HA)
+	/ 'な' (_HA)
+	/ 'べ' (_HV1)
+	/ 'ざ' (_HSA5)
+_GARESV = !RESERVED _GAH
+_GAH /*が*/ = '' (_HKA5 / _HSA5 / _HMA5 / _HWA5 / _HA / _HRA5)
+	/ 'れ' (_HV1)
+	/ 'た' (_HA)
+	/ 'ま' ('し' _HA)
+	/ 'せ' (_HV1)
+	/ 'え' (_HRA5 / _HSA5 / _HV1)
+	/ 'け' (_HV1)
+	/ 'め' (_HV1)
+	/ 'し' (_HA)
+	/ 'か' (_HRA5)
+	/ 'な' (_HA)
+	/ 'わ' ('し' _HA)
+	/ 'ら' ('え' _HV1)
+_TARESV = !RESERVED _TAH
+_TAH /*た*/ = '' (_HTA5 / _HKA5 / _HSA5 / _HMA5 / _HA / _HWA5 / _HRA5)
+	/ 'て' (_HV1)
+	/ 'え' (_HV1)
+	/ 'ら' ('し' _HA)
+	/ 'せ' (_HV1)
+	/ 'れ' (_HV1)
+	/ 'な' (_HA)
+	/ 'お' (_HSA5 / 'せ' _HV1)
+	/ 'め' (_HV1)
+	/ 'し' (_HA)
+	/ 'け' (_HV1)
+	/ 'く' (_HRA5)
+	/ 'る' (_HA)
+	/ 'ま' (_HRA5)
+	/ 'つ' (_HKA5)
+	/ 'だ' (_HSA5 / 'せ' _HV1 / 'し' _HA)
+	/ 'げ' (_HV1)
+	/ 'か' (_HA)
+	/ 'わ' (_HRA5)
+	/ 'た' (_HKA5)
+	/ 'が' (_HRA5)
+_TERESV = !RESERVED _TEH
+_TEH /*て*/ = '' (_HV1)
+	/ 'つ' (_HKA5)
+_TORESV = !RESERVED _TOH
+_TOH /*と*/ = '' (_HSA5 / _HA / _HWA5 / _HBA5 / _HRA5)
+	/ 'れ' (_HV1)
+	/ 'め' (_HV1)
+	/ 'せ' (_HV1)
+	/ 'ば' (_HSA5 / 'せ' _HV1)
+	/ 'お' (_HRA5 / _HSA5 / 'せ' _HV1)
+	/ 'し' (_HA)
+	/ 'ぼ' ('け' _HV1)
+	/ 'な' (_HA)
+	/ 'ど' ('まれ' _HV1 / 'け' _HV1 / 'ま' _HRA5)
+	/ 'げ' (_HV1)
+	/ 'ま' (_HRA5)
+_DARESV = !RESERVED _DAH
+_DAH /*だ*/ = '' (_HRA5 / _HSA5 / _HTA5 / _HKA5)
+	/ 'せ' (_HV1)
+	/ 'て' (_HV1)
+	/ 'か' (_HA)
+	/ 'れ' (_HV1)
+	/ 'し' (_HA)
+	/ 'け' (_HV1)
+_DERESV = !RESERVED _DEH
+_DEH /*で*/ = '' (_HV1)
+_NARESV = !RESERVED _NAH
+_NAH /*な*/ = '' (_HTA5 / _HKA5 / _HSA5 / _HMA5 / _HA / _HWA5 / _HRA5 / _HGA5)
+	/ 'お' (_HRA5 / _HSA5 / 'せ' _HV1)
+	/ 'れ' (_HV1)
+	/ 'せ' (_HV1)
+	/ 'え' (_HV1)
+	/ 'し' (_HA)
+	/ 'が' (_HSA5 / 'せ' _HV1)
+	/ 'ら' (_HSA5)
+	/ 'や' (_HMA5)
+_NIRESV = !RESERVED _NIH
+_NIH /*に*/ = 'く' (_HA)
+_NORESV = !RESERVED _NOH
+_NOH /*の*/ = 'け' (_HV1)
+	/ 'こ' (_HRA5 / _HSA5)
+	/ '' (_HRA5 / _HMA5 / _HKA5)
+	/ 'ぼ' (_HRA5)
+	/ 'べ' (_HV1)
+	/ 'び' (_HV1)
+	/ 'め' (_HSA5)
+_HERESV = !RESERVED _HEH
+_HEH /*へ*/ = '' (_HV1)
+_HARESV = !RESERVED _HAH
+_HAH /*は*/ = 'ら' (_HWA5 / 'え' _HV1)
+	/ 'て' (_HV1)
+	/ 'な' (_HSA5 / 'せ' _HV1 / _HTA5)
+	/ 'ず' (_HSA5 / 'かし' _HA)
+	/ 'じ' ('め' _HV1)
+_MORESV = !RESERVED _MOH
+_MOH /*も*/ = '' (_HRA5 / _HTA5)
+	/ 'ど' (_HSA5 / 'せ' _HV1)
+	/ 'れ' (_HV1)
+	/ 'し' (_HA)
+	/ 'な' (_HA)
+	/ 'て' (_HV1)
+	/ 'ら' (_HSA5)
+
+_YARESV = !RESERVED _YAH
+_YAH /*や*/ = '' (_HKA5 / _HGA5 / _HA / _HMA5 / _HSA5 / _HRA5)
+        / 'せ' (_HV1)
+        / 'か' ('まし' _HA / _HSA5)
+        / 'ぶ' (_HRA5)
+        / 'す' (_HA)
+        / 'め' (_HV1)
+        / 'し' (_HA)
+
+_HNEXT = 
+  / 'し' _HADJ
+  / _HV1
+  / _HA
 
 _HV1 =  // 高めた 落ちる　(勝ちますと区別つかない)
     / [るたて]
@@ -671,73 +868,10 @@ _HV1 =  // 高めた 落ちる　(勝ちますと区別つかない)
     / 'られ'
     / NAIw
 
-NAIw = 'な' _Iw
-_Iw = [いく] / 'かった' / 'ければ'
+NAIw = 'な' _HADJ
+_HADJ = [いく] / 'かった' / 'ければ'
 
-/* 助詞で始まるひらがな動詞 */
-
-KA_V = /*か*/
-    / _HSA5
-    / [えざさせ] // かえ　かざ　かさ かせる
-
-GA_V = /*が*/
-    / 'え' // がえ
-
-NA_V = /*な*/
-    / _HRA5 
-    / [がお] //'なが' / 'なお'
-
-NO_V = /*な*/
-    / _HRA5
-    / [ばけべび] // 'のば' / 'のけ' / 'のべ' / 'のび'
-
-HA_V = /* は*/
-    / _HRA5
-    / [らやかなずだまさじたこねてめ]
-    // / 'はら' / 'はや' / 'はから' / 'はな' / 'はず'
-    // / 'はか' / 'はだか' / 'はま' / 'はさ' / 'はじめ'
-    // / 'はたら' / 'はこ' / 'はね' / 'はて' / 'はめ' 
-
-TA_V = [えおせただてめれ]
-// たえる　たてる・ためる・たれる　たおすたたく
-//_TAHw = [えおせただてめれ]  
-
-// TO_V = /* と */
-//     / _HRA5 
-//     / [おけめばど] // 'とば' / 'とお' / 'とど' / 'とどま' / 'とめ' / 'とけ'
-_TORESERVED　= &RESERVED / !_TOH
-_TOH = // []
-     / (_HRA5) / 'せ' (_HV1) / 'れ' (_HV1) / 'げ' (_HV1) / 'け' (_HV1) / 'め' (_HV1) / 'え' (_HV1) / 'び' (_HV1) / 'べ' (_HV1) / 'ほ' (_HGA5) / 'つ' (_HKA5) / 'づ' (_HKA5) / 'か' (_HKA5) / 'ど' (HA/_HKA5) / 'な' (HA/_HRA5/_HWA5/_HMA5) / 'お' (HA/_HRA5/_HSA5) / 'ま' (_HRA5) / 'た' (_HRA5) / 'わ' (_HRA5) / 'ば' (_HSA5) / 'の' (_HWA5) / 'し' (HA)
-     / 'けな'/'なび'/'もな'/'なし'/'ずさ'/'がめ'/'らし'/'おし'/'げし'/'うし'/'くさ'/'ばせ'/'づけ'/'たり'/'のえ'/'らえ'/'よせ'/'ぼけ'/'おせ'/'ろえ'/'りご'/'きれ'/'づか'/'ずれ'/'なれ'/'まし'/'われ'/'しめ'/'どま'/'どけ'/'ばし'/'わし'
-
-RESERVED = 'きれい'
-
-NI_V = /*に*/
-    / _HV1
-    / 'が' 
-
-HE_V = /* へ */
-    / _HRA5
-    / [らつ] //'へら' / 'へつら'
-
-YA_V = /* や */
-    / (_HRA5 / _HKA5)
-    / [ぶめ] //'やぶ' / 'やめ'
-
-DA_V = /* だ　*/
-    / _HSA5 / _HV1
-
-DE_V =
-    / _HV1
- 
-MO_V = /* も */
-    / _HTA5 
-    / [らとどれ] //'もら' / 'もど' / 'もとめ' / 'もれ'
-
-_HNEXT =
-  / ADVERB 
-  / _HKA5/_HSA5/_HTA5/_HMA5/_HRA5/_HWA5/_HGA5/_HBA5
-
+_HA = [いく] / 'かった' / 'ければ'
 _HKA5 = [かきいくけ] //こ]
 _HSA5 = [さしすせ] //そ]
 _HTA5 = [たちっつて] //と]
@@ -746,14 +880,6 @@ _HRA5 = [らりっるれ] //ろ]
 _HWA5 = [わいっうえ] //お]  // それも　お見合い
 _HGA5 = [がぎいぐげ] //ご]
 _HBA5 = [ばびいぶべ] //ぼ]
-_HA = [いく] / 'かった' / 'ければ'
-
-HA = 'は'
-_NO = 'の'
-_MO = !('も' ('っと'/[うしの])) 'も' 
-_NI = 'に'
-_GA = 'が'
-_TO = 'と'
 
 /* Symbols */
 

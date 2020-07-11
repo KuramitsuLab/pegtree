@@ -9,166 +9,30 @@ def getParser():
     CJParser = pg.generate(pg.grammar('cj0.tpeg'))
   return CJParser
 
-def parse(text):
-  return getParser()(text)
-
-VerbType = {
-    'Verb1': 'V1',
-    'PVerb1': 'V1',
-    'Do': 'V',
-}
-
-def verbType(s):
-  return VerbType.get(s, s)
-
 VerbForm = {
-  'VK5': {
-      'A': 'か',
-      'I': 'き',
-      'T': 'い',
-      'U': 'く',
-      'E': 'け',
-      'O': 'こ',
-  },
-  'VS5': {
-      'A': 'さ',
-      'I': 'し',
-      'T': 'し',
-      'U': 'す',
-      'E': 'せ',
-      'O': 'そ',
-  },
-  'VT5': {
-      'A': 'た',
-      'I': 'ち',
-      'T': 'っ',
-      'U': 'つ',
-      'E': 'て',
-      'O': 'と',
-  },
-  'VN5': { # 死
-      'A': 'な',
-      'I': 'に',
-      'T': 'ん',
-      'U': 'ぬ',
-      'E': 'ね',
-      'O': 'の',
-  },
-  'VM5': { # 読
-      'A': 'ま',
-      'I': 'み',
-      'T': 'ん',
-      'U': 'む',
-      'E': 'め',
-      'O': 'も',
-  },
-  'VR5': {  # 切
-      'A': 'ら',
-      'I': 'り',
-      'T': 'っ',
-      'U': 'る',
-      'E': 'れ',
-      'O': 'ろ',
-  },
-  'VW5': {  # 笑
-      'A': 'わ',
-      'I': 'い',
-      'T': 'っ',
-      'U': 'う',
-      'E': 'え',
-      'O': 'お',
-  },
-  'VG5': {  # 防ぐ
-      'A': 'が',
-      'I': 'ぎ',
-      'T': 'い',
-      'U': 'ぐ',
-      'E': 'げ',
-      'O': 'ご',
-  },
-  'VB5': {  # 遊ぶ
-      'A': 'ば',
-      'I': 'び',
-      'T': 'ん',
-      'U': 'ぶ',
-      'E': 'べ',
-      'O': 'ぼ',
-  },
-  'V1': { #過ぎ
-    'A': '',
-    'I': '',
-    'T': '',
-    'U': 'る',
-    'E': 'れ',
-    'O': 'よ',
-  },
-  'VS': {  # 行動
-      'A': 'し',
-      'I': 'し',
-      'T': 'し',
-      'U': 'する',
-      'E': 'すれ',
-      'O': 'しよ',
-  },
-  'VZ': {  # 論じる
-      'A': 'じ',
-      'I': 'じ',
-      'T': 'じ',
-      'U': 'ずる',
-      'E': 'ずれ',
-      'O': 'ぜよ',
-  },
-  'A': {  # 美し
-      'A': 'く',
-      'I': '',
-      'T': '',
-      'U': 'い',
-      'E': 'けれ',
-      'O': '',
-  },
-    'AVK5': {
-      'A': 'か|く',
-      'I': 'き',
-      'T': 'い',
-      'U': 'く|い',
-      'E': 'け|けれ',
-      'O': 'こ',
-  },
-  'AV1': {  # 情けない 曲げない
-    'A': 'なく|',
-    'I': 'な|',
-    'T': 'な|',
-    'U': 'ない|る',
-    'E': 'なけれ|れ',
-    'O': '|よ',
-  },
-  'AVW5': {
-      'A': 'わ|く',
-      'I': 'い',
-      'T': 'っ',
-      'U': 'ふ|い',
-      'E': 'え|けれ',
-      'O': 'お',
-  },
-  'P': {  # しま
-      'A': 'せん',
-      'I': '',
-      'T': 'し',
-      'U': 'す',
-      'E': '',
-      'O': '',
-  }
+  'VK5': { 'A': 'か', 'I': 'き', 'T': 'い', 'U': 'く', 'E': 'け', 'O': 'こ', },
+  'VS5': { 'A': 'さ', 'I': 'し', 'T': 'し', 'U': 'す', 'E': 'せ', 'O': 'そ', },
+  'VT5': { 'A': 'た', 'I': 'ち', 'T': 'っ', 'U': 'つ', 'E': 'て', 'O': 'と', },
+  'VN5': { 'A': 'な', 'I': 'に', 'T': 'ん', 'U': 'ぬ', 'E': 'ね', 'O': 'の', },
+  'VM5': { 'A': 'ま', 'I': 'み', 'T': 'ん', 'U': 'む', 'E': 'め', 'O': 'も', },
+  'VR5': { 'A': 'ら', 'I': 'り', 'T': 'っ', 'U': 'る', 'E': 'れ', 'O': 'ろ', },
+  'VW5': { 'A': 'わ', 'I': 'い', 'T': 'っ', 'U': 'う', 'E': 'え', 'O': 'お', },
+  'VG5': { 'A': 'が', 'I': 'ぎ', 'T': 'い', 'U': 'ぐ', 'E': 'げ', 'O': 'ご', },
+  'VB5': { 'A': 'ば', 'I': 'び', 'T': 'ん', 'U': 'ぶ', 'E': 'べ', 'O': 'ぼ', },
+  'V1': { 'A': '', 'I': '', 'T': '', 'U': 'る', 'E': 'れ', 'O': 'よ', },
+  'VS': { 'A': 'し', 'I': 'し', 'T': 'し', 'U': 'する', 'E': 'すれ', 'O': 'しよ',},
+  'VZ': { 'A': 'じ', 'I': 'じ', 'T': 'じ', 'U': 'ずる', 'E': 'ずれ', 'O': 'ぜよ',},
+  'A': { 'A': 'く', 'I': '', 'T': '', 'U': 'い', 'E': 'けれ', 'O': '', },
+  'P': { 'A': 'せん', 'I': '', 'T': 'し', 'U': 'す', 'E': '', 'O': '', }, 
 }
-
-# [('情け', 'AV1', '@not')] 形容詞か一段動詞の否定形
 
 Mood = {
-    'not': ('A', 'な', 'A'),
-    'base': ('U', ''),
-    'if': ('E', 'ば'),
-    'polite': ('I', 'ま', 'P'),
-    'noun': ('I', ''),
-    'past': ('T', 'た'),
+  'not': ('A', 'な', 'A'),
+  'base': ('U', ''),
+  'if': ('E', 'ば'),
+  'polite': ('I', 'ま', 'P'),
+  'noun': ('I', ''),
+  'past': ('T', 'た'),
 }
 
 def format(prefix, pos, *moods):
@@ -188,31 +52,61 @@ def format(prefix, pos, *moods):
 def isHira(s):
   return len(s) == 1 and ord('あ') <= ord(s) <= ord('ん')
 
-class Chunk(object):
-  def __init__(self, base, pos, extra=None):
-    self.base = base
+class CJChunk(object):
+  __slots__=['token', 'stem', 'pos', 'extra']
+  def __init__(self, stem, pos, extra=None):
+    self.stem = stem
     self.pos = pos
-    self.token = base
+    self.token = stem
     self.extra = extra
 
-  def data(self):
-    if isinstance(self.extra, list) or isinstance(self.extra, tuple):
-      return (format(self.base, self.pos), self.pos, *self.extra)
-    if self.extra is not None:
-      return (format(self.base, self.pos), self.pos, self.extra)
-    return (format(self.base, self.pos), self.pos)
-
   def __repr__(self):
-    return repr(self.data())
+    if self.extra is None:
+      return repr((self.getNormalForm(), self.pos))
+    elif isinstance(self.extra, list):
+      return repr((self.getNormalForm(), self.pos, *self.extra))
+    return repr((self.getNormalForm(), self.pos, self.extra))
 
-  def append(self, t):
-    if t != '':
-      if self.extra is None:
-        self.extra = t
-      else:
-        if not isinstance(self.extra, list):
-          self.extra = [self.extra]
-        self.extra.append(t)
+  def append(self, value):
+    if value == '': return
+    if self.extra is None:
+      self.extra = value
+    else:
+      if not isinstance(self.extra, list):
+        self.extra = [self.extra]
+      if value not in self.extra:
+        self.extra.append(value)
+
+  def remove(self, value):
+    if isinstance(self.extra, list):
+      if value in self.extra:
+        self.extra.remove(value)
+      if len(self.extra) == 0:
+        self.extra = None
+    elif self.extra == value:
+      self.extra = None
+
+  def has(self, value):
+    if isinstance(self.extra, list):
+      return value in self.extra
+    return self.extra == value
+
+  def getToken(self):
+    return self.token
+
+  def getStem(self):
+    return self.stem
+
+  def getSuffix(self):
+    return self.token[len(self.stem):]
+
+  def getNormalForm(self, polite=False, pos=None):
+    if pos is None:
+      pos = self.pos
+    if pos in VerbForm:
+      return self.stem + VerbForm[pos]['U']
+    return self.stem
+
 
   def isNoun(self):
     return self.pos.startswith('N')
@@ -223,59 +117,31 @@ class Chunk(object):
   def isAdj(self):
     return self.pos.startswith('A')
 
-  def isN(self):
-    return self.pos == 'N' and self.extra is None
 
-  def concat(self, a):
-    if self.isN():
-      if a.pos == 'N':  # ('寄り', 'N') ('道', 'N')
-        a.base = self.base + a.base
-        a.token = self.token + a.token
-        return a
-      # if a.pos == 'VS' or a.pos == 'VSx':  # ('道', 'N') ('', 'V')
-      #   a.base = self.base + a.base
-      #   a.token = self.token + a.token
-      #   a.pos = 'VS'
-      #   return a
-      # if a.pos == 'A':  # ('青', 'N') ('白い', 'A')
-      #   a.base = self.base + a.base
-      #   a.token = self.token + a.token
-      #   return a
-    # if self.pos == 'N':
-    #   if isHira(self.base):  # ('お', 'N') ('どろく', 'A')
-    #     a.base = self.token + a.base
-    #     a.token = self.token + a.token
-    #     return a
-    return None
+# def verb(s, *moods):
+#   if isinstance(s, CJChunk):
+#     return format(s.base, s.pos, *moods)
+#   tokens = tokenize(str(s))
+#   prefix = ''
+#   for token in tokens:
+#     if token.pos in VerbForm:
+#       return format(prefix+token.base, token.pos, *moods)
+#     else:
+#       prefix += token.base
+#   return format(prefix, 'V', *moods)
 
+# class ChunkChecker(object):
+#   def visit(self, chunk):
+#     method = f'accept{chunk.pos}'
+#     if hasattr(self, method):
+#       return getattr(self, method)(chunk)
+#     return chunk
 
-CJTagMethods = {
-}
-
-def verb(s, *moods):
-  if isinstance(s, Chunk):
-    return format(s.base, s.pos, *moods)
-  tokens = tokenize(str(s))
-  prefix = ''
-  for token in tokens:
-    if token.pos in VerbForm:
-      return format(prefix+token.base, token.pos, *moods)
-    else:
-      prefix += token.base
-  return format(prefix, 'V', *moods)
-
-class ChunkChecker(object):
-  def visit(self, chunk):
-    method = f'accept{chunk.pos}'
-    if hasattr(self, method):
-      return getattr(self, method)(chunk)
-    return chunk
-
-  def acceptNA(self, chunk):
-    w = chunk.base
-    if len(w) == 2 and w[0] not in CNA:
-      chunk.pos = 'N'
-    return chunk
+#   def acceptNA(self, chunk):
+#     w = chunk.base
+#     if len(w) == 2 and w[0] not in CNA:
+#       chunk.pos = 'N'
+#     return chunk
 
 class Tokenizer(object):
   def visit(self, node):
@@ -532,26 +398,28 @@ def concat(c: Chunk, c2: Chunk):
   #     return concat2(c, c2)
   return None
 
-def tokenize(text_or_tree):
-  if not isinstance(text_or_tree, ParseTree):
-    try:
-      tree = getParser()(text_or_tree)
-    except RecursionError:
-      print('FIXME(RecursionError)', text_or_tree)
-      return []
-  else:
-    tree = text_or_tree
+def tokenize(text, parser = None):
+  if parser is None:
+    parser = getParser()
+  try:
+    tree = getParser()(text)
+  except RecursionError:
+    print('FIXME(RecursionError)', text)
+    return []
   tokenizer = Tokenizer()
-  ts = []
+  chunks = []
   for node in tree.getSubNodes():
     s = node.getToken()
     chunk = tokenizer.visit(node)
     chunk.token = s
     chunk = normalize(chunk)
-    if len(ts)>0:
-      cat = concat(ts[-1], chunk)
-      if cat is not None: ts[-1] = cat; continue
-    ts.append(chunk)
-  return ts
+    if len(chunks)>0:
+      cat = concat(chunks[-1], chunk)
+      if cat is not None: chunks[-1] = cat; continue
+    chunks.append(chunk)
+  return chunks
 
 
+def segment(s: str, sep='/', parser = None):
+  chunks = tokenize(s, parser)
+  return sep.join([x.token for x in chunks])
