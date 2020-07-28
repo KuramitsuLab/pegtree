@@ -22,7 +22,7 @@ setup(
         packages=['pegtree'],
         package_data={'pegtree': ['grammar/*.tpeg',
                                   'grammar/*/*.txt',
-                                  'code/*.txt']},
+                                  'code/*.txt', 'cjdic/*.txt']},
     entry_points={
         'console_scripts': [
             'pegtree = pegtree.main:main'
