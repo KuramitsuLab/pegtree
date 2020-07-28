@@ -379,6 +379,5 @@ def segment(s: str, sep='/', parser = None):
   return sep.join([x.token for x in chunks])
 
 
-print(tokenize('望遠鏡で{{子犬が泳ぐのを}}見た'))
-
-print(tokenize('望遠鏡で{{すべての子犬が泳ぐのを}}見た'))
+#print(tokenize('望遠鏡で{{子犬が泳ぐのを}}見た'))
+#print(tokenize('望遠鏡で{{すべての子犬が泳ぐのを}}見た'))
