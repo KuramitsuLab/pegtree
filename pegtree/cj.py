@@ -1,6 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+from pathlib import Path
 import pegtree as pg
 from pegtree import ParseTree
 
@@ -38,25 +39,12 @@ Mood = {
   'past': ('T', 'た'),
 }
 
-# def format(prefix, pos, *moods):
-#   m = moods[0] if len(moods) > 0 else 'base'
-#   form = VerbForm.get(pos, {})
-#   mood = Mood.get(m, 'base')
-#   s = prefix
-#   if mood[0] in form:
-#     s = prefix + form[mood[0]] + mood[1]
-#     if len(mood) == 3:
-#       if len(moods) > 0:
-#         s = format(s, mood[2], *moods[1:])
-#       else:
-#         s = format(s, mood[2])
-#   return s
-
 def isHira(s):
   return len(s) == 1 and ord('あ') <= ord(s) <= ord('ん')
 
 class CJChunk(object):
   __slots__=['token', 'stem', 'pos', 'extra']
+
   def __init__(self, stem, pos, extra=None):
     self.stem = stem
     self.pos = pos
@@ -64,11 +52,15 @@ class CJChunk(object):
     self.extra = extra
 
   def __repr__(self):
-    if self.extra is None:
-      return repr((self.getNormalForm(), self.pos))
-    elif isinstance(self.extra, list):
-      return repr((self.getNormalForm(), self.pos, *self.extra))
-    return repr((self.getNormalForm(), self.pos, self.extra))
+    ss = [self.getNormalForm(), self.pos]
+    if isinstance(self.extra, list):
+      ss.extend(*self.extra)
+    if self.extra is not None:
+      ss.append(self.extra)
+    suffix = self.getSuffix()
+    if suffix != '' and self.isNoun():
+      ss.append(suffix)
+    return repr(tuple(ss))
 
   def append(self, *values):
     for value in values:
@@ -137,11 +129,12 @@ class Tokenizer(object):
     tags = tag.split('X')
     if len(tags) > 0:
       for meta in tags[1:]:
-        if meta == '':
-          meta = self.suffix2(node)
-        else:
+        if meta.startswith('_'): #X_then
+          meta = '@'+meta[1:]
+          chunk.remove(meta)
+        elif meta != '':
           meta = '@'+meta
-        chunk.append(meta)
+          chunk.append(meta)
     return chunk
 
   def pos(self, tag):
@@ -149,13 +142,74 @@ class Tokenizer(object):
       return 'N'
     return tag.split('X')[0]
 
-  def suffix2(self, node):
-    if len(node) > 0:
-      base = node[0]
-      s = node.substring(None, base)
-      return s
-    return ''
+def readwords(file, suffix=''):
+  path = Path(__file__).parent / f'cjdic/{file}'
+  with path.open() as f:
+    ws = []
+    for line in f:
+      line = line.replace('\n', suffix)
+      ws.append(line)
+  return ws
 
+
+def fit_model(model, w, clz):
+  w = w[::-1]
+  if w in model:
+    clz2 = model[w]
+    if clz != clz2:
+      model[w] = None
+  else:
+    model[w] = clz
+
+
+def fit_word(model, w, i, clz):
+  if len(w) == i:
+    fit_model(model, w, clz)
+  else:
+    fit_model(model, w[0:i] + '.', clz)
+    if i < 6:
+      fit_word(model, w, i+1, clz)
+
+
+class ReverseModel(object):
+  def __init__(self, *dicts):
+    self.model = {}
+    model = {}
+    for clz in dicts:
+      ws = readwords(f'{clz}.txt')
+      for w in ws:
+        w = w[::-1]
+        fit_word(model, w, 1, clz)
+    for i in range(1, 6):
+      for pat in model:
+        if len(pat) != i:
+          continue
+        clz = model[pat]
+        if clz is None:
+          continue
+        if self.predict(pat) is None:
+          self.model[pat] = clz
+
+  def predict(self, w, default=None):
+    wlen = len(w)
+    for p in range(1, 5):
+      if p > wlen:
+        break
+      suffix = w[-p:]
+      #print('@', suffix, model.get(suffix, None))
+      if suffix in self.model:
+        return self.model[suffix]
+      if p + 1 > wlen:
+        break
+      suffix = '.' + suffix
+      #print('@@', suffix, model.get(suffix, None))
+      if suffix in self.model:
+        return self.model[suffix]
+    return default
+
+
+Vt5Model = ReverseModel('VR5', 'VW5', 'VT5')
+Vd5Model = ReverseModel('VM5', 'VB5')
 
 CA = "濃篤広弛無怪なこ短狡幼弱紅イ堆聰旨貴好醜白酷汚普善潔憎快暗悪洽著眠太長え尊多懈角硬よ儚永敏穢近眩賢煙軽怖暑高明安固黒遠ぽ煩薄恐偉低畏厚良強狭旧痛鈍古淡粘辛異聡荒憂少凄緩遍熱堅深甘鋭浅豪渋若稚苦恥蒼臭痒羨青吝易乏拙遅い惨温難疎清速懶早幽寒丸赤繁腥細脆円粗佳重酸"
 CNA = "恣稀別希妙歪素朧更嫌縦罪酷厭密徒闌端酣初俄切邪変乙主雑暇露粋艷楽急俗顕や雅生純義円重"
@@ -231,20 +285,10 @@ def check_nai(chunk):
           return chunk
   return chunk
 
-NNO = 'その,あの,どの,この'.split(',')
+#NNO = 'その,あの,どの,この'.split(',')
 
 def normalize(chunk: CJChunk):
   w = chunk.stem
-  # if chunk.pos == 'N':
-  #   if len(w) == 1 and isHira(w) and chunk.token not in NNO:
-  #     chunk.stem = chunk.token
-  #     chunk.extra = None
-  #   return chunk
-  # if chunk.pos == 'A':
-  #   if len(w) == 1 and w not in CA:
-  #     chunk.pos = 'N'
-  #     chunk.stem = chunk.token
-  #   return chunk
   if chunk.pos == 'AN':
     if len(w) == 2 and w[0] not in CNA:
       chunk.pos = 'N'
@@ -258,13 +302,12 @@ def normalize(chunk: CJChunk):
     if chunk.pos == 'VK5':
       chunk.remove('@then')
     return chunk
-  # if chunk.pos == 'NA':
-  #   w = chunk.stem[:-1]
-  #   for tail in VW5T:
-  #     if w.endswith(tail):
-  #       return setpos(chunk, 'N')
-  #   chunk.stem = w
-  #   return normalize(setpos(chunk, 'A'))
+  if chunk.pos == 'Vd5':
+    chunk.pos = Vd5Model.predict(w, 'VM5')
+    return chunk
+  if chunk.pos == 'Vt5':
+    chunk.pos = Vt5Model.predict(w, 'VR5')
+    return chunk
   return check_nai(chunk)
 
 
@@ -304,25 +347,6 @@ def concat(c: CJChunk, c2: CJChunk):
       c2.stem = c.token + c2.stem
       c2.append(f'@prefix({c.token})')
       return concat2(c, c2)
-  # ルール1. 名詞は接続される
-  # [('もの', 'N'), ('ぐるわしい', 'A')]
-  # if isPrefix(c) and isComposable(c2):
-  #     print('@concat', c.token, c2.token)
-  #     c2.stem = c.token + c2.stem
-  #     c2.append(f'@prefix({c.token})')
-  #     return concat2(c, c2)
-  # 動詞の次に形容詞はこない
-  # どす黒い[('どす', 'VS5'), ('黒い', 'A')]
-  # ちいさい[('ちい', 'A'), ('さい', 'A')]
-  # if (c.pos.startswith('V') or c.pos.startswith('A')) and c2.pos.startswith('A'):
-  #     c2.stem = c.token + c2.stem
-  #     c2.append(f'@prefix({c.token})')
-  #     return concat2(c, c2)
-  # いいふくめる [('いい', 'A'), ('ふくめる', 'V1')]
-  # if c.pos.startswith('A') and c.token.endswith('い') and c2.pos.startswith('V'):
-  #     c2.stem = c.token + c2.stem
-  #     c2.append(f'@prefix({c.token})')
-  #     return concat2(c, c2)
   return None
 
 def tokenize(text, parser = None):
@@ -353,3 +377,8 @@ def tokenize(text, parser = None):
 def segment(s: str, sep='/', parser = None):
   chunks = tokenize(s, parser)
   return sep.join([x.token for x in chunks])
+
+
+print(tokenize('望遠鏡で{{子犬が泳ぐのを}}見た'))
+
+print(tokenize('望遠鏡で{{すべての子犬が泳ぐのを}}見た'))

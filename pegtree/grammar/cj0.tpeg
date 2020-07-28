@@ -115,6 +115,14 @@ Character =
 
 CVERB1 = [鋳診観視見経簸着看獲煮流歴恐得干居射寝割似出ゐれみへひねにでてせきえうい]
 
+// カ行変格活用動詞
+Come = 
+    / { [来こ] 'れ' #V1Xcan } _Verb1 
+    / { [来こ] #VK } _VerbA // これる vs. これは
+    / { [来き] #VK } (_VerbT / _VerbIn)
+    / { [来く] #VK } ( {^ 'る' #X } _Vend / {^ 'れば' #Xif })
+    / { [来く] 'る' #VK } {^ 'れば' #If}
+
 /* Onomatopoeia オノマトペ語彙　*/
 
 Onomatopoeia = &H _Onomatopoeia _Kend?
@@ -192,7 +200,7 @@ _VendH =
   / _VendRA // するらしい
   / _VendKE
   / {^ 'べき' #Xshould } _Nend
-  / { #Debug }
+  // { #Debug }
   // / {^ 'に' ('違い'/'ちがい') ('ない' / 'ありません') #Must } _Vend?
   // / { 'けれども' #Conjunction } // けれども
   // / { 'のみ'/ 'だけ' #That } _Nend?
