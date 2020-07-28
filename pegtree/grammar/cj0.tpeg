@@ -235,7 +235,8 @@ _VerbWA5 =
   / _KendO
 
 _KendI = 
-    / {^ 'い' #Vt5 } _VerbT   // 書いた
+    / {^ 'い' #VK5 } _VerbT   // 書いた
+    / {^ 'い' #VG5 } _VerbD   // 防いだ
     / {^ 'い' #VW5 } _VerbI　//　笑い
     / {^ 'い' #A } _Vend
     / {^ 'い' #NA. } _Nend // 赤い @NA 形容詞かも知れない
