@@ -43,19 +43,20 @@ def isHira(s):
   return len(s) == 1 and ord('あ') <= ord(s) <= ord('ん')
 
 class CJChunk(object):
-  __slots__=['token', 'stem', 'pos', 'extra']
+  __slots__=['token', 'stem', 'pos', 'extra', 'arguments']
 
   def __init__(self, stem, pos, extra=None):
+    self.token = stem
     self.stem = stem
     self.pos = pos
-    self.token = stem
     self.extra = extra
+    self.arguments = None
 
   def __repr__(self):
     ss = [self.getNormalForm(), self.pos]
     if isinstance(self.extra, list):
-      ss.extend(*self.extra)
-    if self.extra is not None:
+      ss.extend(self.extra)
+    elif self.extra is not None:
       ss.append(self.extra)
     suffix = self.getSuffix()
     if suffix != '' and self.isNoun():
@@ -107,11 +108,36 @@ class CJChunk(object):
   def isNoun(self):
     return self.pos.startswith('N')
 
+  def isAdverb(self):
+    return self.pos.startswith('NM')
+
   def isVerb(self):
     return self.pos.startswith('V')
 
   def isAdj(self):
     return self.pos.startswith('A')
+
+  def isNounPrefix(self):
+    if self.isNoun():
+      if self.pos == 'NM': return False
+      return self.token == self.stem or self.getSuffix().endswith('の')
+    if self.isVerb() or self.isAdj():
+      return not self.has('@then')
+
+  def isVerbPrefix(self):
+    if self.isNoun():
+      return not self.getSuffix().endswith('の')
+    return self.has('@then')
+
+  def isAdjPrefix(self):
+    if self.isNoun():
+      return not self.getSuffix().endswith('の')
+    return self.has('@then')
+
+  def push(self, chunk):
+    if self.arguments is None:
+      self.arguments = []
+    self.arguments.append(chunk)
 
 
 class Tokenizer(object):
@@ -349,6 +375,44 @@ def concat(c: CJChunk, c2: CJChunk):
       return concat2(c, c2)
   return None
 
+def push_argument(chunk, prefix):
+  if chunk.arguments is not None:
+    for a in chunk.arguments[::-1]:
+      if push_argument(a, prefix):
+        return True
+  if chunk.isNoun() and prefix.isNounPrefix():
+    print('pushN', repr(prefix), repr(chunk))
+    chunk.push(prefix)
+    return True
+  if chunk.isVerb() and prefix.isVerbPrefix():
+    print('pushV', repr(prefix), repr(chunk))
+    chunk.push(prefix)
+    return True
+  if chunk.isAdj() and prefix.isAdjPrefix():
+    print('pushA', repr(prefix), repr(chunk))
+    chunk.push(prefix)
+    return True
+  print('!push', repr(prefix), repr(chunk))
+  return False
+
+def stringfy_arguments(chunk):
+  if chunk.arguments is None:
+    return repr(chunk)
+  ss = []
+  for argument in chunk.arguments[::-1]:
+    ss.append(stringfy_arguments(argument))
+  ss.append(repr(chunk))
+  return '[' + ' '.join(ss) + ']'
+
+def make_arguments(chunks):
+  if len(chunks) == 0:
+    return
+  chunks = chunks[::-1]
+  target = chunks[0]
+  for prefix in chunks[1:]:
+    push_argument(target, prefix)
+  print('@@', stringfy_arguments(target))
+
 def tokenize(text, parser = None):
   if isinstance(text, ParseTree):
     tree = text
@@ -371,13 +435,12 @@ def tokenize(text, parser = None):
       cat = concat(chunks[-1], chunk)
       if cat is not None: chunks[-1] = cat; continue
     chunks.append(chunk)
+  #make_arguments(chunks)
   return chunks
-
 
 def segment(s: str, sep='/', parser = None):
   chunks = tokenize(s, parser)
   return sep.join([x.token for x in chunks])
 
-
-#print(tokenize('望遠鏡で{{子犬が泳ぐのを}}見た'))
+#print(tokenize('望遠鏡で子犬が泳ぐのを見た'))
 #print(tokenize('望遠鏡で{{すべての子犬が泳ぐのを}}見た'))
