@@ -20,6 +20,7 @@ class Generator(object):
 
     def generate(self, peg, **option):
         self.peg = peg
+        self.generated = {}
         start, refs, rules, memos = prepare(peg, option.get('start', peg.start()))
         self.memos = memos
         for ref in refs:
