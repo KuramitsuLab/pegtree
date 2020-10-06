@@ -365,7 +365,7 @@ def grammar(file_or_text, **options):
         return GrammarDB[key]
     peg = Grammar()
     load_grammar(peg, path, **options)
-    GrammarDB[key] = peg
+    ##GrammarDB[key] = peg
     return peg
 
 if __name__ == '__main__':
