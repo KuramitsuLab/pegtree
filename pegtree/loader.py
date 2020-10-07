@@ -150,6 +150,7 @@ class TPEGLoader(object):
             return self.newRef(name)
         if name[0].isupper() or name.startswith('_'):  # or name[0].islower() :
             console.perror(ptree, f'undefined nonterminal {console.bold(name)}')
+            self.peg['@error'] = True
             self.peg[name] = EMPTY
             return self.peg.newRef(name)
         console.pwarn(ptree, f'undefined nonterminal {console.bold(name)}')
@@ -333,6 +334,7 @@ def load_grammar(peg, file_or_text, **options):
     options['basepath'] = basepath
     if ptree.isSyntaxError():
         console.perror(ptree, 'Syntax Error')
+        peg['@error'] = True
         return
     pconv = TPEGLoader(peg, **options)
     pconv.load(ptree)
