@@ -15,7 +15,6 @@ def match(line, src):
 @register_cell_magic
 def parse(line, src):
   peg = pg.grammar(src)
-  print('@error', '@error' not in peg)
   if '@error' not in peg:
     parser = pg.generate(peg)
     res = parser(line)
