@@ -20,7 +20,7 @@ def TPEG(line, src):
             print(repr(tree))
         else:
             print(repr(tree))
-            return graph.Viz(tree) if tree is not None else None
+            return graph.draw_graph(tree) if tree is not None else None
 
 @register_cell_magic
 def pegtree(line, src):
@@ -45,5 +45,5 @@ def parse(line, src):
             print(repr(res))
         else:
             print(repr(res))
-            return graph.Viz(res) if res is not None else None
+            return graph.draw_graph(res) if res is not None else None
 
