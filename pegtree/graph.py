@@ -16,10 +16,10 @@ class GenId(object):
     return self.c
 
 
-def draw_node(g, t, c):
+def draw_node(g, t, c, fontsize):
   nid = c.gen()
   nodeid = f'n{nid}'
-  g.node(nodeid, label=f'#{t.getTag()}')
+  g.node(nodeid, label=f'#{t.getTag()}', fontsize=fontsize)
   es = []
   for i, child in enumerate(t):
     es.append((child.spos_, child, i))
@@ -29,28 +29,28 @@ def draw_node(g, t, c):
   es.sort()
   if len(es) == 0:
     childid = f'c{nid}'
-    g.node(childid, label=repr(t.getToken()), shape='rectangle')
+    g.node(childid, label=repr(t.getToken()), shape='rectangle', fontsize=fontsize)
     g.edge(nodeid, childid)
   else:
     for i, e in enumerate(es):
       _, child, edge = e
-      childid = draw_node(g, child, c)
-      g.edge(nodeid, childid, label=f'{edge}')
+      childid = draw_node(g, child, c, fontsize)
+      g.edge(nodeid, childid, label=f'{edge}', fontsize)
   return nodeid
 
 
-def draw_graph(ptree: ParseTree, name='G'):
+def draw_graph(ptree: ParseTree, name='G', fontsize=12):
   if is_graphviz_avaiable == False:
     print('Install graphviz FIRST')
     return
   g = Digraph(name, format='png')
-  g.attr('node', fontname='MS Gothic')
-  g.attr('edge', fontname='MS Gothic')
-  draw_node(g, ptree, GenId())
+  g.attr('node', fontname='MS Gothic', fontsize=fontsize)
+  g.attr('edge', fontname='MS Gothic', fontsize=fontsize)
+  draw_node(g, ptree, GenId(), fontsize)
   #g.view()
   return g
 
-def Viz(tree_or_parser):
+def Viz(tree_or_parser, fontsize=12):
   if isinstance(tree_or_parser, ParseTree):
-    return draw_graph(tree_or_parser)
-  return lambda s: draw_graph(tree_or_parser(s))
+    return draw_graph(tree_or_parser, fontsize)
+  return lambda s: draw_graph(tree_or_parser(s), fontsize)
