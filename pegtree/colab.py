@@ -14,12 +14,13 @@ def parse_example(peg, line):
 @register_cell_magic
 def TPEG(line, src):
     peg = pg.grammar(src)
-    tree = parse_example(peg, line)
-    if tree.isSyntaxError():
-        print(repr(tree))
-    else:
-        print(repr(tree))
-        return graph.Viz(tree)
+    if '@error' not in peg:
+        tree = parse_example(peg, line)
+        if tree.isSyntaxError():
+            print(repr(tree))
+        else:
+            print(repr(tree))
+            return graph.Viz(tree) if tree is not None else None
 
 @register_cell_magic
 def pegtree(line, src):
