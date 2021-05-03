@@ -9,6 +9,7 @@ def parse_example(peg, line):
         return parser(str(doc))
     else:
         parser = pg.generate(peg)
+        print('Input:', line)
         return parser(line)
 
 @register_cell_magic
