@@ -13,14 +13,14 @@ twine upload --repository pypi dist/*
 
 setup(
     name='pegtree',
-    version='0.9.13',
+    version='0.9.14',
     url='https://github.com/KuramitsuLab/pegtree.git',
     license='MIT',
     author='Kimio Kuramitsu',
-    description='PEGTree for Python and JavaScript',
+    description='PEGTree for Python',
     install_requires=['setuptools'],
         packages=['pegtree'],
-        package_data={'pegtree': ['grammar/*.tpeg',
+        package_data={'pegtree': ['grammar/*.tpeg', 'grammar/*.pegtree',
                                   'grammar/*/*.txt',
                                   'code/*.txt', 'cjdic/*.txt']},
     entry_points={
@@ -36,6 +36,7 @@ setup(
         'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
         'Topic :: Software Development :: Libraries :: Python Modules',
         'Topic :: Text Processing',
     ],

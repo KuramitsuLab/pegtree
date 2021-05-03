@@ -367,7 +367,7 @@ def grammar(file_or_text, **options):
         return GrammarDB[key]
     peg = Grammar()
     load_grammar(peg, path, **options)
-    if key.endswith('peg'):
+    if key.endswith('peg') or key.endswith('pegtree'):
         GrammarDB[key] = peg
     return peg
 

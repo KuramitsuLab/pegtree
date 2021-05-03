@@ -35,7 +35,7 @@ def draw_node(g, t, c, fontsize):
     for i, e in enumerate(es):
       _, child, edge = e
       childid = draw_node(g, child, c, fontsize)
-      g.edge(nodeid, childid, label=f'{edge}', fontsize)
+      g.edge(nodeid, childid, label=f'{edge}', fontsize=fontsize)
   return nodeid
 
 
