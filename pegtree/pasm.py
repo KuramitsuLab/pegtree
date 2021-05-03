@@ -884,7 +884,7 @@ class ParseTree(list):
         for key in self.__dict__:
             v = self.__dict__[key]
             if isinstance(v, ParseTree):
-                ks.append(v)
+                ks.append(key)
         return ks
 
     def subs(self):
