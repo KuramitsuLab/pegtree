@@ -44,8 +44,8 @@ def draw_graph(ptree: ParseTree, name='G', fontsize=12):
     print('Install graphviz FIRST')
     return
   g = Digraph(name, format='png')
-  g.attr('node', fontname='MS Gothic', fontsize=fontsize)
-  g.attr('edge', fontname='MS Gothic', fontsize=fontsize)
+  g.attr('node', fontname='MS Gothic')
+  g.attr('edge', fontname='MS Gothic')
   draw_node(g, ptree, GenId(), fontsize)
   #g.view()
   return g
