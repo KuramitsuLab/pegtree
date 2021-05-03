@@ -18,7 +18,7 @@ setup(
     license='MIT',
     author='Kimio Kuramitsu',
     description='PEGTree for Python',
-    install_requires=['setuptools'],
+    #install_requires=['setuptools'],
         packages=['pegtree'],
         package_data={'pegtree': ['grammar/*.tpeg', 'grammar/*.pegtree',
                                   'grammar/*/*.txt',

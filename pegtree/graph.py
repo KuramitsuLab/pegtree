@@ -19,7 +19,7 @@ class GenId(object):
 def draw_node(g, t, c, fontsize):
   nid = c.gen()
   nodeid = f'n{nid}'
-  g.node(nodeid, label=f'#{t.getTag()}', fontsize=fontsize)
+  g.node(nodeid, label=f'#{t.getTag()}')
   es = []
   for i, child in enumerate(t):
     es.append((child.spos_, child, i))
@@ -29,13 +29,13 @@ def draw_node(g, t, c, fontsize):
   es.sort()
   if len(es) == 0:
     childid = f'c{nid}'
-    g.node(childid, label=repr(t.getToken()), shape='rectangle', fontsize=fontsize)
+    g.node(childid, label=repr(t.getToken()), shape='rectangle')
     g.edge(nodeid, childid)
   else:
     for i, e in enumerate(es):
       _, child, edge = e
       childid = draw_node(g, child, c, fontsize)
-      g.edge(nodeid, childid, label=f'{edge}', fontsize=fontsize)
+      g.edge(nodeid, childid, label=f'{edge}')
   return nodeid
 
 
