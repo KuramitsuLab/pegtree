@@ -1,5 +1,6 @@
 import pegtree as pg
 import pegtree.graph as graph
+from IPython.display import Image, display
 from IPython.core.magic import register_cell_magic
 
 def parse_example(peg, line):
@@ -28,23 +29,37 @@ def pegtree(line, src):
     return TPEG(line, src)
 
 @register_cell_magic
+def example(line, src):
+    peg = pg.grammar(line.strip())
+    if '@@example' not in peg:
+        return
+    parsers = {}
+    for testcase in peg['@@example']:
+        name, doc = testcase
+        if not name in peg:
+            continue
+        if not name in parsers:
+            parsers[name] = pg.generate(peg, start=name)
+        res = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
+        ok = doc.inputs_[doc.spos_:res.epos_]
+        fail = doc.inputs_[res.epos_:doc.epos_]
+        print(f'parsing {name} {ok} {fail}')
+        v = graph.draw_graph(tres)
+        display(Image(v.render()))
+
+@register_cell_magic
+def parse(line, src):
+    peg = pg.grammar(line.strip())
+    parser = pg.generate(peg)
+    tree = parser(src, urn='(stdin)')
+    print(repr(res))
+    return graph.draw_graph(res)
+
+@register_cell_magic
 def match(line, src):
     peg = pg.grammar(src)
     if '@error' not in peg:
         parser = pg.generate(peg)
         res = parser(line)
         print(repr(res))
-
-
-@register_cell_magic
-def parse(line, src):
-    peg = pg.grammar(src)
-    if '@error' not in peg:
-        parser = pg.generate(peg)
-        res = parser(line)
-        if res.isSyntaxError():
-            print(repr(res))
-        else:
-            print(repr(res))
-            return graph.draw_graph(res) if res is not None else None
 
