@@ -41,7 +41,7 @@ def start_option(line):
     if line.startswith('-s '):
         _, start, path = line.split()
         return start, path
-    return None, path
+    return None, line
 
 @register_line_cell_magic
 def example(line, src=''):
