@@ -41,7 +41,7 @@ def example(line, src=''):
             continue
         if not name in parsers:
             parsers[name] = pg.generate(peg, start=name)
-        res = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
+        tree = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
         ok = doc.inputs_[doc.spos_:res.epos_]
         fail = doc.inputs_[res.epos_:doc.epos_]
         display(HTML(f'<b>{name}</b> {ok}<span style="background-color:#FFCACA;">{fail}</span>'))
