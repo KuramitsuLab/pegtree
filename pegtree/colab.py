@@ -1,6 +1,6 @@
 import pegtree as pg
 import pegtree.graph as graph
-from IPython.display import Image, HTML, display
+from IPython.display import Image, HTML, SVG, display
 from IPython.core.magic import register_cell_magic, register_line_cell_magic
 
 def is_env_notebook():
@@ -26,27 +26,13 @@ def parse_example(peg, line):
         print('Input:', line)
         return parser(line)
 
-@register_cell_magic
-def peg(line, src):
-    peg = pg.grammar(src)
-    if '@error' not in peg:
-        tree = parse_example(peg, line)
-        if tree.isSyntaxError():
-            print(repr(tree))
-        else:
-            print(repr(tree))
-            return graph.draw_graph(tree) if tree is not None else None
-
 def start_option(line):
     if line.startswith('-s '):
         _, start, path = line.split()
         return start, path
     return None, line
 
-@register_line_cell_magic
-def example(line, src=''):
-    start, path = start_option(line.strip())
-    peg = pg.grammar(path)
+def test_example(peg, start=None):
     if '@@example' not in peg:
         return
     parsers = {}
@@ -63,7 +49,21 @@ def example(line, src=''):
         fail = doc.inputs_[tree.epos_:doc.epos_]
         display(HTML(f'<b>{name}</b> {ok}<span style="background-color:#FFCACA;">{fail}</span>'))
         v = graph.draw_graph(tree)
-        display(Image(v.render()))
+        v.format='SVG'
+        display(SVG(v.render()))
+
+@register_cell_magic
+def peg(line, src):
+    peg = pg.grammar(src)
+    if '@error' in peg:
+        return
+    test_example(peg, None)
+
+@register_line_cell_magic
+def example(line, src=''):
+    start, path = start_option(line.strip())
+    peg = pg.grammar(path)
+    test_example(peg, start)
 
 @register_cell_magic
 def parse(line, src=''):
