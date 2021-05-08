@@ -58,6 +58,11 @@ def peg(line, src):
     if '@error' in peg:
         return
     test_example(peg, None)
+    file = line.strip()
+    if file.endswith('peg') or file.endswith('.pegtree'):
+        with open(file, 'w') as f:
+            f.write(src)
+            print('wrote {file}')
 
 @register_line_cell_magic
 def example(line, src=''):
