@@ -41,7 +41,7 @@ def draw_graph(ptree: ParseTree, name='G', fontsize='12'):
   if is_graphviz_avaiable == False:
     print('Install graphviz FIRST')
     return
-  name = ptree.inputs_[ptree.spos_:ptree.epos_]
+  name = 'tree'
   g = Digraph(name, format='png')
   g.attr('node', fontname='Meiryo UI')
   g.attr('edge')

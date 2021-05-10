@@ -1,7 +1,5 @@
-from pegtree.pasm import unique_range
-#from pegtree.terminal import DEBUG, VERBOSE
-
 import os
+from pegtree.pasm import unique_range
 
 DebugFlag = 'DEBUG' in os.environ
 VerboseFlag = 'VERBOSE' in os.environ
@@ -77,7 +75,8 @@ class PUnary(PExpr):
     def __len__(self):
         return 1
 
-    def minLen(self): return self.e.minLen()
+    def minLen(self): 
+        return self.e.minLen()
 
     def grouping(self, e):
         if isinstance(e, POre) or isinstance(e, PSeq) or isinstance(e, PEdge) or isinstance(e, PAlt):

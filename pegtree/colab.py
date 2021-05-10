@@ -15,6 +15,7 @@ def is_env_notebook():
     # Jupyter Notebook
     return True
 
+
 def parse_example(peg, line):
     if '@@example' in peg and len(peg['@@example']) > 0:
         name, doc = peg['@@example'][-1]
@@ -27,7 +28,7 @@ def parse_example(peg, line):
         return parser(line)
 
 def start_option(line):
-    if line.startswith('-s '):
+    if line.startswith('-s ') or line.startswith('--start '):
         _, start, path = line.split()
         return start, path
     return None, line
@@ -62,7 +63,7 @@ def peg(line, src):
     if file.endswith('peg') or file.endswith('.pegtree'):
         with open(file, 'w') as f:
             f.write(src)
-            print('wrote {file}')
+            print(f'wrote {file}')
 
 @register_line_cell_magic
 def example(line, src=''):
@@ -97,3 +98,36 @@ def match(line, src):
         res = parser(line)
         print(repr(res))
 
+## new command
+
+def parse_option(ss):
+    d = {}
+    options = []
+    arguments = []
+    for i, s in enumerate(ss):
+        if s.startswith('--'):
+            if i + 1 < len(ss):
+                d[s] = ss[i+1]
+                options.append(ss[i+1])
+            else:
+                d[s] = ''
+        else:
+            arguments.append(s)
+    for s in options:
+        arguments.remove(s)
+    return arguments, d
+
+def load_grammar(files, options):
+    peg = pg.grammar(files[0])
+    return peg
+
+@register_line_cell_magic
+def extract(line, cell=''):
+    files, options = parse_option(line.split())
+    peg = load_grammar(files, options)
+    start = options.get('--start', peg.start())
+    start = f'extract_{start}'
+    if start not in peg:
+        peg.addExtract(start)
+    parser = pg.generate(peg, start=start)
+    file_or_text = options.get('--from', cell)
