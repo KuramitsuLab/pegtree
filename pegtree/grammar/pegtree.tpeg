@@ -1,12 +1,11 @@
-// Tree PEG 
-// 
+// PEGTree Syntax 
 
 File = __ Source EOF
 
 S = [ \t　]   // Zenkaku Space
 __ = (S / [\r\n] / COMMENT)*
 _ = (S / COMMENT)*
-COMMENT = '/*' (!'*/' .)* '*/' / '//' (!EOL .)*
+COMMENT = '/*' (!'*/' .)* '*/' / ('//' / '%%') (!EOL .)*
 EOL = '\n' / '\r\n' / EOF
 EOF = !.
 
@@ -17,14 +16,7 @@ EOS =
   // _ EOL ((S / COMMENT) _ EOL)*
   / (_ EOL)+ 
 
-Statement = Import / Example / Rule
-
-//
-Import = {
-  'from' S _ name: (Identifier / Char) 
-  (_ 'import' S _ names: Names )?
-  #Import
-} EOS
+Statement = Example / Rule
 
 Example = {
   'example' S _
@@ -41,9 +33,9 @@ Names = {
 Doc = Doc1 / Doc2 / Doc0
 
 Doc0 = { (!EOL .)* #Doc }
-Doc1 = DELIM1 S* EOL { (!(DELIM1 EOL) .)* #Doc } DELIM1
+Doc1 = DELIM1 S* EOL { (!(DELIM1 EOL) .)* #Doc } DELIM1 _
 DELIM1 = '\'\'\''
-Doc2 = DELIM2 S* EOL { (!(DELIM2 EOL) .)* #Doc } DELIM2
+Doc2 = DELIM2 S* EOL { (!(DELIM2 EOL) .)* #Doc } DELIM2 _
 DELIM2 = '```'
 
 Rule = { 
@@ -86,9 +78,6 @@ Group = '(' __ (Expression / Empty) __ ')'
 Any = { '.' #Any }
 Char = ['] { ('\\' . / !['] .)* #Char } [']
 Class = '[' { ('\\' . / !']' .)* #Class } ']'
-
-//StringChoice = String (^{ (__ '/' _ String)+ #Dict })
-
 
 Node = {
   '{' __
@@ -160,4 +149,8 @@ example Expression 1*2+3
 example Expression 1+2*3
 example Int 123
 
+'''
+
+example Source '''
+主語 = { '私は' #名詞 }
 '''

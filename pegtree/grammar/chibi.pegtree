@@ -8,7 +8,7 @@ print(fib(4))
 
 Program = {
   Expression*
-  #Block
+  #Program
 } EOF
 
 EOF = !.
@@ -50,9 +50,9 @@ Binary =
   / Sum
 
 Sum = Prod ( ^{ "+" Prod #Add } / ^ { "-" Prod #Sub} )*
-Prod = Term ( ^{ "*" Term #Mul } / ^{ "/" Term #Div} )*
+Prod = Primary ( ^{ "*" Primary #Mul } / ^{ "/" Primary #Div} )*
 
-Term = FuncApp / Name / Value / "(" Expression ")"
+Primary = FuncApp / Var / Value / "(" Expression ")"
 
 FuncApp = {
   Name "(" Expression ")"
@@ -63,7 +63,7 @@ Name = Var
 
 Var = {
   [A-Za-z] [A-Za-z0-9]* 
-  #Var
+  #Name
 } _
 
 Value = {
