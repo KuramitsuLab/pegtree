@@ -1,7 +1,8 @@
 from pegtree.peg import *
 import pegtree.pasm as pasm
 from pegtree.optimizer import prepare
-from pegtree.terminal import DefaultConsole as console
+#from pegtree.terminal import DefaultConsole as console
+
 
 class Generator(object):
     def __init__(self):
@@ -21,7 +22,8 @@ class Generator(object):
     def generate(self, peg, **option):
         self.peg = peg
         self.generated = {}
-        start, refs, rules, memos = prepare(peg, option.get('start', peg.start()))
+        start, refs, rules, memos = prepare(
+            peg, option.get('start', peg.start()))
         self.memos = memos
         for ref in refs:
             assert isinstance(ref, PRef)

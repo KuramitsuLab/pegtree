@@ -1,5 +1,22 @@
 import os
-from pegtree.pasm import unique_range
+#from pegtree.pasm import unique_range
+
+
+def unique_range(chars, ranges, memo=None):
+    cs = 0
+    for c in chars:
+        cs |= 1 << ord(c)
+    r = ranges
+    while len(r) > 1:
+        for c in range(ord(r[0]), ord(r[1])+1):
+            cs |= 1 << c
+        r = r[2:]
+    if memo is not None:
+        if cs in memo:
+            return memo[cs]
+        memo[cs] = cs
+    return cs
+
 
 DebugFlag = 'DEBUG' in os.environ
 VerboseFlag = 'VERBOSE' in os.environ
@@ -55,6 +72,8 @@ class Grammar(dict):
         return self.N[0]
 
 
+# Parsing Expression
+
 class PExpr(object):
     def __iter__(self): pass
     def __len__(self): return 0
@@ -65,6 +84,7 @@ class PExpr(object):
 
 class PUnary(PExpr):
     __slot__ = ['e']
+    e: PExpr
 
     def __init__(self, e):
         self.e = e
@@ -75,7 +95,7 @@ class PUnary(PExpr):
     def __len__(self):
         return 1
 
-    def minLen(self): 
+    def minLen(self):
         return self.e.minLen()
 
     def grouping(self, e):
@@ -106,13 +126,15 @@ class PTuple(PExpr):
             return '(' + repr(e) + ')'
         return repr(e)
 
-# Parsing Expression
 
+# . PAny()
 
 class PAny(PExpr):
     def __repr__(self): return '.'
     def minLen(self): return 1
 
+
+# a PChar(a)
 
 class PChar(PExpr):
     __slots__ = ['text']
@@ -233,6 +255,7 @@ class PSeq(PTuple):
         if len(es) == 0:
             return EMPTY
         return es[0] if len(es) == 1 else PSeq(*es)
+
 
 class PAlt(PTuple):
     def __repr__(self):
@@ -368,6 +391,7 @@ class PAction(PUnary):
     def cname(self):
         return self.func.capitalize()
 
+
 # CONSTANT
 EMPTY = PChar('')
 ANY = PAny()
@@ -375,17 +399,18 @@ FAIL = PNot(EMPTY)
 
 
 def isEmpty(pe):
-  return pe == EMPTY or isinstance(pe, PChar) and len(pe.text) == 0
+    return pe == EMPTY or isinstance(pe, PChar) and len(pe.text) == 0
 
 
 def isAny(pe):
-  return pe == ANY or isinstance(pe, PAny)
+    return pe == ANY or isinstance(pe, PAny)
 
 
 def isSingleCharacter(pe):
-        return (isinstance(pe, PChar) and len(pe.text) == 1) or isinstance(pe, PRange) or isinstance(pe, PAny)
+    return (isinstance(pe, PChar) and len(pe.text) == 1) or isinstance(pe, PRange) or isinstance(pe, PAny)
 
 # PRange Utilities
+
 
 def bitsetRange(chars, ranges):
     cs = 0
@@ -433,6 +458,7 @@ def _appendRange(s, p, chars, ranges):
         ranges.append(chr(s))
         ranges.append(chr(p))
 
+
 def uniqueRange(chars, ranges):
     bits = bitsetRange(chars, ranges)
     newchars, newranges = stringfyRange(bits)
@@ -442,7 +468,8 @@ def uniqueRange(chars, ranges):
 
 #
 # Visitor
-# 
+#
+
 
 class PVisitor(object):
     def visit(self, pe: PExpr):
@@ -490,12 +517,12 @@ class Nullable(PVisitor):
 
     def PAction(self, pe): return self.visit(pe.e)
 
+
 defaultNullableChecker = Nullable()
+
 
 def isAlwaysConsumed(pe):
     return defaultNullableChecker.visit(pe)
-
-
 
 
 class First(PVisitor):
@@ -558,6 +585,3 @@ class First(PVisitor):
     def PAbs(self, pe): return self.visit(pe.e)
 
     def PAction(self, pe): return self.visit(pe.e)
-
-
-
