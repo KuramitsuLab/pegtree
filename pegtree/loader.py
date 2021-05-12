@@ -237,11 +237,14 @@ def load_grammar(peg, file_or_text, **options):
         basepath = (str(Path(basepath).resolve().parent))
     options['basepath'] = basepath
     if ptree.isSyntaxError():
-        perror(ptree, 'Syntax Error')
+        perror(ptree, 'Syntax error in PegTree Grammar')
         peg['@error'] = True
         return
     pconv = TPEGLoader(peg, **options)
     pconv.load(ptree)
+
+
+Grammar.load = load_grammar
 
 
 def findpath(paths, file_or_text):
