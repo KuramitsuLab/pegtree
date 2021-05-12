@@ -1,11 +1,70 @@
-from pegtree.peg import *
+from .peg import *
+
+# # PRange Utilities
+
+
+def bitsetRange(chars, ranges):
+    cs = 0
+    for c in chars:
+        cs |= 1 << ord(c)
+    r = ranges
+    while len(r) > 1:
+        for c in range(ord(r[0]), ord(r[1])+1):
+            cs |= 1 << c
+        r = r[2:]
+    return cs
+
+
+def stringfyRange(bits):
+    c = 0
+    s = None
+    p = None
+    chars = []
+    ranges = []
+    while bits > 0:
+        if bits & 1 == 1:
+            if s is None:
+                s = c
+                p = c
+            elif p + 1 == c:
+                p = c
+            else:
+                _appendRange(s, p, chars, ranges)
+                s = c
+                p = c
+        bits >>= 1
+        c += 1
+    if s is not None:
+        _appendRange(s, p, chars, ranges)
+    return ''.join(chars), ''.join(ranges)
+
+
+def _appendRange(s, p, chars, ranges):
+    if s == p:
+        chars.append(chr(s))
+    elif s+1 == p:
+        chars.append(chr(s))
+        chars.append(chr(p))
+    else:
+        ranges.append(chr(s))
+        ranges.append(chr(p))
+
+
+def uniqueRange(chars, ranges):
+    bits = bitsetRange(chars, ranges)
+    newchars, newranges = stringfyRange(bits)
+    checkbits = bitsetRange(chars, ranges)
+    assert bits == checkbits
+    return newchars, newranges
+
 
 #
 # Inlining
 #
 
-def isCharOrRange(pe): 
-  return isinstance(pe, PChar) or isinstance(pe, PRange)
+def isCharOrRange(pe):
+    return isinstance(pe, PChar) or isinstance(pe, PRange)
+
 
 def inline(pe: PExpr, filter=isCharOrRange):
     start = pe
@@ -20,6 +79,7 @@ def inline(pe: PExpr, filter=isCharOrRange):
 #
 # make Minimum Rules
 #
+
 
 def makeMinimumRules(pe: PExpr, visited: dict, rules: list):
     if isinstance(pe, PRef):
@@ -36,7 +96,8 @@ def makeMinimumRules(pe: PExpr, visited: dict, rules: list):
 
 #
 # Sorting Rules
-# 
+#
+
 
 def sortRules(refs):
     newrefs = []
@@ -50,6 +111,7 @@ def sortRules(refs):
             unsolved.append((ref, set(names)))
     return _solveSortingRefs(newrefs, unsolved)
 
+
 def _makeSortingRefs(e, names):
     if isinstance(e, PTuple):
         for e2 in e:
@@ -58,6 +120,7 @@ def _makeSortingRefs(e, names):
         _makeSortingRefs(e.e, names)
     elif isinstance(e, PRef):
         names.add(e.uname())
+
 
 def _removeSolvedName(unsolved, uname):
     removed = False
@@ -99,172 +162,181 @@ def _solveSortingRefs(refs, unsolved):
 
 ###
 
-def flattenSeq(pe: PExpr, ps: list, conv = lambda x: x):
-  if isinstance(pe, PSeq):
-    for e in pe: 
-      ps.append(conv(e))
-  else:
-    ps.append(conv(pe))
-  return ps
+
+def flattenSeq(pe: PExpr, ps: list, conv=lambda x: x):
+    if isinstance(pe, PSeq):
+        for e in pe:
+            ps.append(conv(e))
+    else:
+        ps.append(conv(pe))
+    return ps
+
 
 def appendSeq(ps: list, pe: PExpr):
-  if pe == EMPTY or (isinstance(pe, PChar) and len(pe.text) == 0):
-    return
-  if isinstance(pe, PSeq):
-    for e in pe:
-      appendSeq(ps, e)
-    return 
-  if len(ps) == 0:
+    if pe == EMPTY or (isinstance(pe, PChar) and len(pe.text) == 0):
+        return
+    if isinstance(pe, PSeq):
+        for e in pe:
+            appendSeq(ps, e)
+        return
+    if len(ps) == 0:
+        ps.append(pe)
+        return
+    e0 = ps[-1]
+    if isinstance(pe, PChar) and isinstance(e0, PChar):
+        ps[-1] = PChar(e0.text+pe.text)
+        return
     ps.append(pe)
-    return
-  e0 = ps[-1]
-  if isinstance(pe, PChar) and isinstance(e0, PChar):
-    ps[-1] = PChar(e0.text+pe.text)
-    return 
-  ps.append(pe)
+
 
 def newSeq(ps: list):
-  optimized = []
-  for e in ps:
-    appendSeq(optimized, e)
-  if len(optimized) == 0:
-      return EMPTY
-  if len(optimized) == 1:
-    return optimized[0]
-  return PSeq(*optimized)
+    optimized = []
+    for e in ps:
+        appendSeq(optimized, e)
+    if len(optimized) == 0:
+        return EMPTY
+    if len(optimized) == 1:
+        return optimized[0]
+    return PSeq(*optimized)
 
 #
 # Ore
 #
 
+
 def flattenOre(pe: PExpr, ps: list, conv=lambda x: x):
-  if isinstance(pe, POre):
-    for e in pe:
-      ps.append(conv(e))
-  else:
-    ps.append(conv(pe))
-  return ps
+    if isinstance(pe, POre):
+        for e in pe:
+            ps.append(conv(e))
+    else:
+        ps.append(conv(pe))
+    return ps
 
 
 def mergeRange(e, e2):
-  if isAny(e) or isAny(e2):
-    return ANY
-  chars = ''
-  ranges = ''
-  if isinstance(e, PChar):
-      chars += e.text
-  if isinstance(e2, PChar):
-      chars += e2.text
-  if isinstance(e, PRange):
-      chars += e.chars
-      ranges += e.ranges
-  if isinstance(e2, PRange):
-      chars += e2.chars
-      ranges += e2.ranges
-  chars, ranges = uniqueRange(chars, ranges)
-  return PRange.new(chars, ranges)
+    if isAny(e) or isAny(e2):
+        return ANY
+    chars = ''
+    ranges = ''
+    if isinstance(e, PChar):
+        chars += e.text
+    if isinstance(e2, PChar):
+        chars += e2.text
+    if isinstance(e, PRange):
+        chars += e.chars
+        ranges += e.ranges
+    if isinstance(e2, PRange):
+        chars += e2.chars
+        ranges += e2.ranges
+    chars, ranges = uniqueRange(chars, ranges)
+    return PRange.new(chars, ranges)
 
 
 def prefixChar(pe):
-  if isinstance(pe, PChar) and len(pe.text) > 0:
-      return pe.text[0]
-  if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
-      return pe.es[0].text[0]
-  return None
+    if isinstance(pe, PChar) and len(pe.text) > 0:
+        return pe.text[0]
+    if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
+        return pe.es[0].text[0]
+    return None
+
 
 def dc(pe):
-  if isinstance(pe, PChar) and len(pe.text) > 0:
-    return PChar.new(pe.text[1:])
-  if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
-    first = PChar.new(pe.es[0].text[1:])
-    return PSeq(first, *pe.es[1:])
-  return FAIL
+    if isinstance(pe, PChar) and len(pe.text) > 0:
+        return PChar.new(pe.text[1:])
+    if isinstance(pe, PSeq) and isinstance(pe.es[0], PChar) and len(pe.es[0].text) > 0:
+        first = PChar.new(pe.es[0].text[1:])
+        return PSeq(first, *pe.es[1:])
+    return FAIL
+
 
 def appendOre(ps: list, pe, cmap=None, deref=False):
-  start = pe
-  while deref and (isinstance(pe, PRef) or isinstance(pe, PName)):
-      pe = pe.deref()
-  if isinstance(pe, POre):
-      for e in pe:
-          appendOre(ps, e, cmap, deref)
-      return
-  if len(ps) > 0:
-    e0 = ps[-1]
-    if isEmpty(e0): 
-      return
-    if isSingleCharacter(e0) and isSingleCharacter(pe):
-      ps[-1] = mergeRange(e0, pe)
-      return
-  c = prefixChar(pe)
-  if c is not None and cmap != None:
-    if c not in cmap:
-      cmap[c] = len(ps)
-      ps.append([pe])
-    else:
-      nested_choice = ps[cmap[c]]
-      nested_choice.append(pe)
-    return
-  ps.append(start)
+    start = pe
+    while deref and (isinstance(pe, PRef) or isinstance(pe, PName)):
+        pe = pe.deref()
+    if isinstance(pe, POre):
+        for e in pe:
+            appendOre(ps, e, cmap, deref)
+        return
+    if len(ps) > 0:
+        e0 = ps[-1]
+        if isEmpty(e0):
+            return
+        if isSingleCharacter(e0) and isSingleCharacter(pe):
+            ps[-1] = mergeRange(e0, pe)
+            return
+    c = prefixChar(pe)
+    if c is not None and cmap != None:
+        if c not in cmap:
+            cmap[c] = len(ps)
+            ps.append([pe])
+        else:
+            nested_choice = ps[cmap[c]]
+            nested_choice.append(pe)
+        return
+    ps.append(start)
 
-def newOre(ps: list, cmap = None, deref = False):
+
+def newOre(ps: list, cmap=None, deref=False):
     optimized = []
     for e in ps:
-      appendOre(optimized, e, cmap, deref)
+        appendOre(optimized, e, cmap, deref)
     for i in range(len(optimized)):
-      if not isinstance(optimized[i], list):
-        continue
-      nested_choice = optimized[i]
-      if len(nested_choice) == 1:
-        optimized[i] = nested_choice[0]
-      else:
-        first = PChar(prefixChar(nested_choice[0]))
-        nested = []
-        for ne in nested_choice:
-          ne = dc(ne)
-          appendOre(nested, ne)
-        optimized[i] = PSeq.new(first, newOre(nested, {}))
+        if not isinstance(optimized[i], list):
+            continue
+        nested_choice = optimized[i]
+        if len(nested_choice) == 1:
+            optimized[i] = nested_choice[0]
+        else:
+            first = PChar(prefixChar(nested_choice[0]))
+            nested = []
+            for ne in nested_choice:
+                ne = dc(ne)
+                appendOre(nested, ne)
+            optimized[i] = PSeq.new(first, newOre(nested, {}))
     ps = optimized
     optimized = []
     for e in ps:
-      appendOre(optimized, e, None, False)
+        appendOre(optimized, e, None, False)
     if len(optimized) == 0:
-      return FAIL
+        return FAIL
     if len(optimized) == 1:
-      return optimized[0]
+        return optimized[0]
     if len(optimized) == 2 and isEmpty(optimized[1]):
-      return POption(optimized[0])
+        return POption(optimized[0])
     return POre(*optimized)
 
 #
 # Out of order execution
 #
 
+
 def fixedSize(e: PExpr):
     if isinstance(e, PRange) or isinstance(e, PAny):
-      return 1
+        return 1
     if isinstance(e, PChar):
-      return len(e.text)
+        return len(e.text)
     if isinstance(e, PAnd) or isinstance(e, PNot):
-      return 0
+        return 0
     return -1
 
 
 def splitFixed(e, conv=lambda x: x):
     ps = flattenSeq(e, [], conv)
     if fixedSize(ps[0]) == -1:
-      return None, -1, e
+        return None, -1, e
     shift = 0
     fixed = []
     for e in ps:
-      size = fixedSize(e)
-      if size == -1:
-          break
-      shift += size
-      fixed.append(e)
+        size = fixedSize(e)
+        if size == -1:
+            break
+        shift += size
+        fixed.append(e)
     #print('@', fixed, shift, ps[len(fixed):])
     return fixed, shift, ps[len(fixed):]
 
 ###
+
 
 class Optimizer(object):
 
@@ -304,16 +376,17 @@ class Optimizer(object):
 
     # Ore
     def POre(self, pe: POre):
-        if pe.isDict() and len(pe.es) > 8: return pe
+        if pe.isDict() and len(pe.es) > 8:
+            return pe
         ps = flattenOre(pe, [], lambda e: self.visit(e))
-        return newOre(ps,{})
+        return newOre(ps, {})
 
     # Tree Construction
 
     def PNode(self, pe: PNode):
         e = self.visit(pe.e)
         fixed, shift, ves = splitFixed(e)
-        if fixed is None: # or not self.Ooox:
+        if fixed is None:  # or not self.Ooox:
             return PNode(e, pe.tag, pe.shift)
         fixed.append(PNode(newSeq(ves), pe.tag, pe.shift - shift))
         return newSeq(fixed)
@@ -322,7 +395,7 @@ class Optimizer(object):
         e = self.visit(pe.e)
         fixed, shift, ves = splitFixed(e)
         if fixed is None:
-          return PEdge(pe.edge, e, pe.shift)
+            return PEdge(pe.edge, e, pe.shift)
         fixed.append(PEdge(pe.edge, newSeq(ves), pe.shift - shift))
         return newSeq(fixed)
 
@@ -343,31 +416,33 @@ class Optimizer(object):
 
 optimizer = Optimizer()
 
+
 def default_optimizer(e):
-  return optimizer.visit(e)
+    return optimizer.visit(e)
 
 
 # def default_optimizer(e):
 #   return e
 
 def optimize(e):
-  return optimizer.visit(e)
+    return optimizer.visit(e)
+
 
 def prepare(peg: Grammar, start_name=None, optimize_function=default_optimizer):
-  #peg = peg
-  if start_name is None: start_name = peg.start()
-  start_ref = peg.newRef(start_name)
-  refs = makeMinimumRules(start_ref, {}, [])
-  refs = sortRules(refs)
-  rules = {}
-  memos = []
-  for ref in refs:
-    uname = ref.uname(peg)
-    rules[uname] = optimize_function(ref.deref())
-    memos.append(uname)
-    # if str(rules[uname]) != str(ref.deref()):
-    #   print('OPTIMIZE', ref.deref(), '\n\t=>', rules[uname])
-  if 'packrat' not in peg:
-    memos.clear()
-  return start_ref, refs, rules, memos
-
+    #peg = peg
+    if start_name is None:
+        start_name = peg.start()
+    start_ref = peg.newRef(start_name)
+    refs = makeMinimumRules(start_ref, {}, [])
+    refs = sortRules(refs)
+    rules = {}
+    memos = []
+    for ref in refs:
+        uname = ref.uname(peg)
+        rules[uname] = optimize_function(ref.deref())
+        memos.append(uname)
+        # if str(rules[uname]) != str(ref.deref()):
+        #   print('OPTIMIZE', ref.deref(), '\n\t=>', rules[uname])
+    if 'packrat' not in peg:
+        memos.clear()
+    return start_ref, refs, rules, memos

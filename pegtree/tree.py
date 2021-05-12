@@ -112,12 +112,14 @@ class ParseTree(list):
             return getattr(self, key)
         return self[key]
 
-    def set(self, key, t):
-        assert isinstance(t, ParseTree)
+    def set(self, key, tree):
+        assert isinstance(tree, ParseTree)
+        self.spos_ = min(self.spos_, tree.spos_)
+        self.epos_ = min(self.epos_, tree.epos_)
         if key == '':
-            self.append(t)
+            self.append(tree)
         else:
-            setattr(self, key, t)
+            setattr(self, key, tree)
 
     def getToken(self, key=None, default_token=''):
         if key is None:

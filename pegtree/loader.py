@@ -12,14 +12,6 @@ from .visitor import Visitor
 # BuiltIn_NonTerminal
 #
 
-BuiltIn_NonTerminal = {
-    'W': PRange('_', 'AZaz09'),
-    'LF': POre(PChar('\r\n'), PChar('\n')),
-    'EOF': PNot(PAny()),
-    '_': PMany(PRange(' \t', '')),
-    '__': PMany(PRange(' \t\r\n', '')),
-}
-
 TPEGParser = generate(TPEGGrammar['Start'])
 
 
@@ -110,40 +102,13 @@ class TPEGLoader(Visitor):
             return PChar(chars[0])
         return PRange(''.join(chars), ''.join(ranges))
 
-    def newRef(self, name):
-        if name in self.names:
-            return self.peg.newRef(name)
-        if name in BuiltIn_NonTerminal:
-            return BuiltIn_NonTerminal[name]
-        es = [PChar(name)]
-        if len(name) > 0 and name[-1].isalnum():
-            es.append(PNot(self.newRef('W')))
-        es.append(self.newRef('_'))
-        return PSeq(*es)
-
     def acceptName(self, ptree):
         name = ptree.getToken()
-        if name in self.names:
-            ref = self.peg.newRef(name)
-            return PName(ref, ref.uname(), ptree)
-        if name in BuiltIn_NonTerminal:
-            return self.newRef(name)
-        if name[0].isupper() or name.startswith('_'):  # or name[0].islower() :
-            self.perror(ptree, f'undefined nonterminal {name}')
-            self.peg['@error'] = True
-            self.peg[name] = EMPTY
-            return self.peg.newRef(name)
-        self.warning(ptree, f'undefined nonterminal {name}')
-        return self.newRef(name)
+        return PName(self.peg, name, ptree)
 
     def acceptQuoted(self, ptree):
         name = ptree.getToken()
-        if name in self.names:
-            ref = self.peg.newRef(name)
-            return PName(ref, ref.uname(), ptree)
-        self.warning(ptree, f'undefined terminal {name}')
-        name = name[1:-1]
-        return self.newRef(name)
+        return PName(self.peg, name, ptree)
 
     def acceptMany(self, ptree):
         return PMany(self.visit(ptree.e))
@@ -272,7 +237,7 @@ def load_grammar(peg, file_or_text, **options):
         basepath = (str(Path(basepath).resolve().parent))
     options['basepath'] = basepath
     if ptree.isSyntaxError():
-        console.perror(ptree, 'Syntax Error')
+        perror(ptree, 'Syntax Error')
         peg['@error'] = True
         return
     pconv = TPEGLoader(peg, **options)

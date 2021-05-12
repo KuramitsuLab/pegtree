@@ -1,7 +1,7 @@
 from pegtree.peg import *
 import pegtree.pasm as pasm
 from pegtree.optimizer import prepare
-#from pegtree.terminal import DefaultConsole as console
+from pegtree.terminal import DefaultConsole as console
 
 
 class Generator(object):
