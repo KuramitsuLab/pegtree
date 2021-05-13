@@ -72,7 +72,7 @@ def inline(pe: PExpr, filter=isCharOrRange):
         pe = pe.deref()
     if filter(pe):
         if(pe != start):
-            DEBUG('INLINE', start, '=>', pe)
+            logger.info('INLINE', start, '=>', pe)
         return pe
     return start
 
