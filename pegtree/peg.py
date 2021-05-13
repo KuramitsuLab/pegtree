@@ -423,8 +423,8 @@ class PRef(PExpr):
         return self.peg[self.name]
 
     def deref(self):
-        if self.name not in self.peg:
-            store_default_parsing_expression(self.peg, self.name, self.tree)
+        # if self.name not in self.peg:
+        #     store_default_parsing_expression(self.peg, self.name, self.tree)
         return self.peg[self.name]
 
     def isNullable(self):
@@ -446,13 +446,15 @@ class PName(PUnary):
     def __init__(self, peg: Grammar, name: str, tree: ParseTree = None, isLeftRec=False):
         super().__init__(peg if isinstance(peg, PRef) else peg.newRef(name))
         self.name = name
-        self.ptree = tree
+        self.tree = tree
         self.isLeftRec = isLeftRec
 
     def __repr__(self):
         return repr(self.e)
 
     def deref(self):
+        if self.name not in self.e.peg:
+            store_default_parsing_expression(self.e.peg, self.name, self.tree)
         return self.e.deref()
 
     def isNullable(self):
@@ -467,32 +469,6 @@ class PName(PUnary):
     def minLen(self):
         return self.e.minLen()
 
-# class PRef(PExpr):
-#     name: str
-#     peg: object  # Grammar
-#     tree: ParseTree
-#     isLeftRec: bool
-#     isLazy: bool
-
-#     # PName.__init__(self, e, name: str, ptree, isLeftRec=False):
-
-#     def __init__(self, peg, name, tree=None):
-#         self.peg = peg
-#         self.name = name
-#         self.tree = None
-#         self.isLeftRec = False
-#         self.isLazy = False
-
-#     def __repr__(self):
-#         return self.name
-
-#     def uname(self, peg=None):
-#         if self.peg == peg:
-#             return self.name
-#         return f'{self.peg.ns}{self.name}'
-
-
-# PName0 = PRef  # Compatibility
 
 DefaultNonTerminals = {
 
@@ -500,6 +476,7 @@ DefaultNonTerminals = {
 
 
 def store_default_parsing_expression(peg, name, sp: ParseTree):
+    global DefaultNonTerminals
     if len(DefaultNonTerminals) == 0:
         DefaultNonTerminals = {
             '_': PMany(PRange(' \t\u3000', '')),
@@ -508,7 +485,7 @@ def store_default_parsing_expression(peg, name, sp: ParseTree):
             'ALPHA': PRange('', 'AZaz'),
         }
     if name.startswith('"') and name.startswith('"'):
-        string_literal = PSeq.new(PChar.new(name[1:-1]), PRef(peg, '_'))
+        string_literal = PSeq.new(PChar.new(name[1:-1]), PName(peg, '_', sp))
         peg[name] = string_literal
     elif ord(name[0]) > 127:  # utf文字
         peg[name] = PChar.new(name)

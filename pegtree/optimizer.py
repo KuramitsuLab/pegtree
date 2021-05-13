@@ -82,6 +82,9 @@ def inline(pe: PExpr, filter=isCharOrRange):
 
 
 def makeMinimumRules(pe: PExpr, visited: dict, rules: list):
+    if isinstance(pe, PName):
+        pe.deref()
+        pe = pe.e
     if isinstance(pe, PRef):
         uname = pe.uname()
         if uname not in visited:
@@ -353,7 +356,7 @@ class Optimizer(object):
         return pe
 
     def PName(self, pe):
-        return PName(self.visit(pe.e), pe.name, pe.ptree, pe.isLeftRec)
+        return PName(self.visit(pe.e), pe.name, pe.tree, pe.isLeftRec)
 
     def PAnd(self, pe):
         return PAnd(self.visit(pe.e))

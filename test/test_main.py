@@ -11,7 +11,7 @@ class TestMain(unittest.TestCase):
 
     def test_example(self):
         print('pegtree sample')
-        main(['', 'example', '-g', 'math.tpeg'])
+        main(['', 'example', '-g', 'math.pegtree'])
 
     def test_peg(self):
         print('pegtree peg -g math.tpeg')
