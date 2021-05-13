@@ -692,6 +692,23 @@ class PAction(PUnary):
     def cname(self):
         return self.func.capitalize()
 
+# Visitor
+
+
+class PExprVisitor(object):
+
+    def visit(self, pe: PExpr):
+        key = f'accept{pe.__class__.__name__}'
+        if hasattr(self, key):
+            acceptMethod = getattr(self, key)
+            return acceptMethod(pe)
+        return self.visitUndefined(pe)
+
+    def visitUndefined(self, pe):
+        logger.warning(
+            f'(TODO) define accept{pe.__class__.__name__} in {self.__class__.__name__}')
+        return None
+
 
 # CONSTANT
 EMPTY = PChar('')
@@ -709,36 +726,6 @@ def isAny(pe):
 
 def isSingleCharacter(pe):
     return (isinstance(pe, PChar) and len(pe.text) == 1) or isinstance(pe, PRange) or isinstance(pe, PAny)
-
-
-# class Visitor(object):
-#     visited: dict
-
-#     def __init__(self, visited):
-#         self.visited = visited
-
-#     def visit(self, pe: PExpr):
-#         if self.visited is not None and isinstance(pe, PExpr):
-#             if pe.name in self.visited:
-#                 return self.visited[pe.name]
-#         key = f'accept{pe.__class__.__name__}'
-#         if hasattr(self, key):
-#             f = getattr(self, key)
-#             return f(pe)
-#         if isinstance(pe, PExpr):
-#             return self.visitPUnary(pe)
-#         if isinstance(pe, PTuple):
-#             return self.visitPTuple(pe)
-#         return self.visitUndefined(pe)
-
-#     def visitPUnary(self, pe):
-#         return self.visitUndefined(pe)
-
-#     def visitPTuple(self, pe):
-#         return self.visitUndefined(pe)
-
-#     def visitUndefined(self, pe):
-#         return self.visitUndefined(pe)
 
 
 def checkLeftRec(peg, name, e=None, visited=None):
