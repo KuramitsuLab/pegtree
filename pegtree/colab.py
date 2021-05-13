@@ -3,6 +3,7 @@ import pegtree.graph as graph
 from IPython.display import Image, HTML, SVG, display
 from IPython.core.magic import register_cell_magic, register_line_cell_magic
 
+
 def is_env_notebook():
     """Determine wheather is the environment Jupyter Notebook"""
     if 'get_ipython' not in globals():
@@ -27,11 +28,13 @@ def parse_example(peg, line):
         print('Input:', line)
         return parser(line)
 
+
 def start_option(line):
     if line.startswith('-s ') or line.startswith('--start '):
         _, start, path = line.split()
         return start, path
     return None, line
+
 
 def test_example(peg, start=None):
     if '@@example' not in peg:
@@ -48,10 +51,12 @@ def test_example(peg, start=None):
         tree = parsers[name](doc.inputs_, doc.urn_, doc.spos_, doc.epos_)
         ok = doc.inputs_[doc.spos_:tree.epos_]
         fail = doc.inputs_[tree.epos_:doc.epos_]
-        display(HTML(f'<b>{name}</b> {ok}<span style="background-color:#FFCACA;">{fail}</span>'))
+        display(
+            HTML(f'<b>{name}</b> {ok}<span style="background-color:#FFCACA;">{fail}</span>'))
         v = graph.draw_graph(tree)
-        v.format='SVG'
+        v.format = 'SVG'
         display(SVG(v.render()))
+
 
 @register_cell_magic
 def peg(line, src):
@@ -65,11 +70,13 @@ def peg(line, src):
             f.write(src)
             print(f'wrote {file}')
 
+
 @register_line_cell_magic
 def example(line, src=''):
     start, path = start_option(line.strip())
     peg = pg.grammar(path)
     test_example(peg, start)
+
 
 @register_cell_magic
 def parse(line, src=''):
@@ -83,12 +90,33 @@ def parse(line, src=''):
     print(repr(tree))
     return graph.draw_graph(tree)
 
+
 @register_line_cell_magic
 def pegtree(line, src=''):
     if line.endswith('.tpeg') or line.endswith('.pegtree'):
         return parse(line, src)
     else:
         return peg(line, src)
+
+
+@register_line_cell_magic
+def pegtree(line, src=''):
+    if line.endswith('.tpeg') or line.endswith('.pegtree'):
+        if src == '':
+            return example(line, src)
+        else:
+            return parse(line, src)
+    else:
+        return peg(line, src)
+
+
+@register_line_cell_magic
+def pasm(line, src=''):
+    start, path = start_option(line.strip())
+    peg = pg.grammar(path)
+    from pegtree.nezcc import parsec
+    return parsec(peg, {})
+
 
 @register_line_cell_magic
 def match(line, src):
@@ -98,7 +126,8 @@ def match(line, src):
         res = parser(line)
         print(repr(res))
 
-## new command
+# new command
+
 
 def parse_option(ss):
     d = {}
@@ -117,9 +146,11 @@ def parse_option(ss):
         arguments.remove(s)
     return arguments, d
 
+
 def load_grammar(files, options):
     peg = pg.grammar(files[0])
     return peg
+
 
 @register_line_cell_magic
 def extract(line, cell=''):
