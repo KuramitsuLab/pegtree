@@ -249,7 +249,7 @@ Grammar.load = load_grammar
 
 def findpath(paths, file_or_text):
     if file_or_text.find('=') > 0 or file_or_text.find('<-') > 0:
-        return file_or_text
+        return file_or_text, 0
     for p in paths:
         path = Path(p) / file_or_text
         if path.is_file():
