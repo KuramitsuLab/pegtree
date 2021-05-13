@@ -6,7 +6,7 @@ from pathlib import Path
 from .peg import *
 from .pasm import generate
 from .tpeg_pasm import TPEGGrammar
-from .visitor import Visitor
+from .visitor import ParseTreeVisitor
 
 #
 # BuiltIn_NonTerminal
@@ -15,9 +15,9 @@ from .visitor import Visitor
 TPEGParser = generate(TPEGGrammar['Start'])
 
 
-class TPEGLoader(Visitor):
+class TPEGLoader(ParseTreeVisitor):
     def __init__(self, peg, **options):
-        Visitor.__init__(self)
+        ParseTreeVisitor.__init__(self)
         self.names = {}
         self.peg = peg
         self.options = options

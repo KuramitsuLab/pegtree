@@ -54,8 +54,10 @@ def log(type, pos, *msg):
         showing(pos, str(msg))
 '''
 
+
 def version():
-    print(DefaultConsole.bold('PEGTree - A PEG Parser Generator with Tree Annotation'))
+    print(DefaultConsole.bold(
+        'PEGTree - A PEG Parser Generator with Tree Annotation'))
 
 
 def read_inputs(a):
@@ -83,8 +85,8 @@ def readlines(prompt):
                 break
         return '\n'.join(l)
 
-def parse_options(argv):
 
+def parse_options(argv):
 
     options = {
         '-v': ('verbose', True),
@@ -102,6 +104,7 @@ def parse_options(argv):
         '-O2': ('-O', 2),
         '-O2': ('-O', 3),
     }
+
     def parse_each(a, d):
         first = a[0]
         if first.startswith('-'):
@@ -114,7 +117,7 @@ def parse_options(argv):
                 else:
                     d[key] = value
                     return a[1:]
-            #d['inputs'].append(a)
+            # d['inputs'].append(a)
             raise CommandUsageError
         else:
             d['inputs'].append(a[0])
@@ -124,7 +127,7 @@ def parse_options(argv):
     while len(argv) > 0:
         argv = parse_each(argv, d)
     #print('OPTION', d)
-    if d['verbose'] :
+    if d['verbose']:
         DefaultConsole.isverbose = True
     return d
 
@@ -156,7 +159,9 @@ def usage():
     print(" list       all sample grammars")
     print(" update     update pegtree (via pip)")
 
+
 showingTPEG = False
+
 
 def load_grammar(options, default=None):
     global showingTPEG
@@ -166,7 +171,7 @@ def load_grammar(options, default=None):
         options['urn'] = f'(-e {repr(expr)})'
         return pegtree.grammar(grammar, **options)
     file = options.get('grammar', default)
-    if file is None:        
+    if file is None:
         print('Enter a TPEG grammar')
         sb = []
         try:
@@ -190,7 +195,7 @@ def load_grammar(options, default=None):
 
 
 def generator(options):
-    #if 'parser' in options:
+    # if 'parser' in options:
     #    m = importlib.import_module(options['parser'])
     #    return m.generate
     return pegtree.generate
@@ -215,6 +220,7 @@ def colorTree(t):
         return "".join(sb)
 
 # parse command
+
 
 def sample(options):
     files = os.listdir(Path(__file__).parent / 'grammar')
@@ -346,6 +352,17 @@ def pasm(options):
     parsec(peg, **options)
 
 
+def jsonfy(options):
+    from .visitor import JSONfy
+    import json
+    peg = load_grammar(options)
+    parser = generator(options)(peg, **options)
+    for file in options['inputs']:
+        tree = parser(read_inputs(file))
+        value = JSONfy.convert(tree)
+        print(json.dumps(value))
+
+
 def pasmcc(options):
     from pegtree.nezcc import parsec
     peg = load_grammar(options)
@@ -360,7 +377,8 @@ def cjtoken(options, conv=None):
     for file in options['inputs']:
         with open(file) as f:
             for line in f.readlines():
-                if line.startswith('#'): continue 
+                if line.startswith('#'):
+                    continue
                 line = line.replace('\n', '')
                 print(line)
                 tree = parser(line)
@@ -368,6 +386,7 @@ def cjtoken(options, conv=None):
                 for token in cj.tokenize(tree):
                     print(repr(token))
                 print()
+
 
 def update(options):
     try:
@@ -386,6 +405,7 @@ def update_beta(options):
     except:
         pass
 
+
 def main(argv=sys.argv):
     names = globals()
     if len(argv) > 1:
@@ -399,7 +419,6 @@ def main(argv=sys.argv):
             names[cmd](options)
             return
     usage()
-
 
 
 if __name__ == "__main__":
