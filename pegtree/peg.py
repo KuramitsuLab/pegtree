@@ -481,8 +481,10 @@ def store_default_parsing_expression(peg, name, sp: ParseTree):
         DefaultNonTerminals = {
             '_': PMany(PRange(' \t\u3000', '')),
             '__': PMany(PRange(' \t\r\n\u3000', '')),
+            'EOF': PNot(ANY),
             'DIGIT': PRange('', '09'),
             'ALPHA': PRange('', 'AZaz'),
+            'W': PRange('_', 'AZaz09'),
         }
     if name.startswith('"') and name.startswith('"'):
         string_literal = PSeq.new(PChar.new(name[1:-1]), PName(peg, '_', sp))
