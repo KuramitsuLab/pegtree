@@ -25,3 +25,8 @@ __pycache__
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# cython
+pegtree/*.c
+pegtree/*.so
+pegtree/__pycache__/*
